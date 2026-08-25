@@ -7,7 +7,7 @@ export function createInteractiveRipples() {
   let ambient = [];
   let width = 0, height = 0;
   let time = 0;
-  let currentPalette = 'aurora';
+  let currentPalette = 'atmosphere';
   let autoTimer = 0;
   let ringMesh = null;
   let ambientField = null;
@@ -42,7 +42,7 @@ export function createInteractiveRipples() {
   return {
     init(w, h, params, group) {
       width = w; height = h;
-      currentPalette = params.palette || 'aurora';
+      currentPalette = params.palette || 'atmosphere';
       time = 0; autoTimer = 0;
       ripples = [];
       ambient = [];

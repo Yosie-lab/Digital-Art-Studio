@@ -11,19 +11,19 @@ export class ArtEngine {
       powerPreference: 'high-performance',
       preserveDrawingBuffer: true,
     });
-    this.renderer.setClearColor(0x0a0a12, 1);
+    this.renderer.setClearColor(0x000510, 1);
     this.renderer.autoClear = false;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.FogExp2(0x0a0a12, 0.0009);
+    this.scene.fog = new THREE.FogExp2(0x000510, 0.0009);
 
     this.camera = new THREE.PerspectiveCamera(55, 1, 1, 5000);
     this.layer = new THREE.Group();
     this.scene.add(this.layer);
 
-    // 2D の rgba(10,10,18, 1-trail) 塗り潰し相当
-    this._bgColor = 0x0a0a12;
+    // Spacey Bloom 背景 #000510 + 2D 相当の trail フェード
+    this._bgColor = 0x000510;
     this._forceClear = true;
     this._fadeCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     this._fadeScene = new THREE.Scene();
@@ -37,7 +37,7 @@ export class ArtEngine {
     this._fadeScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this._fadeMaterial));
 
     const ambient = new THREE.AmbientLight(0xffffff, 0.55);
-    const key = new THREE.PointLight(0xa855f7, 1.1, 2400);
+    const key = new THREE.PointLight(0x00d4ff, 1.1, 2400);
     key.position.set(180, 220, 420);
     this.scene.add(ambient, key);
 
@@ -64,7 +64,7 @@ export class ArtEngine {
       speed: 1.0,
       trail: 0.85,
       gravity: 0,
-      palette: 'cyberpunk',
+      palette: 'silver',
     };
 
     this.audioData = {
