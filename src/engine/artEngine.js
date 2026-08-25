@@ -12,6 +12,7 @@ export class ArtEngine {
       preserveDrawingBuffer: true,
     });
     this.renderer.setClearColor(0x0a0a12, 1);
+    this.renderer.autoClear = false;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     this.scene = new THREE.Scene();
@@ -20,6 +21,20 @@ export class ArtEngine {
     this.camera = new THREE.PerspectiveCamera(55, 1, 1, 5000);
     this.layer = new THREE.Group();
     this.scene.add(this.layer);
+
+    // 2D の rgba(10,10,18, 1-trail) 塗り潰し相当
+    this._bgColor = 0x0a0a12;
+    this._forceClear = true;
+    this._fadeCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    this._fadeScene = new THREE.Scene();
+    this._fadeMaterial = new THREE.MeshBasicMaterial({
+      color: this._bgColor,
+      transparent: true,
+      opacity: 0.15,
+      depthTest: false,
+      depthWrite: false,
+    });
+    this._fadeScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this._fadeMaterial));
 
     const ambient = new THREE.AmbientLight(0xffffff, 0.55);
     const key = new THREE.PointLight(0xa855f7, 1.1, 2400);
@@ -79,6 +94,7 @@ export class ArtEngine {
     this.camera.aspect = this.width / Math.max(this.height, 1);
     this.camera.updateProjectionMatrix();
     this._fitCamera();
+    this._forceClear = true;
     this.activePreset?.resize?.(this.width, this.height);
   }
 
@@ -140,6 +156,7 @@ export class ArtEngine {
   setPreset(preset) {
     if (this.activePreset?.destroy) this.activePreset.destroy();
     clearGroup(this.layer);
+    this._forceClear = true;
     this.activePreset = preset;
     if (this.activePreset?.init) {
       this.activePreset.init(this.width, this.height, this.params, this.layer);
@@ -190,8 +207,27 @@ export class ArtEngine {
       this.activePreset.render?.(this.layer, this.width, this.height, this.params);
     }
 
-    this.renderer.render(this.scene, this.camera);
+    this._renderWithTrail();
     this.frameCount++;
     requestAnimationFrame(() => this._loop());
+  }
+
+  _renderWithTrail() {
+    const trail = this.params.trail ?? 0;
+    const fade = 1 - trail;
+
+    if (this._forceClear || fade >= 0.999) {
+      this.renderer.setClearColor(this._bgColor, 1);
+      this.renderer.clear(true, true, true);
+      this._forceClear = false;
+    } else {
+      this.renderer.clearDepth();
+      if (fade > 0.001) {
+        this._fadeMaterial.opacity = fade;
+        this.renderer.render(this._fadeScene, this._fadeCamera);
+      }
+    }
+
+    this.renderer.render(this.scene, this.camera);
   }
 }
