@@ -1,22 +1,18 @@
-/**
- * 🌊 Fluid Aurora プリセット
- * ノイズベースのフローフィールドで滑らかな光の流体エフェクト
- */
+import * as THREE from 'three';
 import { SimplexNoise, fbm } from '../../utils/noise.js';
 import { getPaletteColors, hexToRgb } from '../palettes.js';
+import { toWorld, makePoints, rgbToUnit } from '../space3d.js';
 
-/**
- * Fluid Aurora プリセットを生成
- * @returns {object} プリセットインターフェース
- */
 export function createFluidAurora() {
   const noise = new SimplexNoise();
   let particles = [];
   let width = 0, height = 0;
   let time = 0;
   let currentPalette = 'aurora';
+  let field = null;
+  let lineField = null;
+  const MAX = 1500;
 
-  /* --- 流体パーティクル --- */
   class FluidParticle {
     constructor(w, h) {
       this.reset(w, h);
@@ -25,10 +21,13 @@ export function createFluidAurora() {
     reset(w, h) {
       this.x = Math.random() * w;
       this.y = Math.random() * h;
+      this.z = (Math.random() - 0.5) * 180;
       this.prevX = this.x;
       this.prevY = this.y;
+      this.prevZ = this.z;
       this.vx = 0;
       this.vy = 0;
+      this.vz = 0;
       this.life = 0;
       this.maxLife = 1.5 + Math.random() * 3;
       this.colorIdx = Math.floor(Math.random() * 5);
@@ -38,26 +37,22 @@ export function createFluidAurora() {
     update(dt, w, h, speed, gravity) {
       this.prevX = this.x;
       this.prevY = this.y;
-
-      // フローフィールドの力を計算
+      this.prevZ = this.z;
       const scale = 0.0018;
       const angle = fbm(noise, this.x * scale, this.y * scale, time * 0.25, 3) * Math.PI * 4;
+      const lift = fbm(noise, this.z * scale, this.x * scale, time * 0.2, 2);
       const force = 90 * speed;
-
       this.vx += Math.cos(angle) * force * dt;
       this.vy += Math.sin(angle) * force * dt;
+      this.vz += (lift - 0.5) * force * 0.45 * dt;
       this.vy += gravity * 40 * dt;
-
-      // 減衰
       this.vx *= 0.97;
       this.vy *= 0.97;
-
+      this.vz *= 0.97;
       this.x += this.vx * dt;
       this.y += this.vy * dt;
-
+      this.z += this.vz * dt;
       this.life += dt;
-
-      // 画面外 or 寿命切れ → リセット
       if (this.x < -80 || this.x > w + 80 ||
           this.y < -80 || this.y > h + 80 ||
           this.life > this.maxLife) {
@@ -67,15 +62,35 @@ export function createFluidAurora() {
   }
 
   return {
-    init(w, h, params) {
+    init(w, h, params, group) {
       width = w; height = h;
       currentPalette = params.palette || 'aurora';
       time = 0;
       particles = [];
-      const count = Math.min(params.particleCount, 1500);
+      field = makePoints(MAX, 11);
+      group.add(field.points);
+
+      const lineGeo = new THREE.BufferGeometry();
+      const linePos = new Float32Array(MAX * 2 * 3);
+      const lineCol = new Float32Array(MAX * 2 * 3);
+      lineGeo.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
+      lineGeo.setAttribute('color', new THREE.BufferAttribute(lineCol, 3));
+      lineGeo.setDrawRange(0, 0);
+      const lineMat = new THREE.LineBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const lines = new THREE.LineSegments(lineGeo, lineMat);
+      lines.frustumCulled = false;
+      group.add(lines);
+      lineField = { geo: lineGeo, pos: linePos, col: lineCol, lines };
+
+      const count = Math.min(params.particleCount, MAX);
       for (let i = 0; i < count; i++) {
         const p = new FluidParticle(w, h);
-        p.life = Math.random() * p.maxLife; // ずらして初期化
+        p.life = Math.random() * p.maxLife;
         particles.push(p);
       }
     },
@@ -85,13 +100,9 @@ export function createFluidAurora() {
     update(dt, pointer, audioData, params) {
       time += dt;
       currentPalette = params.palette;
-
       const audioBoost = audioData.isActive ? 1 + audioData.volume * 2.5 : 1;
-
       particles.forEach(p => {
         p.update(dt, width, height, params.speed * audioBoost, params.gravity);
-
-        // マウスへの引き寄せ
         if (pointer.isDown || pointer.velocity > 5) {
           const dx = pointer.x - p.x;
           const dy = pointer.y - p.y;
@@ -105,61 +116,57 @@ export function createFluidAurora() {
           }
         }
       });
-
-      // パーティクル数調整
-      const target = Math.min(params.particleCount, 1500);
+      const target = Math.min(params.particleCount, MAX);
       while (particles.length < target) particles.push(new FluidParticle(width, height));
       while (particles.length > target) particles.pop();
     },
 
-    render(ctx, w, h, params) {
-      // 残像
-      ctx.fillStyle = `rgba(10,10,18,${1 - params.trail})`;
-      ctx.fillRect(0, 0, w, h);
-
+    render(_layer, _w, _h, params) {
+      if (!field) return;
       const colors = getPaletteColors(currentPalette);
-
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.lineWidth = 1;
-
-      particles.forEach(p => {
+      field.mat.size = 6 + params.particleSize * 0.9;
+      let lineCount = 0;
+      particles.forEach((p, i) => {
         const c = hexToRgb(colors[p.colorIdx % colors.length]);
+        const [r, g, b] = rgbToUnit(c);
         const lifeRatio = p.life / p.maxLife;
-        // 寿命に応じてフェードイン・アウト
-        const alpha = Math.sin(lifeRatio * Math.PI) * 0.55;
-        const sz = params.particleSize * p.size * (0.5 + Math.sin(lifeRatio * Math.PI) * 0.5);
+        const alpha = Math.sin(lifeRatio * Math.PI) * 0.85;
+        const wpos = toWorld(p.x, p.y, p.z, width, height);
+        field.positions[i * 3] = wpos.x;
+        field.positions[i * 3 + 1] = wpos.y;
+        field.positions[i * 3 + 2] = wpos.z;
+        field.colors[i * 3] = r * alpha;
+        field.colors[i * 3 + 1] = g * alpha;
+        field.colors[i * 3 + 2] = b * alpha;
 
-        if (alpha < 0.01) return;
-
-        // 線で描画（流れの軌跡感を出す）
-        const dx = p.x - p.prevX;
-        const dy = p.y - p.prevY;
-        const trailLen = Math.sqrt(dx * dx + dy * dy);
-
-        if (trailLen > 1) {
-          ctx.beginPath();
-          ctx.moveTo(p.prevX, p.prevY);
-          ctx.lineTo(p.x, p.y);
-          ctx.strokeStyle = `rgba(${c.r},${c.g},${c.b},${alpha})`;
-          ctx.lineWidth = sz;
-          ctx.lineCap = 'round';
-          ctx.stroke();
-        }
-
-        // 光の点
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, sz * 0.6, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${c.r},${c.g},${c.b},${alpha * 0.7})`;
-        ctx.fill();
+        const prev = toWorld(p.prevX, p.prevY, p.prevZ, width, height);
+        const li = lineCount * 6;
+        lineField.pos[li] = prev.x;
+        lineField.pos[li + 1] = prev.y;
+        lineField.pos[li + 2] = prev.z;
+        lineField.pos[li + 3] = wpos.x;
+        lineField.pos[li + 4] = wpos.y;
+        lineField.pos[li + 5] = wpos.z;
+        lineField.col[li] = r * alpha * 0.35;
+        lineField.col[li + 1] = g * alpha * 0.35;
+        lineField.col[li + 2] = b * alpha * 0.35;
+        lineField.col[li + 3] = r * alpha;
+        lineField.col[li + 4] = g * alpha;
+        lineField.col[li + 5] = b * alpha;
+        lineCount++;
       });
-
-      ctx.globalCompositeOperation = 'source-over';
+      field.geo.setDrawRange(0, particles.length);
+      field.geo.attributes.position.needsUpdate = true;
+      field.geo.attributes.color.needsUpdate = true;
+      lineField.geo.setDrawRange(0, lineCount * 2);
+      lineField.geo.attributes.position.needsUpdate = true;
+      lineField.geo.attributes.color.needsUpdate = true;
     },
 
     onPointerDown() {},
     onPointerMove() {},
     onPointerUp() {},
     setParams(p) { currentPalette = p.palette; },
-    destroy() { particles = []; },
+    destroy() { particles = []; field = null; lineField = null; },
   };
 }

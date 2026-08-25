@@ -1,27 +1,41 @@
-/**
- * メイン描画エンジン
- * Canvas管理、アニメーションループ、ポインタ入力、プリセット切替を統括
- */
+import * as THREE from 'three';
+import { clearGroup } from './space3d.js';
+
 export class ArtEngine {
-  /**
-   * @param {HTMLCanvasElement} canvas
-   */
   constructor(canvas) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d', { willReadFrequently: false });
+    this.renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: false,
+      alpha: false,
+      powerPreference: 'high-performance',
+      preserveDrawingBuffer: true,
+    });
+    this.renderer.setClearColor(0x0a0a12, 1);
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-    /** 現在アクティブなプリセットインスタンス */
+    this.scene = new THREE.Scene();
+    this.scene.fog = new THREE.FogExp2(0x0a0a12, 0.0009);
+
+    this.camera = new THREE.PerspectiveCamera(55, 1, 1, 5000);
+    this.layer = new THREE.Group();
+    this.scene.add(this.layer);
+
+    const ambient = new THREE.AmbientLight(0xffffff, 0.55);
+    const key = new THREE.PointLight(0xa855f7, 1.1, 2400);
+    key.position.set(180, 220, 420);
+    this.scene.add(ambient, key);
+
     this.activePreset = null;
     this.running = false;
     this.lastTime = 0;
     this.frameCount = 0;
+    this._elapsed = 0;
 
-    // FPS計測
     this.fps = 60;
     this._fpsTimer = 0;
     this._fpsFrames = 0;
 
-    // ポインタ状態 (マウス/タッチ共通)
     this.pointer = {
       x: 0, y: 0,
       prevX: 0, prevY: 0,
@@ -29,7 +43,6 @@ export class ArtEngine {
       velocity: 0,
     };
 
-    // デフォルトパラメーター
     this.params = {
       particleCount: 500,
       particleSize: 5,
@@ -39,13 +52,11 @@ export class ArtEngine {
       palette: 'cyberpunk',
     };
 
-    // オーディオデータ (外部から注入)
     this.audioData = {
       volume: 0, bass: 0, mid: 0, treble: 0,
       isActive: false, frequencyData: null, waveformData: null,
     };
 
-    // キャンバスサイズ (CSS pixel)
     this.width = 0;
     this.height = 0;
 
@@ -53,34 +64,31 @@ export class ArtEngine {
     this._bindEvents();
   }
 
-  /* ========== リサイズ ========== */
-
-  _resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2); // 最大2x
-    this.width = window.innerWidth;
-    this.height = window.innerHeight;
-    this.canvas.width = this.width * dpr;
-    this.canvas.height = this.height * dpr;
-    this.canvas.style.width = this.width + 'px';
-    this.canvas.style.height = this.height + 'px';
-    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    if (this.activePreset?.resize) {
-      this.activePreset.resize(this.width, this.height);
-    }
+  _fitCamera() {
+    const fov = THREE.MathUtils.degToRad(this.camera.fov);
+    this.camera.position.set(0, 0, this.height / (2 * Math.tan(fov / 2)));
+    this.camera.lookAt(0, 0, 0);
   }
 
-  /* ========== イベントバインド ========== */
+  _resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.width = window.innerWidth;
+    this.height = window.innerHeight;
+    this.renderer.setPixelRatio(dpr);
+    this.renderer.setSize(this.width, this.height, false);
+    this.camera.aspect = this.width / Math.max(this.height, 1);
+    this.camera.updateProjectionMatrix();
+    this._fitCamera();
+    this.activePreset?.resize?.(this.width, this.height);
+  }
 
   _bindEvents() {
-    // リサイズ (デバウンス付き)
     let resizeTimer;
     window.addEventListener('resize', () => {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => this._resize(), 100);
     });
 
-    // --- ポインタ更新ヘルパー ---
     const updatePointer = (x, y) => {
       this.pointer.prevX = this.pointer.x;
       this.pointer.prevY = this.pointer.y;
@@ -91,7 +99,6 @@ export class ArtEngine {
       this.pointer.velocity = Math.sqrt(dx * dx + dy * dy);
     };
 
-    // --- マウスイベント ---
     this.canvas.addEventListener('mousemove', (e) => {
       updatePointer(e.clientX, e.clientY);
       this.activePreset?.onPointerMove?.(e.clientX, e.clientY, this.pointer);
@@ -108,7 +115,6 @@ export class ArtEngine {
       this.activePreset?.onPointerUp?.(this.pointer);
     });
 
-    // --- タッチイベント ---
     this.canvas.addEventListener('touchstart', (e) => {
       e.preventDefault();
       const t = e.touches[0];
@@ -131,48 +137,23 @@ export class ArtEngine {
     }, { passive: false });
   }
 
-  /* ========== プリセット管理 ========== */
-
-  /**
-   * アクティブプリセットを切り替え
-   * @param {object} preset - createXxx() で生成されたプリセットオブジェクト
-   */
   setPreset(preset) {
-    // 古いプリセットを破棄
     if (this.activePreset?.destroy) this.activePreset.destroy();
-
-    // キャンバスをクリア
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
+    clearGroup(this.layer);
     this.activePreset = preset;
     if (this.activePreset?.init) {
-      this.activePreset.init(this.width, this.height, this.params);
+      this.activePreset.init(this.width, this.height, this.params, this.layer);
     }
   }
 
-  /* ========== パラメーター ========== */
-
-  /**
-   * パラメーターを更新 (差分マージ)
-   * @param {object} newParams
-   */
   setParams(newParams) {
     Object.assign(this.params, newParams);
     this.activePreset?.setParams?.(this.params);
   }
 
-  /**
-   * オーディオデータを外部から注入
-   * @param {object} data
-   */
   setAudioData(data) {
     this.audioData = data;
   }
-
-  /* ========== アニメーションループ ========== */
 
   start() {
     if (this.running) return;
@@ -189,10 +170,10 @@ export class ArtEngine {
     if (!this.running) return;
 
     const now = performance.now();
-    const dt = Math.min((now - this.lastTime) / 1000, 0.05); // 50msクランプ
+    const dt = Math.min((now - this.lastTime) / 1000, 0.05);
     this.lastTime = now;
+    this._elapsed += dt;
 
-    // FPS計測
     this._fpsFrames++;
     this._fpsTimer += dt;
     if (this._fpsTimer >= 0.5) {
@@ -201,12 +182,15 @@ export class ArtEngine {
       this._fpsTimer = 0;
     }
 
-    // プリセット更新 & 描画
+    this.layer.rotation.y = Math.sin(this._elapsed * 0.17) * 0.28;
+    this.layer.rotation.x = Math.sin(this._elapsed * 0.11) * 0.1;
+
     if (this.activePreset) {
       this.activePreset.update(dt, this.pointer, this.audioData, this.params);
-      this.activePreset.render(this.ctx, this.width, this.height, this.params);
+      this.activePreset.render?.(this.layer, this.width, this.height, this.params);
     }
 
+    this.renderer.render(this.scene, this.camera);
     this.frameCount++;
     requestAnimationFrame(() => this._loop());
   }
