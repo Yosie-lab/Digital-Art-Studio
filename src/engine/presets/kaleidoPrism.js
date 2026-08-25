@@ -8,7 +8,7 @@ export function createKaleidoPrism() {
   let shapes = [];
   let width = 0, height = 0;
   let time = 0;
-  let currentPalette = 'nebula';
+  let currentPalette = 'atmosphere';
   let segments = 8;
   let pointerAngle = 0;
   let pointerDist = 0;
@@ -45,7 +45,7 @@ export function createKaleidoPrism() {
   return {
     init(w, h, params, group) {
       width = w; height = h;
-      currentPalette = params.palette || 'nebula';
+      currentPalette = params.palette || 'atmosphere';
       time = 0;
       shapes = [];
       const geo = new THREE.OctahedronGeometry(1, 0);

@@ -8,7 +8,7 @@ export function createFlowerBloom() {
   let sparkles = [];
   let width = 0, height = 0;
   let time = 0;
-  let currentPalette = 'sakura';
+  let currentPalette = 'atmosphere';
   let layer = null;
   let petalMesh = null;
   let coreMesh = null;
@@ -174,7 +174,7 @@ export function createFlowerBloom() {
   return {
     init(w, h, params, group) {
       width = w; height = h;
-      currentPalette = params.palette || 'sakura';
+      currentPalette = params.palette || 'atmosphere';
       flowers = []; petals = []; sparkles = [];
       time = 0;
       layer = group;

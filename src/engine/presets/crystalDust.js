@@ -7,7 +7,7 @@ export function createCrystalDust() {
   let connections = [];
   let width = 0, height = 0;
   let time = 0;
-  let currentPalette = 'crystal';
+  let currentPalette = 'atmosphere';
   let field = null;
   let lineField = null;
   const MAX = 800;
@@ -87,7 +87,7 @@ export function createCrystalDust() {
   return {
     init(w, h, params, group) {
       width = w; height = h;
-      currentPalette = params.palette || 'crystal';
+      currentPalette = params.palette || 'atmosphere';
       time = 0;
       connections = [];
       particles = [];

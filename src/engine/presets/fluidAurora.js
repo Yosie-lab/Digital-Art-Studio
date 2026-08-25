@@ -8,7 +8,7 @@ export function createFluidAurora() {
   let particles = [];
   let width = 0, height = 0;
   let time = 0;
-  let currentPalette = 'crystal';
+  let currentPalette = 'atmosphere';
   let field = null;
   let lineField = null;
   const MAX = 1500;
@@ -64,7 +64,7 @@ export function createFluidAurora() {
   return {
     init(w, h, params, group) {
       width = w; height = h;
-      currentPalette = params.palette || 'crystal';
+      currentPalette = params.palette || 'atmosphere';
       time = 0;
       particles = [];
       field = makePoints(MAX, 11);
