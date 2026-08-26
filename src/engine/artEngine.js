@@ -61,12 +61,12 @@ export class ArtEngine {
     };
 
     this.params = {
-      particleCount: 500,
-      particleSize: 5,
-      speed: 1.0,
-      trail: 0.1,
+      particleCount: 1030,
+      particleSize: 15,
+      speed: 2.6,
+      trail: 0.49,
       gravity: 0,
-      palette: 'midnight',
+      palette: 'rainbow',
     };
 
     this.audioData = {

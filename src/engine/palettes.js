@@ -26,7 +26,7 @@ export const PALETTES = {
 };
 
 export function getPaletteColors(name) {
-  return PALETTES[name] || PALETTES.midnight;
+  return PALETTES[name] || PALETTES.rainbow;
 }
 
 export function hexToRgb(hex) {

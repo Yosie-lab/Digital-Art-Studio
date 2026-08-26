@@ -73,7 +73,7 @@ export function createFlowerBloom() {
   let sparkles = [];
   let width = 0, height = 0;
   let time = 0;
-  let currentPalette = 'midnight';
+  let currentPalette = 'rainbow';
   let layer = null;
   let petalMesh = null;
   let coreMesh = null;
@@ -199,7 +199,7 @@ export function createFlowerBloom() {
         dummy.updateMatrix();
         petalMesh.setMatrixAt(inst, dummy.matrix);
         if (flower) {
-          const c = displayColor(flower.rgb, 0.42 + flower.opacity * 0.28);
+          const c = displayColor(flower.rgb, 0.72 + flower.opacity * 0.45);
           petalMesh.setColorAt(inst, _color.setRGB(c.r, c.g, c.b));
         } else {
           petalMesh.setColorAt(inst, _color.setRGB(0, 0, 0));
@@ -212,8 +212,8 @@ export function createFlowerBloom() {
         dummy.scale.setScalar(Math.max(flower.size * 0.18, 0.01));
         dummy.updateMatrix();
         coreMesh.setMatrixAt(f, dummy.matrix);
-        const c = displayColor(flower.rgb, 0.38);
-        coreMesh.setColorAt(f, _color.setRGB(c.r * 0.7, c.g * 0.55, c.b));
+        const c = displayColor(flower.rgb, 0.62);
+        coreMesh.setColorAt(f, _color.setRGB(c.r * 0.8, c.g * 0.68, c.b));
       } else if (coreMesh) {
         dummy.position.set(0, 0, -4000);
         dummy.scale.setScalar(0.001);
@@ -272,7 +272,7 @@ export function createFlowerBloom() {
   return {
     init(w, h, params, group) {
       width = w; height = h;
-      currentPalette = params.palette || 'midnight';
+      currentPalette = params.palette || 'rainbow';
       flowers = []; petals = []; sparkles = [];
       time = 0;
       layer = group;
@@ -282,7 +282,7 @@ export function createFlowerBloom() {
       const petalMat = new THREE.MeshBasicMaterial({
         color: 0xffffff,
         transparent: true,
-        opacity: 0.62,
+        opacity: 0.9,
         side: THREE.DoubleSide,
         depthWrite: false,
         blending: THREE.AdditiveBlending,
@@ -296,7 +296,7 @@ export function createFlowerBloom() {
       const coreMat = new THREE.MeshBasicMaterial({
         color: 0xffffff,
         transparent: true,
-        opacity: 0.35,
+        opacity: 0.62,
         depthWrite: false,
         blending: THREE.AdditiveBlending,
       });
@@ -381,7 +381,7 @@ export function createFlowerBloom() {
 
     render() {
       syncMeshes();
-      if (petalMesh) petalMesh.material.opacity = 0.58;
+      if (petalMesh) petalMesh.material.opacity = 0.88;
     },
 
     onPointerDown(x, y) {

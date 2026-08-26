@@ -8,7 +8,7 @@ export function createKaleidoPrism() {
   let shapes = [];
   let width = 0, height = 0;
   let time = 0;
-  let currentPalette = 'midnight';
+  let currentPalette = 'rainbow';
   let segments = 8;
   let pointerAngle = 0;
   let pointerDist = 0;
