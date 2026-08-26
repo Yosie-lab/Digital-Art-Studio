@@ -39,7 +39,7 @@ export class ArtEngine {
     this._fadeScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this._fadeMaterial));
 
     const ambient = new THREE.AmbientLight(0x6080c0, 0.4);
-    const key = new THREE.PointLight(0x5080ff, 1.0, 2400);
+    const key = new THREE.PointLight(0x2a5cff, 1.25, 2400);
     key.position.set(180, 220, 420);
     this.scene.add(ambient, key);
 

@@ -52,10 +52,10 @@ function circleTexture() {
   c.width = c.height = 64;
   const g = c.getContext('2d');
   const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-  grd.addColorStop(0, 'rgba(120,170,255,0.9)');
-  grd.addColorStop(0.35, 'rgba(80,140,255,0.45)');
-  grd.addColorStop(0.7, 'rgba(40,100,220,0.15)');
-  grd.addColorStop(1, 'rgba(20,60,180,0)');
+  grd.addColorStop(0, 'rgba(255,255,255,1)');
+  grd.addColorStop(0.35, 'rgba(255,255,255,0.55)');
+  grd.addColorStop(0.7, 'rgba(255,255,255,0.18)');
+  grd.addColorStop(1, 'rgba(255,255,255,0)');
   g.fillStyle = grd;
   g.fillRect(0, 0, 64, 64);
   const tex = new THREE.CanvasTexture(c);

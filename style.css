@@ -10,14 +10,14 @@
   --glass-bg: rgba(1, 8, 24, 0.78);
   --glass-bg-hover: rgba(0, 17, 51, 0.88);
   --glass-border: rgba(255, 255, 255, 0.07);
-  --glass-border-hover: rgba(106, 155, 255, 0.36);
+  --glass-border-hover: rgba(42, 92, 255, 0.4);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
   --text-primary: rgba(224, 242, 254, 0.92);
   --text-secondary: rgba(224, 242, 254, 0.55);
   --text-muted: rgba(224, 242, 254, 0.28);
-  --accent: #6a9bff;
-  --accent-light: #3d7aff;
-  --accent-glow: rgba(106, 155, 255, 0.36);
+  --accent: #2a5cff;
+  --accent-light: #4a78ff;
+  --accent-glow: rgba(42, 92, 255, 0.4);
   --danger: #ef4444;
   --radius-lg: 20px;
   --radius: 14px;

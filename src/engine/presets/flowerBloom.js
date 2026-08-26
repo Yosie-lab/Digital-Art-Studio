@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { getPaletteColors, hexToRgb } from '../palettes.js';
 import { toWorld, makePoints, rgbToUnit } from '../space3d.js';
 
-function saturateRgb(rgb, amount = 0.04) {
+function saturateRgb(rgb, amount = 0.07) {
   const max = Math.max(rgb.r, rgb.g, rgb.b);
   const min = Math.min(rgb.r, rgb.g, rgb.b);
   const mid = (max + min) * 0.5;
@@ -19,28 +19,37 @@ function coolToneRgb(rgb) {
   const min = Math.min(rgb.r, rgb.g, rgb.b);
   const sat = max === 0 ? 0 : (max - min) / max;
   if (sat > 0.35 && max > 80) {
-    return saturateRgb(rgb, 0.02);
+    // 電光青は緑をさらに抑え、参照画像のトーンに寄せる
+    const isBlueDominant = rgb.b > rgb.r && rgb.b > rgb.g;
+    if (isBlueDominant) {
+      return {
+        r: Math.min(255, Math.round(rgb.r * 0.95)),
+        g: Math.min(255, Math.round(rgb.g * 0.72)),
+        b: Math.min(255, Math.round(rgb.b * 1.08 + 8)),
+      };
+    }
+    return saturateRgb(rgb, 0.05);
   }
   const b = Math.min(255, Math.round(rgb.b * 1.08 + 16));
   return {
     r: Math.min(Math.round(rgb.r * 0.7), Math.round(b * 0.55)),
-    g: Math.min(Math.round(rgb.g * 0.65), Math.round(b * 0.5)),
+    g: Math.min(Math.round(rgb.g * 0.55), Math.round(b * 0.4)),
     b,
   };
 }
 
 function vividPetalRgb(rgb) {
   const cool = coolToneRgb(rgb);
-  const vivid = saturateRgb(cool, 0.02);
+  const vivid = saturateRgb(cool, 0.05);
   return {
-    r: Math.min(255, Math.round(vivid.r * 1.05 + 4)),
-    g: Math.min(255, Math.round(vivid.g * 1.04 + 3)),
-    b: Math.min(255, Math.round(vivid.b * 1.05 + 4)),
+    r: Math.min(255, Math.round(vivid.r * 1.06 + 5)),
+    g: Math.min(255, Math.round(vivid.g * 1.05 + 3)),
+    b: Math.min(255, Math.round(vivid.b * 1.06 + 5)),
   };
 }
 
-function boostVividRgb(rgb, gain = 1.1) {
-  const cool = saturateRgb(coolToneRgb(rgb), 0.02);
+function boostVividRgb(rgb, gain = 1.12) {
+  const cool = saturateRgb(coolToneRgb(rgb), 0.04);
   return {
     r: Math.min(255, Math.round(cool.r * gain)),
     g: Math.min(255, Math.round(cool.g * gain)),
@@ -61,10 +70,12 @@ function randomFlowerPetalColor(paletteName) {
   const weighted = [];
   for (const hex of pool) {
     const { r, g, b } = hexToRgb(hex);
-    const isYellow = r > 160 && g > 120 && b < 140 && r + g > b * 2.2;
-    const isNavy = b > 100 && b > r * 1.4 && b > g * 1.2 && r < 90;
-    const isBlue = b > 180 && b > r && b > g && r < 120;
-    const copies = isNavy || isBlue ? 4 : isYellow ? 1 : 2;
+    const isYellow = r > 150 && g > 110 && b < 150 && r + g > b * 2.4;
+    // 参照画像系: 電光青（G低）or バイオレット
+    const isElectricBlue = b > 200 && g < 140 && r < 120 && b > g * 1.5;
+    const isViolet = b > 160 && r > 40 && r < 140 && g < r * 0.9 && b > r;
+    const isCyanish = b > 150 && g > b * 0.7 && g > r;
+    const copies = (isElectricBlue || isViolet) ? 6 : isCyanish || isYellow ? 1 : 2;
     for (let i = 0; i < copies; i++) weighted.push(hex);
   }
   const pick = weighted.length ? weighted : pool;
@@ -80,17 +91,16 @@ function brightenRgb(rgb) {
   };
 }
 
-function softWhiteRgb(rgb, whiten = 0.55) {
-  const cool = coolToneRgb(rgb);
+function petalParticleRgb(rgb, lift = 1.15) {
   return {
-    r: Math.min(235, Math.round(cool.r + (230 - cool.r) * whiten)),
-    g: Math.min(240, Math.round(cool.g + (235 - cool.g) * whiten * 0.95)),
-    b: Math.min(255, Math.round(cool.b + (255 - cool.b) * whiten * 0.85 + 8)),
+    r: Math.min(255, Math.round(rgb.r * lift)),
+    g: Math.min(255, Math.round(rgb.g * lift)),
+    b: Math.min(255, Math.round(rgb.b * lift)),
   };
 }
 
 function displayColor(rgb, scale = 1) {
-  const cool = saturateRgb(coolToneRgb(rgb), 0.0);
+  const cool = saturateRgb(coolToneRgb(rgb), 0.03);
   return {
     r: Math.min(1, (cool.r / 255) * scale),
     g: Math.min(1, (cool.g / 255) * scale),
@@ -134,6 +144,9 @@ export function createFlowerBloom() {
       this.rotation = Math.random() * Math.PI * 2;
       this.rotSpeed = (Math.random() - 0.5) * 0.3;
       this.tilt = (Math.random() - 0.5) * 0.7;
+      this.windPhase = Math.random() * Math.PI * 2;
+      this.windSpeed = 0.7 + Math.random() * 0.55;
+      this.windAmp = 0.12 + Math.random() * 0.1;
       this.color = randomFlowerPetalColor(palette);
       this.rgb = vividPetalRgb(hexToRgb(this.color));
       this.lifetime = 0;
@@ -183,9 +196,9 @@ export function createFlowerBloom() {
           rot: Math.random() * Math.PI * 2,
           rotSpeed: (Math.random() - 0.5) * 6,
           color: this.color,
-          rgb: softWhiteRgb(this.rgb, 0.62),
+          rgb: petalParticleRgb(this.rgb, 1.2),
           opacity: 1,
-          glow: 1.55 + Math.random() * 0.35,
+          glow: 1.45 + Math.random() * 0.3,
           kind: 'petal',
         });
       }
@@ -205,9 +218,9 @@ export function createFlowerBloom() {
           rot: Math.random() * Math.PI * 2,
           rotSpeed: (Math.random() - 0.5) * 8,
           color: this.color,
-          rgb: softWhiteRgb(this.innerRgb, 0.72),
+          rgb: petalParticleRgb(this.innerRgb || this.rgb, 1.25),
           opacity: 1,
-          glow: 1.7 + Math.random() * 0.4,
+          glow: 1.55 + Math.random() * 0.35,
           kind: 'dust',
         });
       }
@@ -226,11 +239,29 @@ export function createFlowerBloom() {
           dummy.position.set(0, 0, -4000);
           dummy.scale.set(0.001, 0.001, 0.001);
         } else {
+          // 風揺れ: 花全体 + 花びらごとのわずかな位相差
+          const wind = Math.sin(time * flower.windSpeed + flower.windPhase);
+          const wind2 = Math.sin(time * flower.windSpeed * 1.37 + flower.windPhase * 1.2);
+          const swayX = wind * flower.windAmp;
+          const swayZ = wind2 * flower.windAmp * 0.85;
+          const petalFlutter = Math.sin(time * flower.windSpeed * 1.8 + flower.windPhase + p * 0.9)
+            * flower.windAmp * 0.9;
+
           const angle = (p / flower.petalCount) * Math.PI * 2 + flower.rotation;
           dummy.position.copy(pos);
-          dummy.rotation.set(flower.tilt, angle, Math.PI * 0.35);
+          dummy.position.x += swayX * flower.size * 0.22;
+          dummy.position.z += swayZ * flower.size * 0.16;
+          dummy.rotation.set(
+            flower.tilt + swayX * 1.6 + petalFlutter,
+            angle + swayZ * 0.55,
+            Math.PI * 0.35 + petalFlutter * 1.1,
+          );
           dummy.translateY(flower.size * 0.45);
-          dummy.scale.set(flower.size * 0.42, flower.size * 0.95, 1);
+          dummy.scale.set(
+            flower.size * 0.42,
+            flower.size * (0.95 + petalFlutter * 0.18),
+            1,
+          );
         }
         dummy.updateMatrix();
         petalMesh.setMatrixAt(inst, dummy.matrix);
@@ -243,8 +274,12 @@ export function createFlowerBloom() {
         inst++;
       }
       if (flower && coreMesh) {
+        const wind = Math.sin(time * flower.windSpeed + flower.windPhase);
+        const wind2 = Math.sin(time * flower.windSpeed * 1.37 + flower.windPhase * 1.2);
         dummy.position.copy(pos);
-        dummy.rotation.set(0, 0, 0);
+        dummy.position.x += wind * flower.windAmp * flower.size * 0.16;
+        dummy.position.z += wind2 * flower.windAmp * flower.size * 0.12;
+        dummy.rotation.set(wind * flower.windAmp * 1.1, 0, wind2 * flower.windAmp * 0.8);
         dummy.scale.setScalar(Math.max(flower.size * 0.18, 0.01));
         dummy.updateMatrix();
         coreMesh.setMatrixAt(f, dummy.matrix);
@@ -289,14 +324,13 @@ export function createFlowerBloom() {
         fallField.positions[i * 3] = wpos.x;
         fallField.positions[i * 3 + 1] = wpos.y;
         fallField.positions[i * 3 + 2] = wpos.z;
-        const soft = softWhiteRgb(p.rgb, 0.35);
-        const [r, g, b] = rgbToUnit(soft);
-        const glow = (p.glow || 1.5) * (0.55 + p.opacity * 0.55);
+        const [r, g, b] = rgbToUnit(p.rgb);
+        const glow = (p.glow || 1.4) * (0.5 + p.opacity * 0.55);
         const twinkle = p.kind === 'dust'
           ? 0.9 + 0.1 * Math.sin(time * 8 + p.rot * 3)
           : 1;
-        fallField.colors[i * 3] = Math.min(0.95, r * glow * twinkle);
-        fallField.colors[i * 3 + 1] = Math.min(0.95, g * glow * twinkle);
+        fallField.colors[i * 3] = Math.min(1, r * glow * twinkle);
+        fallField.colors[i * 3 + 1] = Math.min(1, g * glow * twinkle);
         fallField.colors[i * 3 + 2] = Math.min(1, b * glow * twinkle);
       }
       fallField.geo.setDrawRange(0, n);
