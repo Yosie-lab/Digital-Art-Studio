@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { clearGroup } from './space3d.js';
+import { createStarfield } from './starfield.js';
 
 export class ArtEngine {
   constructor(canvas) {
@@ -11,19 +12,20 @@ export class ArtEngine {
       powerPreference: 'high-performance',
       preserveDrawingBuffer: true,
     });
-    this.renderer.setClearColor(0x010308, 1);
+    this.renderer.setClearColor(0x000510, 1);
     this.renderer.autoClear = false;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.FogExp2(0x010308, 0.0009);
+    this.scene.fog = new THREE.FogExp2(0x000510, 0.0007);
 
     this.camera = new THREE.PerspectiveCamera(55, 1, 1, 5000);
+    this.starfield = createStarfield();
     this.layer = new THREE.Group();
     this.scene.add(this.layer);
 
-    // Spacey Bloom 大気圏背景 + trail フェード
-    this._bgColor = 0x010308;
+    // Spacey Bloom 宇宙背景 + trail フェード
+    this._bgColor = this.starfield.bgColor;
     this._forceClear = true;
     this._fadeCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     this._fadeScene = new THREE.Scene();
@@ -36,8 +38,8 @@ export class ArtEngine {
     });
     this._fadeScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this._fadeMaterial));
 
-    const ambient = new THREE.AmbientLight(0xffffff, 0.55);
-    const key = new THREE.PointLight(0x8cd9ff, 1.1, 2400);
+    const ambient = new THREE.AmbientLight(0x6080c0, 0.4);
+    const key = new THREE.PointLight(0x5080ff, 1.0, 2400);
     key.position.set(180, 220, 420);
     this.scene.add(ambient, key);
 
@@ -64,7 +66,7 @@ export class ArtEngine {
       speed: 1.0,
       trail: 0.1,
       gravity: 0,
-      palette: 'atmosphere',
+      palette: 'midnight',
     };
 
     this.audioData = {
@@ -95,6 +97,7 @@ export class ArtEngine {
     this.camera.updateProjectionMatrix();
     this._fitCamera();
     this._forceClear = true;
+    this.starfield?.resize?.(this.width, this.height);
     this.activePreset?.resize?.(this.width, this.height);
   }
 
@@ -202,6 +205,8 @@ export class ArtEngine {
     this.layer.rotation.y = Math.sin(this._elapsed * 0.17) * 0.28;
     this.layer.rotation.x = Math.sin(this._elapsed * 0.11) * 0.1;
 
+    this.starfield?.update?.(dt, this.pointer, this.width, this.height);
+
     if (this.activePreset) {
       this.activePreset.update(dt, this.pointer, this.audioData, this.params);
       this.activePreset.render?.(this.layer, this.width, this.height, this.params);
@@ -228,6 +233,9 @@ export class ArtEngine {
       }
     }
 
+    // 星空はメインシーンの霧の影響を受けないよう別描画
+    this.starfield?.render?.(this.renderer);
+    this.renderer.clearDepth();
     this.renderer.render(this.scene, this.camera);
   }
 }

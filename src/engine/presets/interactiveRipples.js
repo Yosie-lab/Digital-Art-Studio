@@ -7,7 +7,7 @@ export function createInteractiveRipples() {
   let ambient = [];
   let width = 0, height = 0;
   let time = 0;
-  let currentPalette = 'atmosphere';
+  let currentPalette = 'midnight';
   let autoTimer = 0;
   let ringMesh = null;
   let ambientField = null;

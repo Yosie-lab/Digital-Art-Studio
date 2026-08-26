@@ -1,27 +1,32 @@
 /**
- * Spacey Bloom Fluid スキン準拠のカラーパレット
+ * Spacey Bloom Fluid 準拠のカラーパレット
+ * rainbow / midnight は BLOOM_PALETTES (sat/lit/hueRange) から抽出した代表色
  */
 
-/** パレット定義: 名前 → HEXカラー配列（fluidA/B, crystalA/B, glow） */
+/** パレット定義: 名前 → HEXカラー配列（派手め・高彩度） */
 export const PALETTES = {
+  // 🌈 レインボー — 黄色を抑え、シアン／マゼンタ寄り
+  rainbow:    ['#ff5cf0', '#3db8ff', '#2affb0', '#70a0ff', '#c070ff', '#ff2ab8'],
+  // 🌙 ミッドナイト — デフォルト。深い青紫を明るく鮮やかに
+  midnight:   ['#6a9bff', '#3d7aff', '#2050ff', '#5a40ff', '#8a50ff', '#4060ff'],
   // 🤍 白銀 × 銀世界
-  silver:     ['#f0f5fa', '#b8cbd8', '#e2e8f0', '#cbd5e1', '#e0ebf5'],
+  silver:     ['#c8dcff', '#90b8e8', '#b0c8f0', '#a0b8e0', '#b8d0f0'],
   // 🌍 ブルー × 大気圏
-  atmosphere: ['#5ebbff', '#0044ff', '#80c8ff', '#ffffff', '#8cd9ff'],
+  atmosphere: ['#50b8ff', '#0066ff', '#60c8ff', '#80d8ff', '#30c0ff'],
   // 🌸 桜 × 翡翠
-  sakura:     ['#ffd5e0', '#fff0f3', '#50fa7b', '#a8ffb8', '#ffd5e0'],
+  sakura:     ['#ff80c0', '#ff90d0', '#30e888', '#70f0b0', '#ff60b0'],
   // 🌌 星雲 × 深宇宙
-  nebula:     ['#bd80ff', '#6d28d9', '#ffe066', '#ffffff', '#d8b4fe'],
+  nebula:     ['#d070ff', '#8030ff', '#a080ff', '#e0b0ff', '#e890ff'],
   // 💧 水 × クリスタル
-  crystal:    ['#00f5ff', '#0080ff', '#e0f8ff', '#a8e6ff', '#00d4ff'],
+  crystal:    ['#00e8f0', '#0088ff', '#80d8f0', '#50e0ff', '#00d8f0'],
   // ✨ 黄金 × 琥珀
-  amber:      ['#fff700', '#ffd700', '#ffb85c', '#ff6f00', '#ffd700'],
+  amber:      ['#ffc020', '#ffb000', '#ff9020', '#ff7000', '#ffd040'],
   // 🌸 シャイニーピンク
-  shiny:      ['#ff40d0', '#b000ff', '#ffcde6', '#ffffff', '#ff40d0'],
+  shiny:      ['#ff40e8', '#c000ff', '#e890d8', '#ff70f0', '#ff30c8'],
 };
 
 export function getPaletteColors(name) {
-  return PALETTES[name] || PALETTES.atmosphere;
+  return PALETTES[name] || PALETTES.midnight;
 }
 
 export function hexToRgb(hex) {

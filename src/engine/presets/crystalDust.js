@@ -7,7 +7,7 @@ export function createCrystalDust() {
   let connections = [];
   let width = 0, height = 0;
   let time = 0;
-  let currentPalette = 'atmosphere';
+  let currentPalette = 'midnight';
   let field = null;
   let lineField = null;
   const MAX = 800;
