@@ -2,46 +2,82 @@ import * as THREE from 'three';
 import { getPaletteColors, hexToRgb } from '../palettes.js';
 import { toWorld, makePoints, rgbToUnit } from '../space3d.js';
 
-function coolToneRgb(rgb) {
-  const b = Math.min(255, Math.round(rgb.b * 1.12 + 24));
+function saturateRgb(rgb, amount = 0.04) {
+  const max = Math.max(rgb.r, rgb.g, rgb.b);
+  const min = Math.min(rgb.r, rgb.g, rgb.b);
+  const mid = (max + min) * 0.5;
   return {
-    r: Math.min(Math.round(rgb.r * 0.55), Math.round(b * 0.42)),
-    g: Math.min(Math.round(rgb.g * 0.48), Math.round(b * 0.38)),
+    r: Math.min(255, Math.max(0, Math.round(mid + (rgb.r - mid) * (1 + amount)))),
+    g: Math.min(255, Math.max(0, Math.round(mid + (rgb.g - mid) * (1 + amount)))),
+    b: Math.min(255, Math.max(0, Math.round(mid + (rgb.b - mid) * (1 + amount)))),
+  };
+}
+
+function coolToneRgb(rgb) {
+  // 彩度の高い色はそのまま寄せ、白飛びしやすい色だけ青寄りに抑える
+  const max = Math.max(rgb.r, rgb.g, rgb.b);
+  const min = Math.min(rgb.r, rgb.g, rgb.b);
+  const sat = max === 0 ? 0 : (max - min) / max;
+  if (sat > 0.35 && max > 80) {
+    return saturateRgb(rgb, 0.02);
+  }
+  const b = Math.min(255, Math.round(rgb.b * 1.08 + 16));
+  return {
+    r: Math.min(Math.round(rgb.r * 0.7), Math.round(b * 0.55)),
+    g: Math.min(Math.round(rgb.g * 0.65), Math.round(b * 0.5)),
     b,
   };
 }
 
 function vividPetalRgb(rgb) {
-  return coolToneRgb(rgb);
+  const cool = coolToneRgb(rgb);
+  const vivid = saturateRgb(cool, 0.02);
+  return {
+    r: Math.min(255, Math.round(vivid.r * 1.05 + 4)),
+    g: Math.min(255, Math.round(vivid.g * 1.04 + 3)),
+    b: Math.min(255, Math.round(vivid.b * 1.05 + 4)),
+  };
 }
 
 function boostVividRgb(rgb, gain = 1.1) {
-  const cool = coolToneRgb(rgb);
+  const cool = saturateRgb(coolToneRgb(rgb), 0.02);
   return {
-    r: Math.min(120, Math.round(cool.r * gain)),
-    g: Math.min(100, Math.round(cool.g * gain * 0.9)),
-    b: Math.min(255, Math.round(cool.b * Math.min(gain, 1.15))),
+    r: Math.min(255, Math.round(cool.r * gain)),
+    g: Math.min(255, Math.round(cool.g * gain)),
+    b: Math.min(255, Math.round(cool.b * gain)),
   };
 }
 
 function randomFlowerPetalColor(paletteName) {
   const colors = getPaletteColors(paletteName).filter((hex) => {
     const { r, g, b } = hexToRgb(hex);
-    const isWhitish = r > 200 && g > 200 && b > 200;
-    const isYellowish = r > 140 && g > 120 && b < Math.min(r, g) * 0.95;
-    const isWarm = r >= g && g > b * 0.7 && r > 160;
-    return !isWhitish && !isYellowish && !isWarm;
+    const isWhitish = r > 230 && g > 230 && b > 230;
+    const isYellowWhite = r > 220 && g > 210 && b > 180 && Math.min(r, g, b) > 170;
+    return !isWhitish && !isYellowWhite;
   });
   const pool = colors.length ? colors : getPaletteColors(paletteName);
-  return pool[Math.floor(Math.random() * pool.length)];
+
+  // 黄を減らし、青・深い紺を優先して選ぶ
+  const weighted = [];
+  for (const hex of pool) {
+    const { r, g, b } = hexToRgb(hex);
+    const isYellow = r > 160 && g > 120 && b < 140 && r + g > b * 2.2;
+    const isNavy = b > 100 && b > r * 1.4 && b > g * 1.2 && r < 90;
+    const isBlue = b > 180 && b > r && b > g && r < 120;
+    const copies = isNavy || isBlue ? 4 : isYellow ? 1 : 2;
+    for (let i = 0; i < copies; i++) weighted.push(hex);
+  }
+  const pick = weighted.length ? weighted : pool;
+  return pick[Math.floor(Math.random() * pick.length)];
 }
 
 function brightenRgb(rgb) {
-  return coolToneRgb({
-    r: Math.min(100, rgb.r + 8),
-    g: Math.min(90, rgb.g + 4),
-    b: Math.min(255, rgb.b + 28),
-  });
+  const base = coolToneRgb(rgb);
+  return {
+    r: Math.min(255, base.r + 18),
+    g: Math.min(255, base.g + 14),
+    b: Math.min(255, base.b + 18),
+  };
 }
 
 function softWhiteRgb(rgb, whiten = 0.55) {
@@ -54,10 +90,10 @@ function softWhiteRgb(rgb, whiten = 0.55) {
 }
 
 function displayColor(rgb, scale = 1) {
-  const cool = coolToneRgb(rgb);
+  const cool = saturateRgb(coolToneRgb(rgb), 0.0);
   return {
     r: Math.min(1, (cool.r / 255) * scale),
-    g: Math.min(1, (cool.g / 255) * scale * 0.9),
+    g: Math.min(1, (cool.g / 255) * scale),
     b: Math.min(1, (cool.b / 255) * scale),
   };
 }
@@ -199,7 +235,7 @@ export function createFlowerBloom() {
         dummy.updateMatrix();
         petalMesh.setMatrixAt(inst, dummy.matrix);
         if (flower) {
-          const c = displayColor(flower.rgb, 0.72 + flower.opacity * 0.45);
+          const c = displayColor(flower.rgb, 0.75 + flower.opacity * 0.45);
           petalMesh.setColorAt(inst, _color.setRGB(c.r, c.g, c.b));
         } else {
           petalMesh.setColorAt(inst, _color.setRGB(0, 0, 0));
@@ -212,8 +248,8 @@ export function createFlowerBloom() {
         dummy.scale.setScalar(Math.max(flower.size * 0.18, 0.01));
         dummy.updateMatrix();
         coreMesh.setMatrixAt(f, dummy.matrix);
-        const c = displayColor(flower.rgb, 0.62);
-        coreMesh.setColorAt(f, _color.setRGB(c.r * 0.8, c.g * 0.68, c.b));
+        const c = displayColor(flower.rgb, 0.65);
+        coreMesh.setColorAt(f, _color.setRGB(c.r * 0.82, c.g * 0.7, c.b));
       } else if (coreMesh) {
         dummy.position.set(0, 0, -4000);
         dummy.scale.setScalar(0.001);
