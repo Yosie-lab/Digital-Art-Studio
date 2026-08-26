@@ -194,9 +194,10 @@ export function createLetterX(palette = 'rainbow') {
   return {
     group,
     update(_dt, time) {
-      group.rotation.y = time * 0.4;
-      group.rotation.x = Math.sin(time * 0.45) * 0.15;
-      group.rotation.z = Math.cos(time * 0.3) * 0.06;
+      // 上下・左右に大きくタンブル（連続スピンではなく振り）
+      group.rotation.x = Math.sin(time * 0.55) * 0.7;
+      group.rotation.y = Math.sin(time * 0.42) * 0.95;
+      group.rotation.z = Math.sin(time * 0.33) * 0.35;
     },
     setPalette(p) {
       const m = formHex(p, 'letter');
@@ -299,26 +300,43 @@ export function createJellyfish(palette = 'rainbow') {
   return {
     group,
     update(_dt, time) {
-      group.position.y = Math.sin(time * 1.1) * 10;
-      group.rotation.y = Math.sin(time * 0.22) * 0.12;
-      const pulse = Math.sin(time * 2.0);
-      bell.scale.y = 0.95 + pulse * 0.05;
-      bell.scale.x = bell.scale.z = 1.12 - pulse * 0.03;
+      // プカプカ浮遊（上下＋左右にゆるく漂う）
+      group.position.y = Math.sin(time * 0.85) * 16 + Math.sin(time * 1.7) * 4;
+      group.position.x = Math.sin(time * 0.45) * 10;
+      group.position.z = Math.cos(time * 0.38) * 6;
+      group.rotation.y = Math.sin(time * 0.28) * 0.18;
+      group.rotation.z = Math.sin(time * 0.55) * 0.06;
+      group.rotation.x = Math.sin(time * 0.4) * 0.05;
+
+      // 傘のやわらかい収縮
+      const pulse = Math.sin(time * 1.6);
+      bell.scale.y = 0.95 + pulse * 0.07;
+      bell.scale.x = bell.scale.z = 1.12 - pulse * 0.04;
+      rim.scale.x = rim.scale.z = 1 + pulse * 0.03;
+      face.position.y = 28 + pulse * 1.5;
+
+      // 触手ユラユラ（先ほど遅れ・横揺れ大きめ）
       for (const root of tentacles) {
         const { phase, ang, beads, len } = root.userData;
+        root.rotation.z = Math.sin(time * 1.1 + phase) * 0.12;
+        root.rotation.x = Math.cos(time * 0.9 + phase) * 0.1;
         for (let s = 0; s < beads.length; s++) {
           const t = (s + 0.5) / beads.length;
-          const sway = Math.sin(time * 2.1 + phase + t * 2.4) * t * 9;
+          const lag = phase + t * 2.8;
+          const swayX = Math.sin(time * 1.35 + lag) * t * t * 22;
+          const swayZ = Math.cos(time * 1.15 + lag * 0.9) * t * t * 18;
+          const droop = Math.sin(time * 0.95 + lag) * t * 5;
           beads[s].position.set(
-            Math.cos(ang) * (t * t * 16) + Math.cos(ang + 1.5) * sway * 0.35,
-            -t * len + Math.sin(time * 1.4 + phase + t) * 2,
-            Math.sin(ang) * (t * t * 16) + sway * 0.5,
+            Math.cos(ang) * (t * t * 10) + Math.cos(ang + Math.PI * 0.5) * swayX,
+            -t * len + droop,
+            Math.sin(ang) * (t * t * 10) + Math.sin(ang + Math.PI * 0.5) * swayZ,
           );
         }
       }
+
       bubbles.forEach((b, i) => {
-        b.position.y += Math.sin(time * 0.9 + i) * 0.025;
-        b.position.x += Math.cos(time * 0.6 + i) * 0.03;
+        b.position.y = 48 + (i % 3) * 14 + Math.sin(time * 0.7 + i * 1.3) * 8;
+        b.position.x = (i - 2.5) * 20 + Math.cos(time * 0.5 + i) * 5;
       });
     },
     setPalette(p) {
@@ -475,26 +493,26 @@ export function createTadpole(palette = 'rainbow') {
   const lite = tint(main, 0.25);
 
   const bodyMat = petalMat(main);
-  const body = new THREE.Mesh(new THREE.SphereGeometry(38, 40, 32), bodyMat);
-  body.scale.set(1.35, 1.08, 1.12);
-  body.position.set(-8, 0, 0);
+  const body = new THREE.Mesh(new THREE.SphereGeometry(28, 40, 32), bodyMat);
+  body.scale.set(1.25, 1.05, 1.08);
+  body.position.set(-6, 0, 0);
   outlineOf(body, tint(main, -0.4), 1.04);
-  gloss(body, -6, 16, 26, 8);
-  gloss(body, 10, 10, 28, 4.5);
+  gloss(body, -4, 12, 18, 6);
+  gloss(body, 6, 8, 20, 3.5);
   group.add(body);
 
   const belly = new THREE.Mesh(
-    new THREE.SphereGeometry(22, 28, 22),
+    new THREE.SphereGeometry(16, 28, 22),
     petalMat(lite, { opacity: 0.92 }),
   );
-  belly.scale.set(1.15, 0.85, 1);
-  belly.position.set(-4, -12, 8);
+  belly.scale.set(1.1, 0.85, 1);
+  belly.position.set(-2, -8, 6);
   group.add(belly);
 
   const face = new THREE.Group();
-  face.position.set(10, 10, 30);
-  dotEyes(face, 2, 0, 12, 3.6);
-  blush(face, -6, -2, 18, 7);
+  face.position.set(6, 8, 22);
+  dotEyes(face, 2, 0, 10, 2.8);
+  blush(face, -5, -2, 14, 5.5);
   group.add(face);
 
   // 無地の一本尾・先端は丸めずスッと尖る
@@ -507,15 +525,13 @@ export function createTadpole(palette = 'rainbow') {
   const posAttr = tailGeo.attributes.position;
   for (let i = 0; i < posAttr.count; i++) {
     const x = base[i * 3];
-    const along = (x + tailLen * 0.5) / tailLen; // 0付け根 → 1先端
-    // 付け根は太く、先は直線的に細く（丸く閉じない）
+    const along = (x + tailLen * 0.5) / tailLen;
     const taper = Math.max(0.02, 1 - along);
     const halfH = 26 * taper;
     const halfD = 10 * taper;
     const uy = base[i * 3 + 1] / 0.5;
     const uz = base[i * 3 + 2] / 0.5;
     const lift = Math.sin(along * Math.PI * 0.55) * 10;
-    // 先端側を少し伸ばす
     const stretch = along > 0.85 ? (along - 0.85) * 18 : 0;
     base[i * 3] = x + stretch;
     base[i * 3 + 1] = uy * halfH + lift;
@@ -527,22 +543,25 @@ export function createTadpole(palette = 'rainbow') {
 
   const tailMat = petalMat(main);
   const tail = new THREE.Mesh(tailGeo, tailMat);
-  tail.position.set(48, 2, 0);
+  // 頭が小さくなった分、付け根を手前へ
+  tail.position.set(32, 2, 0);
   outlineOf(tail, tint(main, -0.4), 1.02);
   group.add(tail);
 
   return {
     group,
     update(_dt, time) {
-      group.position.y = Math.sin(time * 1.1) * 5;
-      group.rotation.y = Math.sin(time * 0.45) * 0.15;
-      const swim = time * 3.6;
+      group.position.y = Math.sin(time * 1.3) * 5;
+      group.rotation.y = Math.sin(time * 0.55) * 0.12;
+      // 激しく細かく左右に振る（速い波＋細かい二次波）
+      const swim = time * 9.5;
       const arr = posAttr.array;
       for (let i = 0; i < posAttr.count; i++) {
         const x = base[i * 3];
         const along = Math.min(1, (x + tailLen * 0.5) / (tailLen + 8));
-        // 付け根は小さく、先ほど左右に大きく振る
-        const wave = Math.sin(swim - along * 2.8) * along * along * 28;
+        const wave =
+          Math.sin(swim - along * 6.5) * along * along * 22 +
+          Math.sin(swim * 2.4 - along * 14) * along * along * 7;
         arr[i * 3] = base[i * 3];
         arr[i * 3 + 1] = base[i * 3 + 1];
         arr[i * 3 + 2] = base[i * 3 + 2] + wave;
@@ -560,16 +579,16 @@ export function createTadpole(palette = 'rainbow') {
     samplePoints(count) {
       const out = new Float32Array(count * 3);
       for (let i = 0; i < count; i++) {
-        if (i < count * 0.6) {
+        if (i < count * 0.55) {
           const u = Math.random() * Math.PI * 2;
           const v = Math.acos(2 * Math.random() - 1);
-          out[i * 3] = -8 + Math.sin(v) * Math.cos(u) * 38 * 1.35;
-          out[i * 3 + 1] = Math.sin(v) * Math.sin(u) * 38 * 1.08;
-          out[i * 3 + 2] = Math.cos(v) * 38 * 1.12;
+          out[i * 3] = -6 + Math.sin(v) * Math.cos(u) * 28 * 1.25;
+          out[i * 3 + 1] = Math.sin(v) * Math.sin(u) * 28 * 1.05;
+          out[i * 3 + 2] = Math.cos(v) * 28 * 1.08;
         } else {
           const t = Math.random();
-          out[i * 3] = 48 + (t - 0.5) * tailLen;
-          out[i * 3 + 1] = 2 + Math.sin(t * Math.PI * 0.65) * 12;
+          out[i * 3] = 32 + (t - 0.5) * tailLen;
+          out[i * 3 + 1] = 2 + Math.sin(t * Math.PI * 0.55) * 10;
           out[i * 3 + 2] = (Math.random() - 0.5) * 6;
         }
       }
@@ -805,11 +824,16 @@ export function createAngel(palette = 'rainbow') {
   const accent = formHex(palette, 'angel');
   const soft = tint(accent, 0.55);
 
+  // 体は少し小さく、羽は別スケールで大きく
+  const bodyRoot = new THREE.Group();
+  bodyRoot.scale.setScalar(0.82);
+  group.add(bodyRoot);
+
   const skin = petalMat('#ffdcc8', { roughness: 0.7, ei: 0.25, em: 0.12 });
   const head = new THREE.Mesh(new THREE.SphereGeometry(30, 36, 32), skin);
   head.position.y = 44;
   outlineOf(head, '#6b5060', 1.03);
-  group.add(head);
+  bodyRoot.add(head);
 
   const hair = new THREE.Group();
   hair.position.y = 50;
@@ -826,7 +850,7 @@ export function createAngel(palette = 'rainbow') {
     gloss(blob, -r * 0.25, r * 0.2, r * 0.5, r * 0.2);
     hair.add(blob);
   }
-  group.add(hair);
+  bodyRoot.add(hair);
 
   const face = new THREE.Group();
   face.position.set(0, 42, 26);
@@ -839,20 +863,20 @@ export function createAngel(palette = 'rainbow') {
   mouth.rotation.x = Math.PI;
   mouth.position.set(0, -9, 1);
   face.add(mouth);
-  group.add(face);
+  bodyRoot.add(face);
 
   for (const s of [-1, 1]) {
     const arm = new THREE.Mesh(new THREE.CapsuleGeometry(5.5, 16, 6, 10), skin.clone());
     arm.position.set(s * 24, 14, 0);
     arm.rotation.z = s * 0.95;
     outlineOf(arm, '#6b5060', 1.04);
-    group.add(arm);
+    bodyRoot.add(arm);
   }
   for (const s of [-1, 1]) {
     const leg = new THREE.Mesh(new THREE.CapsuleGeometry(6, 12, 6, 10), skin.clone());
     leg.position.set(s * 11, -30, 2);
     outlineOf(leg, '#6b5060', 1.04);
-    group.add(leg);
+    bodyRoot.add(leg);
   }
 
   const dressM = petalMat(soft);
@@ -862,7 +886,7 @@ export function createAngel(palette = 'rainbow') {
   const collar = new THREE.Mesh(new THREE.SphereGeometry(17, 24, 16), dressM.clone());
   collar.scale.set(1.15, 0.55, 1);
   collar.position.y = 18;
-  group.add(dress, collar);
+  bodyRoot.add(dress, collar);
 
   const halo = new THREE.Mesh(
     new THREE.TorusGeometry(24, 2.2, 12, 40),
@@ -870,35 +894,36 @@ export function createAngel(palette = 'rainbow') {
   );
   halo.rotation.x = Math.PI / 2.2;
   halo.position.y = 92;
-  group.add(halo);
+  bodyRoot.add(halo);
 
-  // 背中あたりに付く広がる翼（上付きすぎない）
+  // 蝶々のように胴体中央〜背中で左右対称に広がる羽（体より大きく）
   const wingShape = new THREE.Shape();
-  wingShape.moveTo(0, 8);
-  wingShape.quadraticCurveTo(28, 2, 54, -4);
-  wingShape.quadraticCurveTo(70, 6, 66, 28);
-  wingShape.quadraticCurveTo(48, 36, 30, 40);
-  wingShape.quadraticCurveTo(12, 32, 0, 8);
+  wingShape.moveTo(0, 0);
+  wingShape.quadraticCurveTo(18, 22, 42, 28);
+  wingShape.quadraticCurveTo(58, 18, 52, 4);
+  wingShape.quadraticCurveTo(48, -8, 38, -22);
+  wingShape.quadraticCurveTo(22, -18, 8, -10);
+  wingShape.quadraticCurveTo(2, -4, 0, 0);
   const wingGeo = new THREE.ExtrudeGeometry(wingShape, {
-    depth: 1.2, bevelEnabled: true, bevelThickness: 0.4, bevelSize: 0.5, bevelSegments: 1, curveSegments: 16,
+    depth: 1.0, bevelEnabled: true, bevelThickness: 0.35, bevelSize: 0.4, bevelSegments: 1, curveSegments: 16,
   });
-  wingGeo.translate(0, 0, -0.6);
+  wingGeo.translate(0, 0, -0.5);
   const wingM = petalMat(soft, { opacity: 0.78, roughness: 0.62 });
   const wingL = new THREE.Mesh(wingGeo, wingM);
   const wingR = new THREE.Mesh(wingGeo, wingM.clone());
-  wingL.position.set(-10, -2, -6);
-  wingR.position.set(10, -2, -6);
-  wingL.scale.set(-1.15, 1.05, 0.55);
-  wingR.scale.set(1.15, 1.05, 0.55);
-  // 大きく開く
-  wingL.rotation.y = 1.05;
-  wingR.rotation.y = -1.05;
-  wingL.rotation.z = 0.15;
-  wingR.rotation.z = -0.15;
-  outlineOf(wingL, tint(accent, -0.3), 1.03);
-  outlineOf(wingR, tint(accent, -0.3), 1.03);
-  gloss(wingL, 8, 28, 3, 4);
-  gloss(wingR, -8, 28, 3, 4);
+  wingL.position.set(-7, 12, -10);
+  wingR.position.set(7, 12, -10);
+  wingL.scale.set(-1.45, 1.4, 0.5);
+  wingR.scale.set(1.45, 1.4, 0.5);
+  // 蝶のように左右へ開く（上向きすぎない）
+  const wingOpenY = 0.75;
+  const wingOpenZ = 0.08;
+  wingL.rotation.set(0.1, wingOpenY, wingOpenZ);
+  wingR.rotation.set(0.1, -wingOpenY, -wingOpenZ);
+  outlineOf(wingL, tint(accent, -0.3), 1.025);
+  outlineOf(wingR, tint(accent, -0.3), 1.025);
+  gloss(wingL, 10, 12, 2, 3.5);
+  gloss(wingR, -10, 12, 2, 3.5);
   group.add(wingL, wingR);
 
   return {
@@ -906,11 +931,11 @@ export function createAngel(palette = 'rainbow') {
     update(_dt, time) {
       group.position.y = Math.sin(time * 1.15) * 12;
       group.rotation.y = Math.sin(time * 0.32) * 0.2;
-      const flap = Math.sin(time * 2.4) * 0.22;
-      wingL.rotation.y = 1.05 + flap;
-      wingR.rotation.y = -1.05 - flap;
-      wingL.rotation.z = 0.15 + flap * 0.12;
-      wingR.rotation.z = -0.15 - flap * 0.12;
+      const flap = Math.sin(time * 2.6) * 0.18;
+      wingL.rotation.y = wingOpenY + flap;
+      wingR.rotation.y = -wingOpenY - flap;
+      wingL.rotation.z = wingOpenZ + flap * 0.08;
+      wingR.rotation.z = -wingOpenZ - flap * 0.08;
       halo.rotation.z = time * 0.45;
       hair.rotation.y = Math.sin(time * 0.7) * 0.05;
       dress.scale.x = 1 + Math.sin(time * 1.4) * 0.025;
