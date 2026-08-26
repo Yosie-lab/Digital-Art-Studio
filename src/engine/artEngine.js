@@ -38,10 +38,14 @@ export class ArtEngine {
     });
     this._fadeScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this._fadeMaterial));
 
-    const ambient = new THREE.AmbientLight(0x6080c0, 0.4);
-    const key = new THREE.PointLight(0x2a5cff, 1.25, 2400);
-    key.position.set(180, 220, 420);
-    this.scene.add(ambient, key);
+    const ambient = new THREE.AmbientLight(0x90a8d8, 0.55);
+    const key = new THREE.PointLight(0xffffff, 1.6, 3200);
+    key.position.set(160, 240, 480);
+    const fill = new THREE.DirectionalLight(0xffe6cc, 0.85);
+    fill.position.set(-280, 120, 260);
+    const rim = new THREE.DirectionalLight(0x6a9cff, 0.55);
+    rim.position.set(80, -40, -320);
+    this.scene.add(ambient, key, fill, rim);
 
     this.activePreset = null;
     this.running = false;
