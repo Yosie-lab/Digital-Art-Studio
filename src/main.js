@@ -8,6 +8,7 @@ import { createFluidAurora } from './engine/presets/fluidAurora.js';
 import { createCrystalDust } from './engine/presets/crystalDust.js';
 import { createKaleidoPrism } from './engine/presets/kaleidoPrism.js';
 import { createInteractiveRipples } from './engine/presets/interactiveRipples.js';
+import { createMorphSequence } from './engine/presets/morphSequence.js';
 import { AudioAnalyzer } from './utils/audioAnalyzer.js';
 import { Recorder } from './utils/recorder.js';
 
@@ -22,6 +23,7 @@ const recorder = new Recorder(canvas);
 /** プリセットファクトリマップ */
 const PRESET_FACTORIES = {
   flowerBloom: createFlowerBloom,
+  morphSequence: createMorphSequence,
   fluidAurora: createFluidAurora,
   crystalDust: createCrystalDust,
   kaleidoPrism: createKaleidoPrism,
