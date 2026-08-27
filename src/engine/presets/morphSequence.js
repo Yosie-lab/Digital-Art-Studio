@@ -4,23 +4,42 @@ import { makePoints, clearGroup } from '../space3d.js';
 import { morphPositions } from '../morph/morphEngine.js';
 import { createFlowerBloom } from './flowerBloom.js';
 import { createLetterXBloom } from './letterXBloom.js';
+import { createJellyfishBloom } from './jellyfishBloom.js';
+import { createMusicNoteBloom } from './musicNoteBloom.js';
+import {
+  createHourglassBloom,
+  createTadpoleBloom,
+  createAngelBloom,
+} from './formBloom.js';
 import { samplePetalCloud } from '../morph/sampleShapes.js';
 import { createSolidForm } from '../morph/solidForms.js';
 
 /**
  * 変容シークエンス
- * 花びら（Flower Bloom）→ X（同様の出現）→ クラゲ → 砂時計 → オタマ → 脳 → 天使
- * hold = 実体 / morph = パーティクル橋渡しのみ
+ * 花びら → 文字 → クラゲ → 砂時計 → オタマ → 音楽記号 → 天使
+ * hold: Infinity = 自動進行なし（ダブルクリックのみ）
+ * 花びら以外はすべて同じ出現ロジック（色・サイズ・カーソル追従）
  */
 const SEQUENCE = [
-  { id: 'petal', label: '花びら', hold: 10, morph: 2.4, style: 'swarm' },
-  { id: 'letter', label: 'X', hold: 10, morph: 2.4, style: 'swarm' },
-  { id: 'jellyfish', label: 'クラゲ', hold: 3.4, morph: 2.4, style: 'trail' },
-  { id: 'hourglass', label: '砂時計', hold: 3.2, morph: 2.2, style: 'swarm' },
-  { id: 'tadpole', label: 'オタマ', hold: 3.2, morph: 2.4, style: 'trail' },
-  { id: 'brain', label: '脳', hold: 3.4, morph: 2.6, style: 'burst' },
-  { id: 'angel', label: '天使', hold: 3.8, morph: 2.8, style: 'burst' },
+  { id: 'petal', label: '花びら', hold: Infinity, morph: 2.4, style: 'swarm' },
+  { id: 'letter', label: 'A B C · X Y Z', hold: Infinity, morph: 2.4, style: 'swarm' },
+  { id: 'jellyfish', label: 'クラゲ', hold: Infinity, morph: 2.4, style: 'trail' },
+  { id: 'hourglass', label: '砂時計', hold: Infinity, morph: 2.2, style: 'swarm' },
+  { id: 'tadpole', label: 'オタマ', hold: Infinity, morph: 2.4, style: 'trail' },
+  { id: 'music', label: '♪ 音楽記号', hold: Infinity, morph: 2.6, style: 'burst' },
+  { id: 'angel', label: '天使', hold: Infinity, morph: 2.8, style: 'burst' },
 ];
+
+const MANUAL_HINT = 'じっくり操作可 · 次へはダブルクリックのみ';
+
+const BLOOM_FACTORIES = {
+  letter: createLetterXBloom,
+  jellyfish: createJellyfishBloom,
+  hourglass: createHourglassBloom,
+  tadpole: createTadpoleBloom,
+  music: createMusicNoteBloom,
+  angel: createAngelBloom,
+};
 
 function paletteUnitColors(name, count) {
   const colors = getPaletteColors(name);
@@ -42,17 +61,15 @@ export function createMorphSequence() {
   let layer = null;
   let flowerGroup = null;
   let flowerBloom = null;
-  let letterGroup = null;
-  let letterBloom = null;
-  let formsGroup = null;
-  let solidForm = null;
+  /** @type {Record<string, { group: import('three').Group, bloom: any }>} */
+  let bloomSlots = {};
   let field = null;
   let currentPalette = 'rainbow';
   let latestParams = null;
   let count = 1200;
 
   let stageIndex = 0;
-  let phase = 'hold'; // hold | morph
+  let phase = 'hold';
   let phaseT = 0;
   let fromCloud = null;
   let toCloud = null;
@@ -61,16 +78,31 @@ export function createMorphSequence() {
   let labelEl = null;
   let lastPointerDown = 0;
 
+  function currentId() {
+    return SEQUENCE[stageIndex]?.id;
+  }
+
   function isPetalHold() {
-    return SEQUENCE[stageIndex]?.id === 'petal' && phase === 'hold';
+    return currentId() === 'petal' && phase === 'hold';
   }
 
-  function isLetterHold() {
-    return SEQUENCE[stageIndex]?.id === 'letter' && phase === 'hold';
+  function isFormBloomHold() {
+    return phase === 'hold' && !!BLOOM_FACTORIES[currentId()];
   }
 
-  function isFieldHold() {
-    return isPetalHold() || isLetterHold();
+  function activeBloom() {
+    return bloomSlots[currentId()]?.bloom || null;
+  }
+
+  function tryAdvanceByDoubleClick() {
+    const now = performance.now();
+    if (now - lastPointerDown < 380) {
+      beginMorph();
+      lastPointerDown = 0;
+      return true;
+    }
+    lastPointerDown = now;
+    return false;
   }
 
   function ensureLabel() {
@@ -117,71 +149,55 @@ export function createMorphSequence() {
     if (flowerGroup) clearGroup(flowerGroup);
   }
 
-  function stopLetterBloom() {
-    if (letterBloom) {
-      letterBloom.destroy();
-      letterBloom = null;
+  function stopAllFormBlooms() {
+    for (const id of Object.keys(bloomSlots)) {
+      const slot = bloomSlots[id];
+      slot.bloom?.destroy?.();
+      if (slot.group) clearGroup(slot.group);
+      slot.bloom = null;
     }
-    if (letterGroup) clearGroup(letterGroup);
   }
 
-  function stopSolidForm() {
-    if (solidForm) {
-      if (formsGroup && solidForm.group.parent) formsGroup.remove(solidForm.group);
-      solidForm.dispose();
-      solidForm = null;
-    }
-    if (formsGroup) clearGroup(formsGroup);
+  function stopEverything() {
+    stopFlowerBloom();
+    stopAllFormBlooms();
   }
 
   function startFlowerBloom(params) {
-    stopFlowerBloom();
-    stopLetterBloom();
-    stopSolidForm();
+    stopEverything();
     if (!flowerGroup || !layer) return;
     flowerBloom = createFlowerBloom();
     flowerBloom.init(width, height, params || latestParams || { palette: currentPalette }, flowerGroup);
     setFieldVisible(false);
-    setLabel('花びら', 'Flower Bloom そのまま · ダブルクリックで変容');
+    setLabel('花びら', MANUAL_HINT);
   }
 
-  function startLetterBloom(params) {
-    stopFlowerBloom();
-    stopLetterBloom();
-    stopSolidForm();
-    if (!letterGroup || !layer) return;
-    letterBloom = createLetterXBloom();
-    letterBloom.init(width, height, params || latestParams || { palette: currentPalette }, letterGroup);
+  function startFormBloom(stepId, label) {
+    stopEverything();
+    const slot = bloomSlots[stepId];
+    const factory = BLOOM_FACTORIES[stepId];
+    if (!slot || !factory) return;
+    try {
+      slot.bloom = factory();
+      slot.bloom.init(width, height, latestParams || { palette: currentPalette }, slot.group);
+    } catch (err) {
+      console.error('[MorphSequence] bloom init failed:', stepId, err);
+      slot.bloom = null;
+      return;
+    }
     setFieldVisible(false);
-    setLabel('X', 'カーソルに沿って出現 · ダブルクリックで変容');
-  }
-
-  function startSolidForm(stepId) {
-    stopFlowerBloom();
-    stopLetterBloom();
-    stopSolidForm();
-    if (!formsGroup) return;
-    solidForm = createSolidForm(stepId, currentPalette);
-    if (!solidForm) return;
-    formsGroup.add(solidForm.group);
-    setFieldVisible(false);
+    setLabel(label, MANUAL_HINT);
   }
 
   function sampleStageCloud(stepIndex) {
     const step = SEQUENCE[stepIndex];
     if (step.id === 'petal') return samplePetalCloud(count, 95);
-    if (step.id === 'letter') {
-      if (letterBloom) return letterBloom.samplePoints(count);
-      const temp = createSolidForm('letter', currentPalette);
-      if (!temp) return samplePetalCloud(count, 95);
-      const cloud = temp.samplePoints(count);
-      temp.dispose();
-      return cloud;
-    }
-    if (solidForm && SEQUENCE[stageIndex].id === step.id) {
-      return solidForm.samplePoints(count);
-    }
-    const temp = createSolidForm(step.id, currentPalette);
+
+    const live = bloomSlots[step.id]?.bloom;
+    if (live) return live.samplePoints(count);
+
+    const tempId = step.id === 'letter' ? 'letter' : step.id;
+    const temp = createSolidForm(tempId, currentPalette);
     if (!temp) return samplePetalCloud(count, 95);
     const cloud = temp.samplePoints(count);
     temp.dispose();
@@ -210,9 +226,7 @@ export function createMorphSequence() {
     fromCloud = sampleStageCloud(stageIndex);
     toCloud = sampleStageCloud(nextIndex);
 
-    stopFlowerBloom();
-    stopLetterBloom();
-    stopSolidForm();
+    stopEverything();
     setFieldVisible(true);
     field.positions.set(fromCloud);
     field.geo.setDrawRange(0, count);
@@ -229,11 +243,8 @@ export function createMorphSequence() {
 
     if (step.id === 'petal') {
       startFlowerBloom(latestParams);
-    } else if (step.id === 'letter') {
-      startLetterBloom(latestParams);
-    } else {
-      startSolidForm(step.id);
-      setLabel(step.label, 'クリックで次へ');
+    } else if (BLOOM_FACTORIES[step.id]) {
+      startFormBloom(step.id, step.label);
     }
   }
 
@@ -255,17 +266,8 @@ export function createMorphSequence() {
     const step = SEQUENCE[stageIndex];
     phaseT += dt * (params.speed || 1);
 
-    if (phase === 'hold') {
-      if (isFieldHold()) {
-        if (phaseT >= step.hold) beginMorph();
-        return;
-      }
-      if (solidForm) solidForm.update(dt, time);
-      if (phaseT >= step.hold) beginMorph();
-      return;
-    }
+    if (phase === 'hold') return;
 
-    // morph: パーティクル橋渡しのみ
     setFieldVisible(true);
     const progress = Math.min(1, phaseT / step.morph);
     morphPositions(field.positions, fromCloud, toCloud, progress, time, step.style);
@@ -297,13 +299,13 @@ export function createMorphSequence() {
       flowerGroup.name = 'morphFlowerBloom';
       layer.add(flowerGroup);
 
-      letterGroup = new THREE.Group();
-      letterGroup.name = 'morphLetterXBloom';
-      layer.add(letterGroup);
-
-      formsGroup = new THREE.Group();
-      formsGroup.name = 'morphSolidForms';
-      layer.add(formsGroup);
+      bloomSlots = {};
+      for (const id of Object.keys(BLOOM_FACTORIES)) {
+        const g = new THREE.Group();
+        g.name = `morphBloom_${id}`;
+        layer.add(g);
+        bloomSlots[id] = { group: g, bloom: null };
+      }
 
       const n = Math.min(1800, Math.max(600, Math.floor((params.particleCount || 1030) * 1.1)));
       rebuildColors(n);
@@ -320,7 +322,7 @@ export function createMorphSequence() {
       width = w;
       height = h;
       flowerBloom?.resize?.(w, h);
-      letterBloom?.resize?.(w, h);
+      for (const slot of Object.values(bloomSlots)) slot.bloom?.resize?.(w, h);
     },
 
     update(dt, pointer, audioData, params) {
@@ -343,63 +345,42 @@ export function createMorphSequence() {
       if (isPetalHold() && flowerBloom) {
         flowerBloom.update(dt, pointer, audioData, params);
       }
-      if (isLetterHold() && letterBloom) {
-        letterBloom.update(dt, pointer, audioData, params);
+      const bloom = activeBloom();
+      if (isFormBloomHold() && bloom) {
+        bloom.update(dt, pointer, audioData, params);
       }
 
       const boost = pointer?.velocity > 8 && phase === 'morph' ? 1.35 : 1;
       syncStage(dt * boost, params);
-
-      if (audioData?.isActive && audioData.bass > 0.45 && phase === 'hold' && phaseT > 1.2) {
-        if (isFieldHold()) {
-          if (phaseT > 3) phaseT = Math.max(phaseT, SEQUENCE[stageIndex].hold - 0.1);
-        } else {
-          phaseT = Math.max(phaseT, SEQUENCE[stageIndex].hold - 0.15);
-        }
-      }
     },
 
     render() {
       if (isPetalHold() && flowerBloom) flowerBloom.render();
-      if (isLetterHold() && letterBloom) letterBloom.render();
+      const bloom = activeBloom();
+      if (isFormBloomHold() && bloom) bloom.render();
     },
 
     onPointerDown(x, y, pointer) {
       if (isPetalHold()) {
-        const now = performance.now();
-        if (now - lastPointerDown < 380) {
-          beginMorph();
-          lastPointerDown = 0;
-          return;
-        }
-        lastPointerDown = now;
+        if (tryAdvanceByDoubleClick()) return;
         flowerBloom?.onPointerDown?.(x, y, pointer);
         return;
       }
 
-      if (isLetterHold()) {
-        const now = performance.now();
-        if (now - lastPointerDown < 380) {
-          beginMorph();
-          lastPointerDown = 0;
-          return;
-        }
-        lastPointerDown = now;
-        letterBloom?.onPointerDown?.(x, y, pointer);
-        return;
+      if (isFormBloomHold()) {
+        if (tryAdvanceByDoubleClick()) return;
+        activeBloom()?.onPointerDown?.(x, y, pointer);
       }
-
-      if (phase === 'hold') beginMorph();
     },
 
     onPointerMove(x, y, pointer) {
       if (isPetalHold()) flowerBloom?.onPointerMove?.(x, y, pointer);
-      if (isLetterHold()) letterBloom?.onPointerMove?.(x, y, pointer);
+      if (isFormBloomHold()) activeBloom()?.onPointerMove?.(x, y, pointer);
     },
 
     onPointerUp(pointer) {
       if (isPetalHold()) flowerBloom?.onPointerUp?.(pointer);
-      if (isLetterHold()) letterBloom?.onPointerUp?.(pointer);
+      if (isFormBloomHold()) activeBloom()?.onPointerUp?.(pointer);
     },
 
     setParams(p) {
@@ -410,18 +391,14 @@ export function createMorphSequence() {
         colorB = paletteUnitColors(currentPalette, count);
       }
       flowerBloom?.setParams?.(p);
-      letterBloom?.setParams?.(p);
-      solidForm?.setPalette?.(currentPalette);
+      for (const slot of Object.values(bloomSlots)) slot.bloom?.setParams?.(p);
     },
 
     destroy() {
-      stopFlowerBloom();
-      stopLetterBloom();
-      stopSolidForm();
+      stopEverything();
       field = null;
       flowerGroup = null;
-      letterGroup = null;
-      formsGroup = null;
+      bloomSlots = {};
       layer = null;
       if (labelEl) {
         labelEl.remove();

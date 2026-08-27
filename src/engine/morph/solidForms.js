@@ -13,7 +13,8 @@ const FORM_HUE = {
   jellyfish: 12, // 水色寄り青
   hourglass: 4,  // バイオレット
   tadpole: 2,    // ミント
-  brain: 0,      // マゼンタ
+  music: 1,      // 電光青（文字・花びら系）
+  brain: 0,      // 旧: 互換用
   angel: 8,      // 暖色（髪・光輪）／体は薄い同系
 };
 
@@ -975,12 +976,65 @@ export function createAngel(palette = 'rainbow') {
   };
 }
 
+function sampleMusicNotePoints(count) {
+  const out = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const kind = Math.random();
+    if (kind < 0.32) {
+      out[i * 3] = 6 + (Math.random() - 0.5) * 10;
+      out[i * 3 + 1] = -32 + (Math.random() - 0.5) * 10;
+      out[i * 3 + 2] = (Math.random() - 0.5) * 8;
+    } else if (kind < 0.78) {
+      out[i * 3] = 16 + (Math.random() - 0.5) * 5;
+      out[i * 3 + 1] = (Math.random() - 0.5) * 72;
+      out[i * 3 + 2] = (Math.random() - 0.5) * 8;
+    } else {
+      const t = Math.random() * Math.PI * 2;
+      out[i * 3] = Math.cos(t) * 14 - 4;
+      out[i * 3 + 1] = Math.sin(t) * 10 + 8;
+      out[i * 3 + 2] = (Math.random() - 0.5) * 8;
+    }
+  }
+  return out;
+}
+
+function createMusicNote(palette) {
+  const main = formHex(palette, 'music');
+  const group = new THREE.Group();
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(5, 10, 8),
+    petalMat(main, { roughness: 0.58 }),
+  );
+  head.scale.set(1.2, 0.85, 0.55);
+  head.position.set(6, -32, 0);
+  const stem = new THREE.Mesh(
+    new THREE.BoxGeometry(3.5, 36, 3.5),
+    petalMat(tint(main, 0.2), { roughness: 0.62 }),
+  );
+  stem.position.set(16, 2, 0);
+  group.add(head, stem);
+  return {
+    group,
+    update(_dt, time) {
+      group.rotation.z = Math.sin(time * 0.5) * 0.08;
+    },
+    setPalette(p) {
+      const m = formHex(p, 'music');
+      setMatHex(head.material, m);
+      setMatHex(stem.material, tint(m, 0.2));
+    },
+    samplePoints: sampleMusicNotePoints,
+    dispose() { disposeObject(group); },
+  };
+}
+
 export function createSolidForm(id, palette) {
   switch (id) {
     case 'letter': return createLetterX(palette);
     case 'jellyfish': return createJellyfish(palette);
     case 'hourglass': return createHourglass(palette);
     case 'tadpole': return createTadpole(palette);
+    case 'music': return createMusicNote(palette);
     case 'brain': return createBrain(palette);
     case 'angel': return createAngel(palette);
     default: return null;

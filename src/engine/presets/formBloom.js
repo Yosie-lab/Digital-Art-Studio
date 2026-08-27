@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { getPaletteColors, hexToRgb } from '../palettes.js';
 import { toWorld, makePoints, rgbToUnit } from '../space3d.js';
 
-/* ——— Flower Bloom と同一の色処理 ——— */
+/* ——— Letter / Flower Bloom と同一の色・サイズ・出現 ——— */
 function saturateRgb(rgb, amount = 0.07) {
   const max = Math.max(rgb.r, rgb.g, rgb.b);
   const min = Math.min(rgb.r, rgb.g, rgb.b);
@@ -82,7 +82,6 @@ function randomFlowerPetalColor(paletteName) {
     return !isWhitish && !isYellowWhite;
   });
   const pool = colors.length ? colors : getPaletteColors(paletteName);
-
   const weighted = [];
   for (const hex of pool) {
     const { r, g, b } = hexToRgb(hex);
@@ -102,78 +101,6 @@ function paletteAccentRgb(paletteName) {
   return vividPetalRgb(hexToRgb(colors[Math.floor(Math.random() * colors.length)]));
 }
 
-/** スリムで読みやすい立体文字（X / Y / Z） */
-function bar(w, h, d, x = 0, y = 0, z = 0, rotZ = 0) {
-  const g = new THREE.BoxGeometry(w, h, d);
-  if (rotZ) g.rotateZ(rotZ);
-  g.translate(x, y, z);
-  return g;
-}
-
-function buildXGeometry() {
-  const beamA = bar(0.11, 1.12, 0.13, 0, 0, 0, Math.PI / 4);
-  const beamB = bar(0.11, 1.12, 0.13, 0, 0, 0, -Math.PI / 4);
-  const hub = bar(0.14, 0.14, 0.15);
-  return mergeGeometries([beamA, beamB, hub], false);
-}
-
-function buildYGeometry() {
-  // 下の縦棒 + 上の左右斜め
-  const stem = bar(0.11, 0.58, 0.13, 0, -0.27, 0);
-  const armL = bar(0.11, 0.62, 0.13, -0.2, 0.28, 0, Math.PI / 5.2);
-  const armR = bar(0.11, 0.62, 0.13, 0.2, 0.28, 0, -Math.PI / 5.2);
-  const hub = bar(0.12, 0.12, 0.14, 0, 0.02, 0);
-  return mergeGeometries([stem, armL, armR, hub], false);
-}
-
-function buildZGeometry() {
-  // 上横・斜め・下横
-  const top = bar(0.78, 0.11, 0.13, 0, 0.48, 0);
-  const bot = bar(0.78, 0.11, 0.13, 0, -0.48, 0);
-  const diag = bar(0.11, 1.05, 0.13, 0, 0, 0, -Math.PI / 4.6);
-  return mergeGeometries([top, bot, diag], false);
-}
-
-function buildAGeometry() {
-  const left = bar(0.11, 1.05, 0.13, -0.22, 0, 0, Math.PI / 9);
-  const right = bar(0.11, 1.05, 0.13, 0.22, 0, 0, -Math.PI / 9);
-  const cross = bar(0.42, 0.1, 0.13, 0, -0.05, 0);
-  return mergeGeometries([left, right, cross], false);
-}
-
-function buildBGeometry() {
-  const stem = bar(0.11, 1.05, 0.13, -0.28, 0, 0);
-  const top = bar(0.42, 0.1, 0.13, -0.02, 0.42, 0);
-  const mid = bar(0.4, 0.1, 0.13, -0.02, 0.02, 0);
-  const bot = bar(0.42, 0.1, 0.13, -0.02, -0.42, 0);
-  const bowlT = bar(0.1, 0.38, 0.13, 0.22, 0.22, 0);
-  const bowlB = bar(0.1, 0.38, 0.13, 0.22, -0.2, 0);
-  return mergeGeometries([stem, top, mid, bot, bowlT, bowlB], false);
-}
-
-function buildCGeometry() {
-  const top = bar(0.55, 0.1, 0.13, 0.06, 0.42, 0);
-  const bot = bar(0.55, 0.1, 0.13, 0.06, -0.42, 0);
-  const left = bar(0.11, 0.84, 0.13, -0.24, 0, 0);
-  const tipT = bar(0.18, 0.1, 0.13, 0.28, 0.42, 0);
-  const tipB = bar(0.18, 0.1, 0.13, 0.28, -0.42, 0);
-  return mergeGeometries([top, bot, left, tipT, tipB], false);
-}
-
-const LETTER_IDS = ['a', 'b', 'c', 'x', 'y', 'z'];
-const LETTER_BUILDERS = {
-  a: buildAGeometry,
-  b: buildBGeometry,
-  c: buildCGeometry,
-  x: buildXGeometry,
-  y: buildYGeometry,
-  z: buildZGeometry,
-};
-
-function pickLetter() {
-  return LETTER_IDS[Math.floor(Math.random() * LETTER_IDS.length)];
-}
-
 function pickMarkSize() {
   const r = Math.random();
   if (r < 0.1) return 58 + Math.random() * 42;
@@ -181,10 +108,71 @@ function pickMarkSize() {
   return 20 + Math.random() * 24;
 }
 
+function bar(w, h, d, x = 0, y = 0, z = 0, rotZ = 0) {
+  const g = new THREE.BoxGeometry(w, h, d);
+  if (rotZ) g.rotateZ(rotZ);
+  g.translate(x, y, z);
+  return g;
+}
+
+export function buildHourglassGeometry() {
+  const top = new THREE.ConeGeometry(0.36, 0.52, 16);
+  top.translate(0, 0.28, 0);
+  const bot = new THREE.ConeGeometry(0.36, 0.52, 16);
+  bot.rotateX(Math.PI);
+  bot.translate(0, -0.28, 0);
+  const neck = new THREE.CylinderGeometry(0.06, 0.06, 0.12, 10);
+  const ringT = new THREE.TorusGeometry(0.34, 0.035, 8, 20);
+  ringT.rotateX(Math.PI / 2);
+  ringT.translate(0, 0.52, 0);
+  const ringB = ringT.clone();
+  ringB.translate(0, -1.04, 0);
+  return mergeGeometries([top, bot, neck, ringT, ringB], false);
+}
+
+export function buildTadpoleGeometry() {
+  const head = new THREE.SphereGeometry(0.3, 18, 14);
+  head.scale(1.2, 1.05, 1.08);
+  head.translate(-0.12, 0, 0);
+  const tail = new THREE.ConeGeometry(0.2, 0.95, 12);
+  tail.rotateZ(-Math.PI / 2);
+  tail.translate(0.42, 0.02, 0);
+  return mergeGeometries([head, tail], false);
+}
+
+export function buildBrainGeometry() {
+  const dome = new THREE.SphereGeometry(0.48, 22, 16, 0, Math.PI * 2, 0, Math.PI * 0.55);
+  dome.scale(1.12, 0.9, 1.08);
+  const folds = [];
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const tube = new THREE.TorusGeometry(0.28, 0.035, 6, 16, Math.PI * 0.9);
+    tube.rotateY(a);
+    tube.rotateX(0.55);
+    tube.translate(0, 0.12, 0);
+    folds.push(tube);
+  }
+  return mergeGeometries([dome, ...folds], false);
+}
+
+export function buildAngelGeometry() {
+  const head = new THREE.SphereGeometry(0.18, 14, 12);
+  head.translate(0, 0.42, 0);
+  const body = new THREE.ConeGeometry(0.28, 0.55, 16, 1, true);
+  body.translate(0, 0.05, 0);
+  const wingL = bar(0.55, 0.08, 0.35, -0.38, 0.22, -0.05, 0.35);
+  const wingR = bar(0.55, 0.08, 0.35, 0.38, 0.22, -0.05, -0.35);
+  const halo = new THREE.TorusGeometry(0.22, 0.025, 8, 20);
+  halo.rotateX(Math.PI / 2.3);
+  halo.translate(0, 0.68, 0);
+  return mergeGeometries([head, body, wingL, wingR, halo], false);
+}
+
 /**
- * Flower Bloom の出現ロジック + 立体 X / Y / Z
+ * @param {{ buildGeometry: () => THREE.BufferGeometry, motion?: 'sway'|'spin'|'bob' }} opts
  */
-export function createLetterXBloom() {
+export function createFormBloom(opts) {
+  const motion = opts.motion || 'sway';
   let marks = [];
   let shards = [];
   let sparkles = [];
@@ -193,37 +181,33 @@ export function createLetterXBloom() {
   let time = 0;
   let currentPalette = 'rainbow';
   let layer = null;
-  /** @type {Record<string, { mesh: THREE.InstancedMesh, outline: THREE.InstancedMesh, geo: THREE.BufferGeometry }>} */
-  let letterSets = {};
-  let glossMesh = null;
+  let mesh = null;
+  let outlineMesh = null;
   let sparkleField = null;
   let fallField = null;
+  let geo = null;
   const dummy = new THREE.Object3D();
   const _color = new THREE.Color();
   const MAX = 64;
-  const MAX_PER = MAX;
 
   class Mark {
     constructor(x, y, palette) {
       this.x = x;
       this.y = y;
       this.z = (Math.random() - 0.5) * 140;
-      this.letter = pickLetter();
       this.maxSize = pickMarkSize();
       this.size = 0;
       this.growth = 0;
       this.growthRate = 0.35 + Math.random() * 0.5;
-      this.baseRot = (Math.random() - 0.5) * 0.4;
-      this.tilt = (Math.random() - 0.5) * 0.35;
+      this.baseRot = (Math.random() - 0.5) * 0.45;
+      this.tilt = (Math.random() - 0.5) * 0.3;
       this.windPhase = Math.random() * Math.PI * 2;
-      this.windSpeed = 0.55 + Math.random() * 0.4;
-      this.windAmp = 0.06 + Math.random() * 0.06;
-      this.spinX = 0.28 + Math.random() * 0.25;
-      this.spinY = 0.22 + Math.random() * 0.28;
-      this.spinZ = 0.18 + Math.random() * 0.2;
-      this.phaseX = Math.random() * Math.PI * 2;
+      this.windSpeed = 0.55 + Math.random() * 0.45;
+      this.windAmp = 0.07 + Math.random() * 0.07;
+      this.bobPhase = Math.random() * Math.PI * 2;
+      this.bobSpeed = 0.65 + Math.random() * 0.5;
+      this.spinY = 0.2 + Math.random() * 0.28;
       this.phaseY = Math.random() * Math.PI * 2;
-      this.phaseZ = Math.random() * Math.PI * 2;
       this.color = randomFlowerPetalColor(palette);
       this.rgb = vividPetalRgb(hexToRgb(this.color));
       this.innerRgb = brightenRgb(this.rgb);
@@ -235,9 +219,9 @@ export function createLetterXBloom() {
 
     update(dt, t) {
       this.lifetime += dt;
-      this.tumbleX = Math.sin(t * this.spinX + this.phaseX) * 0.32;
-      this.tumbleY = Math.sin(t * this.spinY + this.phaseY) * 0.42;
-      this.tumbleZ = Math.sin(t * this.spinZ + this.phaseZ) * 0.18;
+      this.bob = Math.sin(t * this.bobSpeed + this.bobPhase) * 0.1;
+      this.sway = Math.sin(t * this.windSpeed + this.windPhase) * this.windAmp;
+      this.spin = Math.sin(t * this.spinY + this.phaseY) * (motion === 'spin' ? 0.9 : 0.35);
       switch (this.phase) {
         case 'growing':
           this.growth = Math.min(1, this.growth + this.growthRate * dt);
@@ -249,8 +233,8 @@ export function createLetterXBloom() {
           break;
         case 'wilting':
           this.opacity -= dt * 0.28;
-          if (Math.random() < dt * 4.2) this._shedShard();
-          if (Math.random() < dt * 5.5) this._shedDust();
+          if (Math.random() < dt * 3.5) this._shedShard();
+          if (Math.random() < dt * 5) this._shedDust();
           break;
       }
       return this.opacity > 0.01 && this.lifetime < this.maxLifetime;
@@ -263,42 +247,40 @@ export function createLetterXBloom() {
     }
 
     _shedShard() {
-      const burst = 2 + Math.floor(Math.random() * 3);
-      for (let i = 0; i < burst; i++) {
+      for (let i = 0; i < 2 + Math.floor(Math.random() * 3); i++) {
         shards.push({
-          x: this.x + (Math.random() - 0.5) * this.size * 1.2,
-          y: this.y + (Math.random() - 0.5) * this.size * 1.2,
+          x: this.x + (Math.random() - 0.5) * this.size,
+          y: this.y + (Math.random() - 0.5) * this.size,
           z: this.z + (Math.random() - 0.5) * 40,
-          vx: (Math.random() - 0.5) * 70,
-          vy: -20 - Math.random() * 45,
-          vz: (Math.random() - 0.5) * 45,
-          size: this.size * 0.14 + Math.random() * 7,
+          vx: (Math.random() - 0.5) * 60,
+          vy: -15 - Math.random() * 40,
+          vz: (Math.random() - 0.5) * 40,
+          size: this.size * 0.12 + Math.random() * 6,
           rot: Math.random() * Math.PI * 2,
-          rotSpeed: (Math.random() - 0.5) * 6,
+          rotSpeed: (Math.random() - 0.5) * 5,
           rgb: petalParticleRgb(this.rgb, 1.2),
           opacity: 1,
-          glow: 1.45 + Math.random() * 0.3,
+          glow: 1.4 + Math.random() * 0.3,
           kind: 'shard',
         });
       }
     }
 
     _shedDust() {
-      const dust = 3 + Math.floor(Math.random() * 4);
-      for (let i = 0; i < dust; i++) {
+      for (let i = 0; i < 3 + Math.floor(Math.random() * 4); i++) {
         shards.push({
-          x: this.x + (Math.random() - 0.5) * this.size * 0.6,
-          y: this.y + (Math.random() - 0.5) * this.size * 0.6,
+          x: this.x + (Math.random() - 0.5) * this.size * 0.5,
+          y: this.y + (Math.random() - 0.5) * this.size * 0.5,
           z: this.z + (Math.random() - 0.5) * 30,
-          vx: (Math.random() - 0.5) * 90,
-          vy: (Math.random() - 0.5) * 90 - 10,
-          vz: (Math.random() - 0.5) * 60,
+          vx: (Math.random() - 0.5) * 80,
+          vy: (Math.random() - 0.5) * 80 - 8,
+          vz: (Math.random() - 0.5) * 50,
           size: 2 + Math.random() * 5,
           rot: Math.random() * Math.PI * 2,
           rotSpeed: (Math.random() - 0.5) * 8,
           rgb: petalParticleRgb(this.innerRgb, 1.25),
           opacity: 1,
-          glow: 1.55 + Math.random() * 0.35,
+          glow: 1.5 + Math.random() * 0.3,
           kind: 'dust',
         });
       }
@@ -306,88 +288,48 @@ export function createLetterXBloom() {
   }
 
   function placeMark(mark, scaleMul = 1) {
-    const wind = Math.sin(time * mark.windSpeed + mark.windPhase);
-    const wind2 = Math.sin(time * mark.windSpeed * 1.37 + mark.windPhase * 1.2);
-    const swayX = wind * mark.windAmp;
-    const swayZ = wind2 * mark.windAmp * 0.85;
     const pos = toWorld(mark.x, mark.y, mark.z, width, height);
     dummy.position.copy(pos);
-    dummy.position.x += swayX * mark.size * 0.22;
-    dummy.position.z += swayZ * mark.size * 0.16;
+    dummy.position.y += mark.bob * mark.size * (motion === 'bob' ? 1.4 : 1);
+    dummy.position.x += mark.sway * mark.size * 0.3;
     dummy.rotation.set(
-      mark.tilt + swayX * 1.4 + mark.tumbleX,
-      mark.baseRot + swayZ * 0.55 + mark.tumbleY,
-      mark.tumbleZ + wind2 * mark.windAmp * 0.6,
+      mark.tilt + mark.sway * 0.7,
+      mark.baseRot + mark.spin,
+      mark.sway * 0.45,
     );
     const s = mark.size * scaleMul;
     dummy.scale.set(s, s, s);
     dummy.updateMatrix();
-    return pos;
-  }
-
-  function hideInstance(mesh, i) {
-    dummy.position.set(0, 0, -4000);
-    dummy.scale.set(0.001, 0.001, 0.001);
-    dummy.rotation.set(0, 0, 0);
-    dummy.updateMatrix();
-    mesh.setMatrixAt(i, dummy.matrix);
-    if (mesh.instanceColor) mesh.setColorAt(i, _color.setRGB(0, 0, 0));
   }
 
   function syncMeshes() {
-    if (!LETTER_IDS.every((id) => letterSets[id])) return;
-
-    /** @type {Record<string, typeof marks>} */
-    const buckets = { a: [], b: [], c: [], x: [], y: [], z: [] };
+    if (!mesh) return;
     const shown = Math.min(marks.length, MAX);
-    for (let i = 0; i < shown; i++) {
-      const m = marks[i];
-      if (m && m.size >= 0.5) buckets[m.letter].push(m);
-    }
-
-    for (const id of LETTER_IDS) {
-      const set = letterSets[id];
-      const list = buckets[id];
-      for (let i = 0; i < MAX_PER; i++) {
-        const mark = list[i];
-        if (!mark) {
-          hideInstance(set.mesh, i);
-          hideInstance(set.outline, i);
-          continue;
-        }
+    for (let i = 0; i < MAX; i++) {
+      const mark = i < shown ? marks[i] : null;
+      if (!mark || mark.size < 0.5) {
+        dummy.position.set(0, 0, -4000);
+        dummy.scale.set(0.001, 0.001, 0.001);
+        dummy.rotation.set(0, 0, 0);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+        outlineMesh.setMatrixAt(i, dummy.matrix);
+        mesh.setColorAt(i, _color.setRGB(0, 0, 0));
+      } else {
         placeMark(mark, 1);
-        set.mesh.setMatrixAt(i, dummy.matrix);
+        mesh.setMatrixAt(i, dummy.matrix);
         const c = displayColor(mark.rgb, 0.62 + mark.opacity * 0.28);
-        set.mesh.setColorAt(i, _color.setRGB(c.r, c.g, c.b));
-
-        placeMark(mark, 1.03);
-        set.outline.setMatrixAt(i, dummy.matrix);
-        const outline = displayColor(mark.rgb, 0.28);
-        set.outline.setColorAt(i, _color.setRGB(outline.r * 0.55, outline.g * 0.5, outline.b * 0.75));
+        mesh.setColorAt(i, _color.setRGB(c.r, c.g, c.b));
+        placeMark(mark, 1.035);
+        outlineMesh.setMatrixAt(i, dummy.matrix);
+        const outline = displayColor(mark.rgb, 0.26);
+        outlineMesh.setColorAt(i, _color.setRGB(outline.r * 0.55, outline.g * 0.5, outline.b * 0.75));
       }
-      set.mesh.instanceMatrix.needsUpdate = true;
-      set.outline.instanceMatrix.needsUpdate = true;
-      if (set.mesh.instanceColor) set.mesh.instanceColor.needsUpdate = true;
-      if (set.outline.instanceColor) set.outline.instanceColor.needsUpdate = true;
     }
-
-    if (glossMesh) {
-      for (let i = 0; i < MAX; i++) {
-        const mark = i < shown ? marks[i] : null;
-        if (!mark || mark.size < 0.5) {
-          hideInstance(glossMesh, i);
-        } else {
-          placeMark(mark, 1);
-          dummy.scale.set(mark.size * 0.07, mark.size * 0.07, mark.size * 0.07);
-          dummy.updateMatrix();
-          glossMesh.setMatrixAt(i, dummy.matrix);
-          const core = displayColor(mark.rgb, 0.4);
-          glossMesh.setColorAt(i, _color.setRGB(core.r, core.g, core.b));
-        }
-      }
-      glossMesh.instanceMatrix.needsUpdate = true;
-      if (glossMesh.instanceColor) glossMesh.instanceColor.needsUpdate = true;
-    }
+    mesh.instanceMatrix.needsUpdate = true;
+    outlineMesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    if (outlineMesh.instanceColor) outlineMesh.instanceColor.needsUpdate = true;
 
     if (sparkleField) {
       sparkles.forEach((s, i) => {
@@ -416,9 +358,7 @@ export function createLetterXBloom() {
         fallField.positions[i * 3 + 2] = wpos.z;
         const [r, g, b] = rgbToUnit(p.rgb);
         const glow = (p.glow || 1.4) * (0.5 + p.opacity * 0.55);
-        const twinkle = p.kind === 'dust'
-          ? 0.9 + 0.1 * Math.sin(time * 8 + p.rot * 3)
-          : 1;
+        const twinkle = p.kind === 'dust' ? 0.9 + 0.1 * Math.sin(time * 8 + p.rot * 3) : 1;
         fallField.colors[i * 3] = Math.min(1, r * glow * twinkle);
         fallField.colors[i * 3 + 1] = Math.min(1, g * glow * twinkle);
         fallField.colors[i * 3 + 2] = Math.min(1, b * glow * twinkle);
@@ -433,17 +373,6 @@ export function createLetterXBloom() {
     marks.push(new Mark(x, y, currentPalette));
   }
 
-  function makeLetterMaterial(opacity = 0.82) {
-    return new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-  }
-
   return {
     init(w, h, params, group) {
       width = w;
@@ -454,56 +383,48 @@ export function createLetterXBloom() {
       sparkles = [];
       time = 0;
       layer = group;
-      letterSets = {};
 
-      for (const id of LETTER_IDS) {
-        const geo = LETTER_BUILDERS[id]();
-        geo.computeVertexNormals();
-        const mesh = new THREE.InstancedMesh(geo, makeLetterMaterial(0.82), MAX_PER);
-        mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_PER * 3), 3);
-        mesh.frustumCulled = false;
-        layer.add(mesh);
+      geo = opts.buildGeometry();
+      geo.computeVertexNormals();
 
-        const outline = new THREE.InstancedMesh(
-          geo,
-          new THREE.MeshBasicMaterial({
-            color: 0xffffff,
-            side: THREE.BackSide,
-            transparent: true,
-            opacity: 0.22,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending,
-          }),
-          MAX_PER,
-        );
-        outline.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_PER * 3), 3);
-        outline.frustumCulled = false;
-        layer.add(outline);
+      mesh = new THREE.InstancedMesh(
+        geo,
+        new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.78,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        }),
+        MAX,
+      );
+      mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3);
+      mesh.frustumCulled = false;
+      layer.add(mesh);
 
-        letterSets[id] = { mesh, outline, geo };
-      }
-
-      const glossGeo = new THREE.SphereGeometry(0.08, 8, 8);
-      const glossMat = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.28,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-      });
-      glossMesh = new THREE.InstancedMesh(glossGeo, glossMat, MAX);
-      glossMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3);
-      glossMesh.frustumCulled = false;
-      layer.add(glossMesh);
+      outlineMesh = new THREE.InstancedMesh(
+        geo,
+        new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          side: THREE.BackSide,
+          transparent: true,
+          opacity: 0.2,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        }),
+        MAX,
+      );
+      outlineMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3);
+      outlineMesh.frustumCulled = false;
+      layer.add(outlineMesh);
 
       sparkleField = makePoints(80, 5);
       fallField = makePoints(700, 14);
       fallField.mat.opacity = 0.85;
       layer.add(sparkleField.points, fallField.points);
 
-      for (let i = 0; i < 12; i++) {
-        spawn(Math.random() * w, Math.random() * h);
-      }
+      for (let i = 0; i < 12; i++) spawn(Math.random() * w, Math.random() * h);
       for (let i = 0; i < 70; i++) {
         sparkles.push({
           x: Math.random() * w,
@@ -529,22 +450,15 @@ export function createLetterXBloom() {
       if (pointer?.velocity > 3) {
         const n = Math.min(2, Math.floor(pointer.velocity / 16) + 1);
         for (let i = 0; i < n; i++) {
-          spawn(
-            pointer.x + (Math.random() - 0.5) * 50,
-            pointer.y + (Math.random() - 0.5) * 50,
-          );
+          spawn(pointer.x + (Math.random() - 0.5) * 50, pointer.y + (Math.random() - 0.5) * 50);
         }
       }
-
       if (Math.random() < dt * 1.8 * (params.speed || 1)) {
         spawn(Math.random() * width, Math.random() * height);
       }
-
       if (audioData?.isActive && audioData.bass > 0.3) {
         const n = Math.floor(audioData.bass * 4);
-        for (let i = 0; i < n; i++) {
-          spawn(Math.random() * width, Math.random() * height);
-        }
+        for (let i = 0; i < n; i++) spawn(Math.random() * width, Math.random() * height);
       }
 
       shards = shards.filter((p) => {
@@ -555,8 +469,7 @@ export function createLetterXBloom() {
         p.vx += Math.sin(time * 2.5 + p.x * 0.008) * 18 * dt;
         p.vz += Math.cos(time * 2.2 + p.y * 0.01) * 12 * dt;
         p.rot += p.rotSpeed * dt;
-        const fade = p.kind === 'dust' ? 0.14 : 0.1;
-        p.opacity -= dt * fade;
+        p.opacity -= dt * (p.kind === 'dust' ? 0.14 : 0.1);
         p.glow = Math.max(1.2, (p.glow || 1.4) - dt * 0.08);
         return p.opacity > 0.02 && p.y < height + 80;
       });
@@ -577,9 +490,7 @@ export function createLetterXBloom() {
 
     render() {
       syncMeshes();
-      for (const id of LETTER_IDS) {
-        if (letterSets[id]) letterSets[id].mesh.material.opacity = 0.78;
-      }
+      if (mesh) mesh.material.opacity = 0.76;
     },
 
     onPointerDown(x, y) {
@@ -599,13 +510,9 @@ export function createLetterXBloom() {
       const n = marks.length;
       if (n === 0) {
         for (let i = 0; i < count; i++) {
-          const t = Math.random();
-          const ang = (Math.random() < 0.5 ? Math.PI / 4 : -Math.PI / 4) + (Math.random() - 0.5) * 0.2;
-          const along = (Math.random() - 0.5) * 1.0;
-          const taper = 0.2 + Math.abs(along) * 0.8;
-          out[i * 3] = Math.sin(ang) * along * taper * 50;
-          out[i * 3 + 1] = Math.cos(ang) * along * 50;
-          out[i * 3 + 2] = (Math.random() - 0.5) * 18;
+          out[i * 3] = (Math.random() - 0.5) * 80;
+          out[i * 3 + 1] = (Math.random() - 0.5) * 80;
+          out[i * 3 + 2] = (Math.random() - 0.5) * 40;
         }
         return out;
       }
@@ -629,14 +536,28 @@ export function createLetterXBloom() {
       marks = [];
       shards = [];
       sparkles = [];
-      for (const id of LETTER_IDS) {
-        letterSets[id]?.geo?.dispose();
-      }
-      letterSets = {};
-      glossMesh = null;
+      geo?.dispose();
+      mesh = null;
+      outlineMesh = null;
       sparkleField = null;
       fallField = null;
       layer = null;
     },
   };
+}
+
+export function createHourglassBloom() {
+  return createFormBloom({ buildGeometry: buildHourglassGeometry, motion: 'spin' });
+}
+
+export function createTadpoleBloom() {
+  return createFormBloom({ buildGeometry: buildTadpoleGeometry, motion: 'bob' });
+}
+
+export function createBrainBloom() {
+  return createFormBloom({ buildGeometry: buildBrainGeometry, motion: 'sway' });
+}
+
+export function createAngelBloom() {
+  return createFormBloom({ buildGeometry: buildAngelGeometry, motion: 'sway' });
 }
