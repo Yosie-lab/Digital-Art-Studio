@@ -1,13 +1,14 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-export const DEPTH = 0.11;
-const EXTRUDE_OPTS = { depth: DEPTH, bevelEnabled: false, curveSegments: 16 };
-const HEAD_RX = 0.132;
-const HEAD_RY = 0.094;
-const HEAD_TILT = -0.4;
-const STEM_W = 0.036;
-const STEM_LEN = 0.94;
+/** 薄い押し出し＝楽譜アイコン風 */
+export const DEPTH = 0.055;
+const EXTRUDE_OPTS = { depth: DEPTH, bevelEnabled: false, curveSegments: 18 };
+const HEAD_RX = 0.145;
+const HEAD_RY = 0.105;
+const HEAD_TILT = -0.45;
+const STEM_W = 0.032;
+const STEM_LEN = 0.98;
 
 function bar(w, h, d = DEPTH, x = 0, y = 0, z = 0, rotZ = 0) {
   const g = new THREE.BoxGeometry(w, h, d);
@@ -52,9 +53,16 @@ function extrudeShape(shape) {
   return new THREE.ExtrudeGeometry(shape, EXTRUDE_OPTS);
 }
 
-function strokeTube(points, radius = 0.042, tubular = 40) {
+function strokeTube(points, radius = 0.034, tubular = 36) {
   const pts = points.map(([x, y]) => new THREE.Vector3(x, y, 0));
   return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), tubular, radius, 8, false);
+}
+
+/** 付点は符頭の右（符干側の外） */
+function augDot(hx, hy) {
+  const s = new THREE.Shape();
+  s.absellipse(hx + HEAD_RX + 0.09, hy, 0.038, 0.038, 0, Math.PI * 2, false, 0);
+  return extrudeShape(s);
 }
 
 function noteHeadFilled(cx, cy) {
@@ -67,18 +75,20 @@ function noteHeadOpen(cx, cy) {
   const s = new THREE.Shape();
   s.absellipse(cx, cy, HEAD_RX, HEAD_RY, 0, Math.PI * 2, false, HEAD_TILT);
   const hole = new THREE.Path();
-  hole.absellipse(cx, cy, HEAD_RX * 0.62, HEAD_RY * 0.62, 0, Math.PI * 2, true, HEAD_TILT);
+  hole.absellipse(cx, cy, HEAD_RX * 0.58, HEAD_RY * 0.58, 0, Math.PI * 2, true, HEAD_TILT);
   s.holes.push(hole);
   return extrudeShape(s);
 }
 
-function noteStemUp(hx = -0.04, hy = -0.34) {
-  const stemX = hx + 0.108;
-  const stemBase = hy + 0.05;
+function noteStemUp(hx = -0.02, hy = -0.36) {
+  const stemX = hx + HEAD_RX * 0.72;
+  const stemBase = hy + HEAD_RY * 0.35;
   const stemTop = stemBase + STEM_LEN;
   return {
     stemX,
     stemTop,
+    hx,
+    hy,
     parts: [
       noteHeadFilled(hx, hy),
       bar(STEM_W, STEM_LEN, DEPTH, stemX, stemBase + STEM_LEN * 0.5, 0),
@@ -86,74 +96,111 @@ function noteStemUp(hx = -0.04, hy = -0.34) {
   };
 }
 
-function flagCurve(stemX, stemTop, drop = 0) {
+/** 8分・16分の旗（楽譜の旗シルエット） */
+function flagShape(stemX, stemTop, drop = 0) {
   const y = stemTop - drop;
-  return strokeTube([
-    [stemX + STEM_W * 0.45, y],
-    [stemX + 0.09, y - 0.05],
-    [stemX + 0.19, y - 0.18],
-    [stemX + 0.24, y - 0.31],
-    [stemX + 0.17, y - 0.40],
-    [stemX + 0.08, y - 0.36],
-  ], STEM_W * 0.92, 28);
+  const s = new THREE.Shape();
+  s.moveTo(stemX + STEM_W * 0.5, y);
+  s.quadraticCurveTo(stemX + 0.16, y - 0.02, stemX + 0.26, y - 0.14);
+  s.quadraticCurveTo(stemX + 0.30, y - 0.26, stemX + 0.22, y - 0.38);
+  s.quadraticCurveTo(stemX + 0.16, y - 0.42, stemX + 0.12, y - 0.34);
+  s.quadraticCurveTo(stemX + 0.18, y - 0.22, stemX + 0.12, y - 0.10);
+  s.lineTo(stemX + STEM_W * 0.5, y - 0.08);
+  s.closePath();
+  return extrudeShape(s);
 }
 
-function noteWithFlags(flagCount) {
+function noteWithFlags(flagCount, dotted = false) {
   const n = noteStemUp();
   const parts = [...n.parts];
-  for (let i = 0; i < flagCount; i++) parts.push(flagCurve(n.stemX, n.stemTop, i * 0.14));
+  for (let i = 0; i < flagCount; i++) parts.push(flagShape(n.stemX, n.stemTop, i * 0.16));
+  if (dotted) parts.push(augDot(n.hx, n.hy));
   return finalizeGeometry(parts);
 }
 
 function letterP(xOff = 0) {
-  return [
-    bar(0.044, 0.88, DEPTH, -0.135 + xOff, 0, 0, -0.05),
-    strokeTube([
-      [-0.095 + xOff, 0.02], [0.02 + xOff, -0.30], [0.20 + xOff, -0.24],
-      [0.18 + xOff, -0.06], [0.02 + xOff, 0.04], [-0.095 + xOff, 0.02],
-    ], 0.038, 32),
-  ];
+  const stem = bar(0.048, 0.9, DEPTH, -0.12 + xOff, 0, 0, -0.08);
+  const bowl = new THREE.Shape();
+  bowl.moveTo(-0.12 + xOff, 0.12);
+  bowl.quadraticCurveTo(0.18 + xOff, 0.18, 0.2 + xOff, -0.08);
+  bowl.quadraticCurveTo(0.18 + xOff, -0.32, -0.12 + xOff, -0.28);
+  bowl.lineTo(-0.12 + xOff, -0.18);
+  bowl.quadraticCurveTo(0.08 + xOff, -0.2, 0.1 + xOff, -0.08);
+  bowl.quadraticCurveTo(0.08 + xOff, 0.08, -0.12 + xOff, 0.04);
+  bowl.closePath();
+  return [stem, extrudeShape(bowl)];
 }
 
 function letterF(xOff = 0) {
   return [
-    bar(0.044, 0.92, DEPTH, 0.105 + xOff, 0, 0, -0.06),
-    bar(0.48, 0.046, DEPTH, -0.08 + xOff, 0.42, 0, -0.04),
-    bar(0.32, 0.042, DEPTH, -0.02 + xOff, 0.08, 0, -0.04),
+    bar(0.048, 0.96, DEPTH, 0.1 + xOff, 0, 0, -0.08),
+    bar(0.5, 0.05, DEPTH, -0.08 + xOff, 0.42, 0, -0.06),
+    bar(0.34, 0.046, DEPTH, -0.02 + xOff, 0.08, 0, -0.06),
+    strokeTube([[0.12 + xOff, 0.46], [0.2 + xOff, 0.54], [0.14 + xOff, 0.58]], 0.032, 12),
   ];
 }
 
 function letterM(xOff = 0) {
   return [
-    bar(0.042, 0.82, DEPTH, -0.16 + xOff, 0.02, 0, -0.04),
-    bar(0.042, 0.82, DEPTH, 0.16 + xOff, 0.02, 0, 0.04),
-    bar(0.18, 0.042, DEPTH, xOff, 0.38, 0, 0.35),
+    bar(0.046, 0.78, DEPTH, -0.16 + xOff, 0.02, 0, -0.05),
+    bar(0.046, 0.78, DEPTH, 0.16 + xOff, 0.02, 0, 0.05),
+    bar(0.2, 0.046, DEPTH, xOff, 0.36, 0, 0.4),
   ];
 }
 
-function dynPair(left, right, spacing = 0.26) {
-  return finalizeGeometry([...left(-spacing * 0.5), ...right(spacing * 0.5)]);
+/** ヘアピン（細い線の < / >） */
+function hairpin(crescendo) {
+  const thick = 0.028;
+  if (crescendo) {
+    return [
+      bar(0.52, thick, DEPTH, 0, 0.05, 0, 0.22),
+      bar(0.52, thick, DEPTH, 0, -0.05, 0, -0.22),
+    ];
+  }
+  return [
+    bar(0.52, thick, DEPTH, 0, 0.05, 0, -0.22),
+    bar(0.52, thick, DEPTH, 0, -0.05, 0, 0.22),
+  ];
 }
 
-/* ——— シンプルな記号のみ（クレフ・付点・連符・装飾系は除外） ——— */
-
 function buildWholeGeometry() {
-  return finalizeGeometry([noteHeadOpen(-0.04, -0.02)]);
+  return finalizeGeometry([noteHeadOpen(0, 0)]);
+}
+
+function buildDottedHalfGeometry() {
+  const hx = -0.04;
+  const hy = -0.36;
+  const stemX = hx + HEAD_RX * 0.72;
+  const stemBase = hy + HEAD_RY * 0.35;
+  return finalizeGeometry([
+    noteHeadOpen(hx, hy),
+    bar(STEM_W, STEM_LEN, DEPTH, stemX, stemBase + STEM_LEN * 0.5, 0),
+    augDot(hx, hy),
+  ]);
+}
+
+function buildHalfGeometry() {
+  const hx = -0.04;
+  const hy = -0.36;
+  const stemX = hx + HEAD_RX * 0.72;
+  const stemBase = hy + HEAD_RY * 0.35;
+  return finalizeGeometry([
+    noteHeadOpen(hx, hy),
+    bar(STEM_W, STEM_LEN, DEPTH, stemX, stemBase + STEM_LEN * 0.5, 0),
+  ]);
+}
+
+function buildDottedQuarterGeometry() {
+  const n = noteStemUp();
+  return finalizeGeometry([...n.parts, augDot(n.hx, n.hy)]);
 }
 
 function buildQuarterGeometry() {
   return finalizeGeometry(noteStemUp().parts);
 }
 
-function buildHalfGeometry() {
-  const hx = -0.04;
-  const hy = -0.34;
-  const stemX = hx + 0.108;
-  const stemBase = hy + 0.05;
-  return finalizeGeometry([
-    noteHeadOpen(hx, hy),
-    bar(STEM_W, STEM_LEN, DEPTH, stemX, stemBase + STEM_LEN * 0.5, 0),
-  ]);
+function buildDottedEighthGeometry() {
+  return noteWithFlags(1, true);
 }
 
 function buildEighthGeometry() {
@@ -164,118 +211,180 @@ function buildSixteenthGeometry() {
   return noteWithFlags(2);
 }
 
-function buildWholeRestGeometry() {
-  return finalizeGeometry([
-    bar(0.36, 0.12, DEPTH, 0, 0.32, 0),
-    bar(0.52, 0.028, DEPTH, 0, 0.38, 0),
-  ]);
-}
-
-function buildHalfRestGeometry() {
-  return finalizeGeometry([
-    bar(0.36, 0.12, DEPTH, 0, -0.32, 0),
-    bar(0.52, 0.028, DEPTH, 0, -0.38, 0),
-  ]);
-}
-
+/** 4分休符（稲妻型の塗りつぶし） */
 function buildQuarterRestGeometry() {
-  return finalizeGeometry([
-    strokeTube([
-      [0.04, 0.42], [-0.02, 0.28], [0.06, 0.12], [-0.04, -0.04], [0.04, -0.22], [-0.02, -0.38],
-    ], 0.036, 28),
-  ]);
+  const s = new THREE.Shape();
+  s.moveTo(0.02, 0.42);
+  s.lineTo(0.1, 0.28);
+  s.lineTo(-0.02, 0.12);
+  s.lineTo(0.1, -0.02);
+  s.lineTo(-0.02, -0.18);
+  s.lineTo(0.06, -0.42);
+  s.lineTo(-0.04, -0.36);
+  s.lineTo(-0.1, -0.14);
+  s.lineTo(0.02, 0.02);
+  s.lineTo(-0.1, 0.16);
+  s.lineTo(0.02, 0.32);
+  s.closePath();
+  return finalizeGeometry([extrudeShape(s)]);
 }
 
+/** 8分休符（旗付き7） */
 function buildEighthRestGeometry() {
+  const body = strokeTube([
+    [0.06, 0.28], [0.02, 0.08], [-0.04, -0.12], [-0.08, -0.34],
+  ], 0.034, 24);
+  const flag = new THREE.Shape();
+  flag.moveTo(0.06, 0.3);
+  flag.quadraticCurveTo(-0.02, 0.42, -0.12, 0.34);
+  flag.quadraticCurveTo(-0.06, 0.28, 0.02, 0.26);
+  flag.closePath();
+  return finalizeGeometry([body, extrudeShape(flag)]);
+}
+
+function buildBarLineGeometry() {
+  return finalizeGeometry([bar(0.04, 0.95, DEPTH, 0, 0, 0)]);
+}
+
+function buildDoubleBarLineGeometry() {
   return finalizeGeometry([
-    strokeTube([
-      [-0.06, 0.38], [0.02, 0.42], [0.10, 0.28], [0.06, 0.08], [-0.02, -0.02], [-0.08, -0.28],
-    ], 0.038, 28),
+    bar(0.03, 0.95, DEPTH, -0.06, 0, 0),
+    bar(0.06, 0.95, DEPTH, 0.08, 0, 0),
   ]);
 }
 
 function buildSharpGeometry() {
-  const slant = 0.18;
-  const vw = 0.038;
+  const slant = 0.2;
+  const vw = 0.04;
   return finalizeGeometry([
-    bar(vw, 1.02, DEPTH, -0.155, 0, 0),
-    bar(vw, 1.02, DEPTH, 0.155, 0, 0),
-    bar(0.44, vw, DEPTH, 0, 0.165, 0, slant),
-    bar(0.44, vw, DEPTH, 0, -0.165, 0, slant),
+    bar(vw, 1.05, DEPTH, -0.16, 0, 0),
+    bar(vw, 1.05, DEPTH, 0.16, 0, 0),
+    bar(0.48, vw, DEPTH, 0, 0.17, 0, slant),
+    bar(0.48, vw, DEPTH, 0, -0.17, 0, slant),
   ]);
 }
 
 function buildFlatGeometry() {
-  const stem = bar(0.038, 1.0, DEPTH, -0.145, 0, 0);
+  const stem = bar(0.04, 1.02, DEPTH, -0.14, 0.02, 0);
   const bowl = new THREE.Shape();
-  bowl.absellipse(-0.02, -0.365, 0.115, 0.105, 0, Math.PI * 2, false, 0.05);
-  const loop = strokeTube([
-    [-0.145, 0.22], [-0.06, 0.34], [0.06, 0.28], [-0.145, 0.22],
-  ], 0.038, 24);
-  return finalizeGeometry([stem, extrudeShape(bowl), loop]);
+  bowl.moveTo(-0.14, 0.05);
+  bowl.quadraticCurveTo(0.12, 0.28, 0.12, -0.05);
+  bowl.quadraticCurveTo(0.1, -0.32, -0.14, -0.42);
+  bowl.lineTo(-0.14, -0.28);
+  bowl.quadraticCurveTo(0.02, -0.22, 0.02, -0.06);
+  bowl.quadraticCurveTo(0.02, 0.12, -0.14, 0.0);
+  bowl.closePath();
+  return finalizeGeometry([stem, extrudeShape(bowl)]);
 }
 
 function buildNaturalGeometry() {
-  const w = 0.038;
+  const w = 0.04;
   return finalizeGeometry([
-    bar(w, 0.50, DEPTH, -0.115, 0.22, 0),
-    bar(w, 0.50, DEPTH, 0.115, -0.22, 0),
-    bar(0.27, w, DEPTH, 0, 0.455, 0),
-    bar(0.27, w, DEPTH, 0, -0.455, 0),
+    bar(w, 0.52, DEPTH, -0.12, 0.22, 0),
+    bar(w, 0.52, DEPTH, 0.12, -0.22, 0),
+    bar(0.3, w, DEPTH, 0, 0.46, 0),
+    bar(0.3, w, DEPTH, 0, -0.46, 0),
   ]);
-}
-
-function buildPianoGeometry() {
-  return finalizeGeometry(letterP(0));
 }
 
 function buildForteGeometry() {
   return finalizeGeometry(letterF(0));
 }
 
-function buildMezzoPianoGeometry() {
-  return finalizeGeometry([...letterM(-0.14), ...letterP(0.14)]);
-}
-
 function buildMezzoForteGeometry() {
-  return finalizeGeometry([...letterM(-0.14), ...letterF(0.14)]);
+  return finalizeGeometry([...letterM(-0.16), ...letterF(0.16)]);
 }
 
-function buildPianissimoGeometry() {
-  return dynPair(letterP, letterP);
+function buildPianoGeometry() {
+  return finalizeGeometry(letterP(0));
 }
 
-function buildFortissimoGeometry() {
-  return dynPair(letterF, letterF);
+function buildMezzoPianoGeometry() {
+  return finalizeGeometry([...letterM(-0.16), ...letterP(0.16)]);
 }
 
-/** 読みやすく安定した18種 */
+function buildCrescendoGeometry() {
+  return finalizeGeometry(hairpin(true));
+}
+
+function buildDiminuendoGeometry() {
+  return finalizeGeometry(hairpin(false));
+}
+
+function buildAccentGeometry() {
+  const s = new THREE.Shape();
+  s.moveTo(-0.22, 0.12);
+  s.lineTo(0.22, 0);
+  s.lineTo(-0.22, -0.12);
+  s.lineTo(-0.22, -0.04);
+  s.lineTo(0.08, 0);
+  s.lineTo(-0.22, 0.04);
+  s.closePath();
+  return finalizeGeometry([extrudeShape(s)]);
+}
+
+function buildStaccatoGeometry() {
+  const mark = new THREE.Shape();
+  mark.absellipse(-0.02, 0.28, 0.04, 0.04, 0, Math.PI * 2, false, 0);
+  return finalizeGeometry([
+    noteHeadFilled(-0.02, -0.2),
+    bar(STEM_W, STEM_LEN * 0.72, DEPTH, 0.08, 0.18, 0),
+    extrudeShape(mark),
+  ]);
+}
+
+function buildTieGeometry() {
+  return finalizeGeometry([
+    noteHeadFilled(-0.22, -0.2),
+    noteHeadFilled(0.18, -0.2),
+    strokeTube([[-0.1, -0.02], [0, 0.12], [0.1, -0.02]], 0.028, 20),
+  ]);
+}
+
+function buildSlurGeometry() {
+  return finalizeGeometry([
+    noteHeadFilled(-0.22, -0.24),
+    noteHeadFilled(0.18, -0.16),
+    strokeTube([[-0.12, 0.02], [0, 0.22], [0.12, 0.08]], 0.028, 22),
+  ]);
+}
+
+/** 参考表から確実に読める25種 */
 export const NOTE_IDS = [
-  'whole', 'quarter', 'half', 'eighth', 'sixteenth',
-  'wholeRest', 'halfRest', 'quarterRest', 'eighthRest',
+  'whole', 'dottedHalf', 'half', 'dottedQuarter', 'quarter',
+  'dottedEighth', 'eighth', 'sixteenth', 'quarterRest', 'eighthRest',
+  'barLine', 'doubleBarLine',
   'sharp', 'flat', 'natural',
-  'piano', 'forte', 'mezzoPiano', 'mezzoForte', 'pianissimo', 'fortissimo',
+  'forte', 'mezzoForte', 'piano', 'mezzoPiano', 'crescendo', 'diminuendo',
+  'accent', 'staccato', 'tie', 'slur',
 ];
 
 export const NOTE_BUILDERS = {
   whole: buildWholeGeometry,
-  quarter: buildQuarterGeometry,
+  dottedHalf: buildDottedHalfGeometry,
   half: buildHalfGeometry,
+  dottedQuarter: buildDottedQuarterGeometry,
+  quarter: buildQuarterGeometry,
+  dottedEighth: buildDottedEighthGeometry,
   eighth: buildEighthGeometry,
   sixteenth: buildSixteenthGeometry,
-  wholeRest: buildWholeRestGeometry,
-  halfRest: buildHalfRestGeometry,
   quarterRest: buildQuarterRestGeometry,
   eighthRest: buildEighthRestGeometry,
+  barLine: buildBarLineGeometry,
+  doubleBarLine: buildDoubleBarLineGeometry,
   sharp: buildSharpGeometry,
   flat: buildFlatGeometry,
   natural: buildNaturalGeometry,
-  piano: buildPianoGeometry,
   forte: buildForteGeometry,
-  mezzoPiano: buildMezzoPianoGeometry,
   mezzoForte: buildMezzoForteGeometry,
-  pianissimo: buildPianissimoGeometry,
-  fortissimo: buildFortissimoGeometry,
+  piano: buildPianoGeometry,
+  mezzoPiano: buildMezzoPianoGeometry,
+  crescendo: buildCrescendoGeometry,
+  diminuendo: buildDiminuendoGeometry,
+  accent: buildAccentGeometry,
+  staccato: buildStaccatoGeometry,
+  tie: buildTieGeometry,
+  slur: buildSlurGeometry,
 };
 
 export function pickNoteSymbol() {

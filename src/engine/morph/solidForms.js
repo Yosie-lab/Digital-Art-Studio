@@ -486,40 +486,43 @@ export function createHourglass(palette = 'rainbow') {
   };
 }
 
-/** ——— オタマ: ミント1色・尾は無地でゆるく ——— */
+/** ——— オタマ: 写真寄り（暗い胴・長い斑点尾・右向き） ——— */
 export function createTadpole(palette = 'rainbow') {
   const group = new THREE.Group();
   softLights(group);
   const main = formHex(palette, 'tadpole');
-  const lite = tint(main, 0.25);
+  // 写真の茶灰〜オリーブ寄りに寄せる
+  const bodyHex = tint(main, -0.35);
+  const tailHex = tint(main, 0.45);
+  const spotHex = tint(main, -0.55);
 
-  const bodyMat = petalMat(main);
+  const bodyMat = petalMat(bodyHex, { roughness: 0.45, ei: 0.35 });
   const body = new THREE.Mesh(new THREE.SphereGeometry(28, 40, 32), bodyMat);
-  body.scale.set(1.25, 1.05, 1.08);
-  body.position.set(-6, 0, 0);
-  outlineOf(body, tint(main, -0.4), 1.04);
-  gloss(body, -4, 12, 18, 6);
-  gloss(body, 6, 8, 20, 3.5);
+  body.scale.set(1.45, 1.12, 1.18);
+  body.position.set(18, 2, 0);
+  outlineOf(body, tint(bodyHex, -0.35), 1.03);
+  gloss(body, 10, 14, 16, 5.5);
+  gloss(body, 22, 6, 18, 3);
   group.add(body);
 
   const belly = new THREE.Mesh(
     new THREE.SphereGeometry(16, 28, 22),
-    petalMat(lite, { opacity: 0.92 }),
+    petalMat(tint(bodyHex, 0.2), { opacity: 0.9, roughness: 0.55 }),
   );
-  belly.scale.set(1.1, 0.85, 1);
-  belly.position.set(-2, -8, 6);
+  belly.scale.set(1.15, 0.82, 1.05);
+  belly.position.set(14, -8, 4);
   group.add(belly);
 
-  const face = new THREE.Group();
-  face.position.set(6, 8, 22);
-  dotEyes(face, 2, 0, 10, 2.8);
-  blush(face, -5, -2, 14, 5.5);
-  group.add(face);
+  const eyeMat = petalMat('#1a1814', { roughness: 0.35, ei: 0.1 });
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(4.2, 12, 10), eyeMat);
+  const eyeR = new THREE.Mesh(new THREE.SphereGeometry(4.2, 12, 10), eyeMat.clone());
+  eyeL.position.set(28, 10, 18);
+  eyeR.position.set(28, 10, -18);
+  group.add(eyeL, eyeR);
 
-  // 無地の一本尾・先端は丸めずスッと尖る
-  const tailLen = 130;
-  const segsX = 28;
-  const segsY = 6;
+  const tailLen = 185;
+  const segsX = 36;
+  const segsY = 8;
   const segsZ = 4;
   const tailGeo = new THREE.BoxGeometry(tailLen, 1, 1, segsX, segsY, segsZ);
   const base = Float32Array.from(tailGeo.attributes.position.array);
@@ -527,14 +530,13 @@ export function createTadpole(palette = 'rainbow') {
   for (let i = 0; i < posAttr.count; i++) {
     const x = base[i * 3];
     const along = (x + tailLen * 0.5) / tailLen;
-    const taper = Math.max(0.02, 1 - along);
-    const halfH = 26 * taper;
-    const halfD = 10 * taper;
+    const taper = Math.max(0.03, Math.pow(1 - along, 0.85));
+    const halfH = 22 * taper;
+    const halfD = 5.5 * taper;
     const uy = base[i * 3 + 1] / 0.5;
     const uz = base[i * 3 + 2] / 0.5;
-    const lift = Math.sin(along * Math.PI * 0.55) * 10;
-    const stretch = along > 0.85 ? (along - 0.85) * 18 : 0;
-    base[i * 3] = x + stretch;
+    const lift = Math.sin(along * Math.PI * 0.7) * 8 + along * along * 6;
+    base[i * 3] = x;
     base[i * 3 + 1] = uy * halfH + lift;
     base[i * 3 + 2] = uz * halfD;
   }
@@ -542,29 +544,46 @@ export function createTadpole(palette = 'rainbow') {
   posAttr.needsUpdate = true;
   tailGeo.computeVertexNormals();
 
-  const tailMat = petalMat(main);
+  const tailMat = petalMat(tailHex, { opacity: 0.82, roughness: 0.7, ei: 0.2 });
   const tail = new THREE.Mesh(tailGeo, tailMat);
-  // 頭が小さくなった分、付け根を手前へ
-  tail.position.set(32, 2, 0);
-  outlineOf(tail, tint(main, -0.4), 1.02);
+  tail.position.set(-58, 2, 0);
+  outlineOf(tail, tint(tailHex, -0.25), 1.015);
   group.add(tail);
+
+  const spotMat = petalMat(spotHex, { roughness: 0.7, ei: 0.15 });
+  for (let i = 0; i < 28; i++) {
+    const t = Math.random();
+    const spot = new THREE.Mesh(
+      new THREE.SphereGeometry(1.1 + Math.random() * 1.8, 8, 6),
+      spotMat.clone(),
+    );
+    spot.position.set(
+      -58 + (t - 0.5) * tailLen * 0.92,
+      2 + Math.sin(t * Math.PI * 0.7) * 8 + (Math.random() - 0.5) * 10 * (1 - t),
+      (Math.random() - 0.5) * 6,
+    );
+    group.add(spot);
+  }
 
   return {
     group,
     update(_dt, time) {
       group.position.y = Math.sin(time * 1.3) * 5;
-      group.rotation.y = Math.sin(time * 0.55) * 0.12;
-      // 激しく細かく左右に振る（速い波＋細かい二次波）
-      const swim = time * 9.5;
+      group.rotation.y = Math.sin(time * 0.4) * 0.08;
+      // ぷるんぷるん素早い泳ぎ波
+      const swim = time * 20;
       const arr = posAttr.array;
       for (let i = 0; i < posAttr.count; i++) {
         const x = base[i * 3];
         const along = Math.min(1, (x + tailLen * 0.5) / (tailLen + 8));
+        const a2 = along * along;
         const wave =
-          Math.sin(swim - along * 6.5) * along * along * 22 +
-          Math.sin(swim * 2.4 - along * 14) * along * along * 7;
+          Math.sin(swim - along * 7) * a2 * 36 +
+          Math.sin(swim * 2.8 - along * 16) * a2 * 18 +
+          Math.sin(swim * 6.2 - along * 30) * a2 * 10 +
+          Math.sin(swim * 13 - along * 48) * a2 * 5;
         arr[i * 3] = base[i * 3];
-        arr[i * 3 + 1] = base[i * 3 + 1];
+        arr[i * 3 + 1] = base[i * 3 + 1] + Math.sin(swim * 1.8 - along * 5) * a2 * 5;
         arr[i * 3 + 2] = base[i * 3 + 2] + wave;
       }
       posAttr.needsUpdate = true;
@@ -572,25 +591,26 @@ export function createTadpole(palette = 'rainbow') {
     },
     setPalette(p) {
       const m = formHex(p, 'tadpole');
-      const l = tint(m, 0.25);
-      setMatHex(bodyMat, m);
-      setMatHex(belly.material, l);
-      setMatHex(tailMat, m);
+      const b = tint(m, -0.35);
+      const t = tint(m, 0.45);
+      setMatHex(bodyMat, b);
+      setMatHex(belly.material, tint(b, 0.2));
+      setMatHex(tailMat, t);
     },
     samplePoints(count) {
       const out = new Float32Array(count * 3);
       for (let i = 0; i < count; i++) {
-        if (i < count * 0.55) {
+        if (i < count * 0.5) {
           const u = Math.random() * Math.PI * 2;
           const v = Math.acos(2 * Math.random() - 1);
-          out[i * 3] = -6 + Math.sin(v) * Math.cos(u) * 28 * 1.25;
-          out[i * 3 + 1] = Math.sin(v) * Math.sin(u) * 28 * 1.05;
-          out[i * 3 + 2] = Math.cos(v) * 28 * 1.08;
+          out[i * 3] = 18 + Math.sin(v) * Math.cos(u) * 28 * 1.45;
+          out[i * 3 + 1] = 2 + Math.sin(v) * Math.sin(u) * 28 * 1.12;
+          out[i * 3 + 2] = Math.cos(v) * 28 * 1.18;
         } else {
           const t = Math.random();
-          out[i * 3] = 32 + (t - 0.5) * tailLen;
-          out[i * 3 + 1] = 2 + Math.sin(t * Math.PI * 0.55) * 10;
-          out[i * 3 + 2] = (Math.random() - 0.5) * 6;
+          out[i * 3] = -58 + (t - 0.5) * tailLen;
+          out[i * 3 + 1] = 2 + Math.sin(t * Math.PI * 0.7) * 8;
+          out[i * 3 + 2] = (Math.random() - 0.5) * 5;
         }
       }
       return out;
