@@ -11,7 +11,7 @@ import { disposeObject } from '../space3d.js';
 const FORM_HUE = {
   letter: 1,     // 電光青
   jellyfish: 12, // 水色寄り青
-  hourglass: 4,  // バイオレット
+  clock: 2,      // シアン寄りネオン
   tadpole: 2,    // ミント
   music: 1,      // 電光青（文字・花びら系）
   brain: 0,      // 旧: 互換用
@@ -156,8 +156,10 @@ function rotatePointsZ(positions, start, n, angle) {
 export function createLetterX(palette = 'rainbow') {
   const group = new THREE.Group();
   softLights(group);
-  const main = formHex(palette, 'letter');
-  const mat = petalMat(main);
+  const raw = formHex(palette, 'letter');
+  // アルファベットは彩度をやや抑える（少し戻し）
+  const main = tint(raw, 0.22);
+  const mat = petalMat(main, { opacity: 0.65, roughness: 0.5, ei: 0.28 });
 
   // 厚みのある角棒＋両端を少し面取りした立体
   const makeBeam = (m) => {
@@ -459,152 +461,216 @@ export function createJellyfish(palette = 'rainbow') {
 }
 
 
-export function createHourglass(palette = 'rainbow') {
+export function createClock(palette = 'rainbow') {
   const group = new THREE.Group();
+  group.scale.setScalar(1.45 * (2 / 3));
   softLights(group);
-  const main = formHex(palette, 'hourglass');
-  const lite = tint(main, 0.4);
+  const rainbow = getPaletteColors('rainbow');
+  const main = rainbow[Math.floor(Math.random() * rainbow.length)];
+  const neon = col(main);
 
-  const glassM = jellyMat(lite, 0.5);
-  const profile = [
-    new THREE.Vector2(0.5, -50), new THREE.Vector2(32, -46), new THREE.Vector2(36, -24),
-    new THREE.Vector2(12, -5), new THREE.Vector2(5, 0), new THREE.Vector2(12, 5),
-    new THREE.Vector2(36, 24), new THREE.Vector2(32, 46), new THREE.Vector2(0.5, 50),
-  ];
-  const glass = new THREE.Mesh(new THREE.LatheGeometry(profile, 48), glassM);
-  outlineOf(glass, tint(main, -0.35), 1.03);
-  group.add(glass);
-
-  const sandM = petalMat(main, { roughness: 0.85, ei: 0.4 });
-  const sandTop = new THREE.Mesh(new THREE.ConeGeometry(22, 16, 24), sandM);
-  sandTop.rotation.x = Math.PI;
-  sandTop.position.y = 24;
-  const sandBot = new THREE.Mesh(new THREE.ConeGeometry(28, 22, 24), sandM.clone());
-  sandBot.position.y = -30;
-  group.add(sandTop, sandBot);
-
-  const frameM = petalMat(main);
-  const top = new THREE.Mesh(new THREE.CylinderGeometry(38, 38, 10, 32), frameM);
-  top.position.y = 54;
-  outlineOf(top, tint(main, -0.4), 1.04);
-  const bot = new THREE.Mesh(new THREE.CylinderGeometry(38, 38, 10, 32), frameM.clone());
-  bot.position.y = -54;
-  outlineOf(bot, tint(main, -0.4), 1.04);
-  group.add(top, bot);
-  const pillars = [];
-  for (let i = 0; i < 3; i++) {
-    const ang = (i / 3) * Math.PI * 2;
-    const p = new THREE.Mesh(new THREE.CapsuleGeometry(3.5, 100, 6, 10), frameM.clone());
-    p.position.set(Math.cos(ang) * 36, 0, Math.sin(ang) * 36);
-    group.add(p);
-    pillars.push(p);
+  function inkMat(opacity = 1) {
+    return new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#0a0a0c'),
+      transparent: opacity < 1,
+      opacity,
+      depthWrite: true,
+      blending: THREE.NormalBlending,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+    });
   }
 
-  const sandCount = 280;
-  const sandPos = new Float32Array(sandCount * 3);
-  const sandVel = new Float32Array(sandCount);
-  for (let i = 0; i < sandCount; i++) {
-    sandPos[i * 3] = (Math.random() - 0.5) * 14;
-    sandPos[i * 3 + 1] = 8 + Math.random() * 28;
-    sandPos[i * 3 + 2] = (Math.random() - 0.5) * 14;
-    sandVel[i] = 20 + Math.random() * 25;
+  function neonMat(opacity = 0.95) {
+    return new THREE.MeshBasicMaterial({
+      color: neon.clone(),
+      transparent: true,
+      opacity,
+      depthWrite: false,
+      blending: THREE.NormalBlending,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+    });
   }
-  const sandGeo = new THREE.BufferGeometry();
-  sandGeo.setAttribute('position', new THREE.BufferAttribute(sandPos, 3));
-  const sandPts = new THREE.Points(sandGeo, new THREE.PointsMaterial({
-    color: col(main),
-    size: 3,
-    transparent: true,
-    opacity: 0.85,
-    sizeAttenuation: true,
-    depthWrite: false,
-  }));
-  group.add(sandPts);
+
+  const faceGeo = new THREE.CylinderGeometry(48, 48, 12, 48);
+  faceGeo.rotateX(Math.PI / 2);
+  const face = new THREE.Mesh(
+    faceGeo,
+    new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#eef2f8'),
+      transparent: true,
+      opacity: 0.1,
+      depthWrite: false,
+      blending: THREE.NormalBlending,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+    }),
+  );
+  group.add(face);
+
+  const sideGeo = new THREE.CylinderGeometry(51, 51, 14, 48, 1, true);
+  sideGeo.rotateX(Math.PI / 2);
+  const side = new THREE.Mesh(sideGeo, neonMat(0.85));
+  const bezel = new THREE.Mesh(new THREE.TorusGeometry(49.5, 2.4, 8, 48), neonMat(0.95));
+  bezel.position.z = 6.5;
+  const backGeo = new THREE.CylinderGeometry(46, 46, 4, 36);
+  backGeo.rotateX(Math.PI / 2);
+  const back = new THREE.Mesh(backGeo, neonMat(0.7));
+  back.position.z = -7;
+  group.add(side, bezel, back);
+
+  const dial = new THREE.Group();
+  for (let i = 0; i < 60; i++) {
+    const ang = (i / 60) * Math.PI * 2;
+    const major = i % 5 === 0;
+    const tick = new THREE.Mesh(
+      new THREE.BoxGeometry(major ? 1.6 : 0.8, major ? 7 : 3.5, 2.2),
+      inkMat(1),
+    );
+    tick.position.set(Math.sin(ang) * 40, Math.cos(ang) * 40, 7);
+    tick.rotation.z = -ang;
+    dial.add(tick);
+  }
+  for (let h = 0; h < 12; h++) {
+    const ang = (h / 12) * Math.PI * 2;
+    const mark = new THREE.Mesh(new THREE.BoxGeometry(2.2, 8, 2.5), inkMat(1));
+    mark.position.set(Math.sin(ang) * 34, Math.cos(ang) * 34, 7.5);
+    mark.rotation.z = -ang;
+    dial.add(mark);
+  }
+  group.add(dial);
+
+  const hourHand = new THREE.Mesh(new THREE.BoxGeometry(3.2, 26, 2.4), inkMat(1));
+  hourHand.position.set(0, 10, 9);
+  const minuteHand = new THREE.Mesh(new THREE.BoxGeometry(2.2, 38, 2), inkMat(1));
+  minuteHand.position.set(0, 16, 10);
+  const secondHand = new THREE.Mesh(new THREE.BoxGeometry(1, 42, 1.5), inkMat(1));
+  secondHand.position.set(0, 14, 11);
+  const hub = new THREE.Mesh(new THREE.SphereGeometry(3.5, 12, 10), inkMat(1));
+  hub.position.z = 10;
+  const hourRoot = new THREE.Group();
+  const minuteRoot = new THREE.Group();
+  const secondRoot = new THREE.Group();
+  hourRoot.add(hourHand);
+  minuteRoot.add(minuteHand);
+  secondRoot.add(secondHand);
+  group.add(hourRoot, minuteRoot, secondRoot, hub);
+
+  const crown = new THREE.Mesh(new THREE.CylinderGeometry(4, 4.5, 8, 10), neonMat(0.9));
+  crown.position.y = 58;
+  const bow = new THREE.Mesh(new THREE.TorusGeometry(9, 1.8, 6, 20, Math.PI * 1.3), neonMat(0.9));
+  bow.rotation.z = Math.PI;
+  bow.position.y = 70;
+  group.add(crown, bow);
+
+  const spinY = (Math.random() < 0.5 ? 1 : -1) * (0.55 + Math.random() * 0.5);
+  const spinX = (Math.random() - 0.5) * 0.35;
+  const spinZ = (Math.random() - 0.5) * 0.2;
 
   return {
     group,
     update(dt, time) {
-      group.rotation.y = time * 0.25;
-      sandTop.scale.y = 0.8 + Math.sin(time * 0.4) * 0.15;
-      for (let i = 0; i < sandCount; i++) {
-        sandPos[i * 3 + 1] -= sandVel[i] * dt;
-        const y = sandPos[i * 3 + 1];
-        const pinch = Math.max(1.5, 4 + Math.abs(y) * 0.18);
-        sandPos[i * 3] *= 0.985;
-        sandPos[i * 3 + 2] *= 0.985;
-        if (Math.abs(sandPos[i * 3]) > pinch) sandPos[i * 3] *= 0.9;
-        if (Math.abs(sandPos[i * 3 + 2]) > pinch) sandPos[i * 3 + 2] *= 0.9;
-        if (y < -44) {
-          sandPos[i * 3] = (Math.random() - 0.5) * 16;
-          sandPos[i * 3 + 1] = 12 + Math.random() * 26;
-          sandPos[i * 3 + 2] = (Math.random() - 0.5) * 16;
-        }
-      }
-      sandGeo.attributes.position.needsUpdate = true;
+      group.position.y = Math.sin(time * 0.7) * 8;
+      group.rotation.y += spinY * dt;
+      group.rotation.x += spinX * dt;
+      group.rotation.z += spinZ * dt;
+      const sec = time % 60;
+      const min = (time / 60) % 60;
+      const hr = (time / 3600) % 12;
+      secondRoot.rotation.z = -(sec / 60) * Math.PI * 2;
+      minuteRoot.rotation.z = -(min / 60) * Math.PI * 2;
+      hourRoot.rotation.z = -(hr / 12) * Math.PI * 2;
     },
-    setPalette(p) {
-      const m = formHex(p, 'hourglass');
-      const l = tint(m, 0.4);
-      setMatHex(glassM, l);
-      setMatHex(sandM, m);
-      setMatHex(sandBot.material, m);
-      setMatHex(frameM, m);
-      setMatHex(top.material, m);
-      setMatHex(bot.material, m);
-      pillars.forEach((pil) => setMatHex(pil.material, m));
-      sandPts.material.color.set(m);
+    setPalette(_p) {
+      const ink = new THREE.Color('#0a0a0c');
+      dial.traverse((ch) => { if (ch.isMesh) ch.material.color.copy(ink); });
+      hourHand.material.color.copy(ink);
+      minuteHand.material.color.copy(ink);
+      secondHand.material.color.copy(ink);
+      hub.material.color.copy(ink);
+      crown.material.color.copy(c);
+      bow.material.color.copy(c);
     },
     samplePoints(count) {
       const out = new Float32Array(count * 3);
       for (let i = 0; i < count; i++) {
-        const t = Math.random() * 2 - 1;
-        const y = t * 48;
-        const absT = Math.abs(t);
-        const r = absT < 0.12 ? 5 + absT * 40 : 14 + (absT - 0.12) * 30;
-        const u = Math.random() * Math.PI * 2;
-        out[i * 3] = Math.cos(u) * r;
-        out[i * 3 + 1] = y;
-        out[i * 3 + 2] = Math.sin(u) * r;
+        const a = Math.random() * Math.PI * 2;
+        const r = Math.random() * 50;
+        out[i * 3] = Math.cos(a) * r;
+        out[i * 3 + 1] = Math.sin(a) * r;
+        out[i * 3 + 2] = (Math.random() - 0.5) * 12;
       }
       return out;
     },
-    dispose() { disposeObject(group); },
   };
 }
 
-/** ——— オタマ: 写真寄り（暗い胴・長い斑点尾・右向き） ——— */
+
 export function createTadpole(palette = 'rainbow') {
   const group = new THREE.Group();
   softLights(group);
-  const main = formHex(palette, 'tadpole');
-  // 写真の茶灰〜オリーブ寄りに寄せる
-  const bodyHex = tint(main, -0.35);
-  const tailHex = tint(main, 0.45);
-  const spotHex = tint(main, -0.55);
+  const NEON = ['#00e8ff', '#00b7ff', '#2f6bff', '#1a48ff', '#4d7cff', '#7c4dff', '#ff2bd6'];
+  const neonHex = NEON[Math.floor(Math.random() * NEON.length)];
+  const neonCol = col(neonHex);
 
-  const bodyMat = petalMat(bodyHex, { opacity: 0.4, roughness: 0.35, ei: 0.45 });
-  const body = new THREE.Mesh(new THREE.SphereGeometry(28, 40, 32), bodyMat);
-  body.scale.set(1.45, 1.12, 1.18);
+  function jellyMat(opacity = 0.3, additive = true) {
+    return new THREE.MeshBasicMaterial({
+      color: neonCol.clone(),
+      transparent: true,
+      opacity,
+      depthWrite: false,
+      blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+    });
+  }
+
+  // クラゲ風ゼリー胴
+  const body = new THREE.Mesh(new THREE.SphereGeometry(28, 40, 32), jellyMat(0.28, true));
+  body.scale.set(1.42, 1.08, 1.16);
   body.position.set(18, 2, 0);
-  outlineOf(body, tint(bodyHex, -0.35), 1.03);
-  gloss(body, 10, 14, 16, 5.5);
-  gloss(body, 22, 6, 18, 3);
   group.add(body);
 
-  const belly = new THREE.Mesh(
-    new THREE.SphereGeometry(16, 28, 22),
-    petalMat(tint(bodyHex, 0.2), { opacity: 0.35, roughness: 0.45, ei: 0.25 }),
-  );
-  belly.scale.set(1.15, 0.82, 1.05);
-  belly.position.set(14, -8, 4);
+  const belly = new THREE.Mesh(new THREE.SphereGeometry(16, 28, 22), jellyMat(0.2, true));
+  belly.scale.set(1.15, 0.82, 1.02);
+  belly.position.set(14, -6, 2);
   group.add(belly);
 
-  const eyeMat = petalMat('#1a1814', { roughness: 0.35, ei: 0.1 });
-  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(4.2, 12, 10), eyeMat);
-  const eyeR = new THREE.Mesh(new THREE.SphereGeometry(4.2, 12, 10), eyeMat.clone());
-  eyeL.position.set(28, 10, 18);
-  eyeR.position.set(28, 10, -18);
-  group.add(eyeL, eyeR);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(32, 1.2, 6, 36), jellyMat(0.85, true));
+  rim.rotation.y = Math.PI / 2;
+  rim.scale.set(1.15, 1, 1.08);
+  rim.position.set(18, 2, 0);
+  group.add(rim);
+
+  const core = new THREE.Mesh(new THREE.SphereGeometry(10, 14, 12), jellyMat(0.5, true));
+  core.scale.set(1.35, 0.9, 1.15);
+  core.position.set(18, 2, 0);
+  group.add(core);
+
+  // 小さい丸い目
+  const eyeMat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color('#d0f0ff'),
+    transparent: true,
+    opacity: 0.95,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const pupilMat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color('#0a1018'),
+    transparent: false,
+    depthWrite: true,
+    toneMapped: false,
+  });
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(3.6, 12, 10), eyeMat);
+  const eyeR = new THREE.Mesh(new THREE.SphereGeometry(3.6, 12, 10), eyeMat.clone());
+  eyeL.position.set(30, 8, 16);
+  eyeR.position.set(30, 8, -16);
+  const pupilL = new THREE.Mesh(new THREE.SphereGeometry(1.7, 10, 8), pupilMat);
+  const pupilR = new THREE.Mesh(new THREE.SphereGeometry(1.7, 10, 8), pupilMat.clone());
+  pupilL.position.set(32, 8, 17);
+  pupilR.position.set(32, 8, -17);
+  group.add(eyeL, eyeR, pupilL, pupilR);
 
   const tailLen = 185;
   const segsX = 36;
@@ -630,23 +696,22 @@ export function createTadpole(palette = 'rainbow') {
   posAttr.needsUpdate = true;
   tailGeo.computeVertexNormals();
 
-  const tailMat = petalMat(tailHex, { opacity: 0.3, roughness: 0.55, ei: 0.35 });
+  const tailMat = jellyMat(0.22, true);
   const tail = new THREE.Mesh(tailGeo, tailMat);
   tail.position.set(-58, 2, 0);
-  outlineOf(tail, tint(tailHex, -0.25), 1.015);
   group.add(tail);
 
-  const spotMat = petalMat(spotHex, { opacity: 0.45, roughness: 0.6, ei: 0.2 });
-  for (let i = 0; i < 28; i++) {
+  const spotMat = jellyMat(0.55, true);
+  for (let i = 0; i < 12; i++) {
     const t = Math.random();
     const spot = new THREE.Mesh(
-      new THREE.SphereGeometry(1.1 + Math.random() * 1.8, 8, 6),
+      new THREE.SphereGeometry(0.9 + Math.random() * 1.2, 8, 6),
       spotMat.clone(),
     );
     spot.position.set(
       -58 + (t - 0.5) * tailLen * 0.92,
-      2 + Math.sin(t * Math.PI * 0.7) * 8 + (Math.random() - 0.5) * 10 * (1 - t),
-      (Math.random() - 0.5) * 6,
+      2 + Math.sin(t * Math.PI * 0.7) * 8 + (Math.random() - 0.5) * 8 * (1 - t),
+      (Math.random() - 0.5) * 5,
     );
     group.add(spot);
   }
@@ -657,7 +722,7 @@ export function createTadpole(palette = 'rainbow') {
       group.position.y = Math.sin(time * 1.3) * 5;
       group.rotation.y = Math.sin(time * 0.4) * 0.08;
       // ぷるんぷるん素早い泳ぎ波
-      const swim = time * 20;
+      const swim = time * 15;
       const arr = posAttr.array;
       for (let i = 0; i < posAttr.count; i++) {
         const x = base[i * 3];
@@ -675,13 +740,8 @@ export function createTadpole(palette = 'rainbow') {
       posAttr.needsUpdate = true;
       tailGeo.computeVertexNormals();
     },
-    setPalette(p) {
-      const m = formHex(p, 'tadpole');
-      const b = tint(m, -0.35);
-      const t = tint(m, 0.45);
-      setMatHex(bodyMat, b);
-      setMatHex(belly.material, tint(b, 0.2));
-      setMatHex(tailMat, t);
+    setPalette(_p) {
+      // クラゲ風ネオンは個体生成時に固定
     },
     samplePoints(count) {
       const out = new Float32Array(count * 3);
@@ -1164,13 +1224,13 @@ function createMusicNote(palette) {
   const group = new THREE.Group();
   const head = new THREE.Mesh(
     new THREE.SphereGeometry(5, 10, 8),
-    petalMat(main, { roughness: 0.58 }),
+    petalMat(main, { roughness: 0.58, opacity: 0.72 }),
   );
   head.scale.set(1.2, 0.85, 0.55);
   head.position.set(6, -32, 0);
   const stem = new THREE.Mesh(
     new THREE.BoxGeometry(3.5, 36, 3.5),
-    petalMat(tint(main, 0.2), { roughness: 0.62 }),
+    petalMat(tint(main, 0.2), { roughness: 0.62, opacity: 0.72 }),
   );
   stem.position.set(16, 2, 0);
   group.add(head, stem);
@@ -1193,7 +1253,8 @@ export function createSolidForm(id, palette) {
   switch (id) {
     case 'letter': return createLetterX(palette);
     case 'jellyfish': return createJellyfish(palette);
-    case 'hourglass': return createHourglass(palette);
+    case 'clock': return createClock(palette);
+    case 'hourglass': return createClock(palette);
     case 'tadpole': return createTadpole(palette);
     case 'music': return createMusicNote(palette);
     case 'brain': return createBrain(palette);

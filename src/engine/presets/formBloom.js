@@ -156,9 +156,9 @@ export function cyberTadpoleUnitColors(count) {
   return neonRainbowUnitColors('rainbow', count);
 }
 
-/** オタマ用: 花びらより二段小さめ */
+/** オタマ用: 花びらより小さめ（少し大きく調整） */
 function pickTadpoleSize() {
-  return pickMarkSize() * 0.48;
+  return pickMarkSize() * 0.58;
 }
 
 /** 単位球上のランダム方向（画面座標: x右 / y下 / z奥） */
@@ -211,52 +211,82 @@ function mergeTadpoleParts(parts) {
   return prepared[0];
 }
 
-/** 胴・目（付け根を原点付近に） */
+/** クラゲ風の半透明ゼリー胴（目は別メッシュ） */
 export function buildTadpoleBodyGeometry() {
-  const body = new THREE.SphereGeometry(0.3, 22, 18);
-  body.scale(1.48, 1.12, 1.18);
-  body.translate(0.42, 0.04, 0);
+  const body = new THREE.SphereGeometry(0.3, 28, 22);
+  body.scale(1.42, 1.08, 1.16);
+  body.translate(0.4, 0.04, 0);
 
-  const belly = new THREE.SphereGeometry(0.18, 14, 12);
-  belly.scale(1.2, 0.85, 1.05);
-  belly.translate(0.34, -0.1, 0.04);
+  const belly = new THREE.SphereGeometry(0.2, 16, 14);
+  belly.scale(1.15, 0.82, 1.02);
+  belly.translate(0.34, -0.06, 0.02);
 
-  const eyeL = new THREE.SphereGeometry(0.05, 10, 8);
-  eyeL.translate(0.55, 0.12, 0.24);
-  const eyeR = new THREE.SphereGeometry(0.05, 10, 8);
-  eyeR.translate(0.55, 0.12, -0.24);
-
-  return mergeTadpoleParts([body, belly, eyeL, eyeR]);
+  return mergeTadpoleParts([body, belly]);
 }
 
-/** 尾・斑点（頭長≈0.86 の約1.5倍 → 長さ≈1.3） */
+/** 頭まわりの細いネオンリム（クラゲ縁のイメージ） */
+export function buildTadpoleRimGeometry() {
+  const rim = new THREE.TorusGeometry(0.34, 0.01, 6, 36);
+  rim.rotateY(Math.PI / 2);
+  rim.scale(1.15, 1.0, 1.08);
+  rim.translate(0.4, 0.04, 0);
+  return prepareTadpoleGeo(rim);
+}
+
+/** 胴内のソフトコア */
+export function buildTadpoleCoreGeometry() {
+  const core = new THREE.SphereGeometry(0.1, 12, 10);
+  core.scale(1.35, 0.9, 1.15);
+  core.translate(0.4, 0.04, 0);
+  return prepareTadpoleGeo(core);
+}
+
+/** 小さい丸い目（白目） */
+export function buildTadpoleEyeGeometry() {
+  const eyeL = new THREE.SphereGeometry(0.042, 12, 10);
+  eyeL.translate(0.58, 0.1, 0.2);
+  const eyeR = new THREE.SphereGeometry(0.042, 12, 10);
+  eyeR.translate(0.58, 0.1, -0.2);
+  return mergeTadpoleParts([eyeL, eyeR]);
+}
+
+/** 瞳（さらに小さい黒丸） */
+export function buildTadpolePupilGeometry() {
+  const pL = new THREE.SphereGeometry(0.02, 10, 8);
+  pL.translate(0.605, 0.1, 0.215);
+  const pR = new THREE.SphereGeometry(0.02, 10, 8);
+  pR.translate(0.605, 0.1, -0.215);
+  return mergeTadpoleParts([pL, pR]);
+}
+
+/** 尾・半透明フィン（クラゲ触手っぽい薄さ） */
 export function buildTadpoleTailGeometry() {
   const fin = new THREE.Shape();
-  fin.moveTo(0.02, 0.025);
-  fin.quadraticCurveTo(-0.2, 0.2, -0.5, 0.14);
-  fin.quadraticCurveTo(-0.85, 0.1, -1.15, 0.07);
-  fin.quadraticCurveTo(-1.25, 0.035, -1.3, 0.01);
-  fin.lineTo(-1.3, -0.01);
-  fin.quadraticCurveTo(-1.25, -0.035, -1.15, -0.06);
-  fin.quadraticCurveTo(-0.85, -0.08, -0.5, -0.09);
-  fin.quadraticCurveTo(-0.2, -0.08, -0.02, -0.015);
-  fin.lineTo(0.02, -0.01);
+  fin.moveTo(0.02, 0.02);
+  fin.quadraticCurveTo(-0.2, 0.16, -0.5, 0.11);
+  fin.quadraticCurveTo(-0.85, 0.08, -1.15, 0.05);
+  fin.quadraticCurveTo(-1.25, 0.025, -1.3, 0.008);
+  fin.lineTo(-1.3, -0.008);
+  fin.quadraticCurveTo(-1.25, -0.025, -1.15, -0.045);
+  fin.quadraticCurveTo(-0.85, -0.06, -0.5, -0.07);
+  fin.quadraticCurveTo(-0.2, -0.06, -0.02, -0.012);
+  fin.lineTo(0.02, -0.008);
   fin.closePath();
-  const tail = new THREE.ExtrudeGeometry(fin, { depth: 0.07, bevelEnabled: false, curveSegments: 14 });
-  tail.translate(0, 0.02, -0.035);
+  const tail = new THREE.ExtrudeGeometry(fin, { depth: 0.045, bevelEnabled: false, curveSegments: 14 });
+  tail.translate(0, 0.02, -0.022);
 
-  const spine = new THREE.CylinderGeometry(0.036, 0.01, 1.15, 8);
+  const spine = new THREE.CylinderGeometry(0.028, 0.008, 1.15, 8);
   spine.rotateZ(Math.PI / 2);
   spine.translate(-0.62, 0.02, 0);
 
   const speckles = [];
-  for (let i = 0; i < 22; i++) {
+  for (let i = 0; i < 12; i++) {
     const t = Math.random();
-    const sx = -0.05 - t * 1.2;
-    const sy = (Math.random() - 0.5) * 0.14 * (1 - t * 0.55) + 0.02;
-    const r = 0.012 + Math.random() * 0.02;
-    const sp = new THREE.SphereGeometry(r, 6, 6);
-    sp.translate(sx, sy, (Math.random() - 0.5) * 0.05);
+    const sx = -0.08 - t * 1.15;
+    const sy = (Math.random() - 0.5) * 0.1 * (1 - t * 0.55) + 0.02;
+    const r = 0.01 + Math.random() * 0.014;
+    const sp = new THREE.SphereGeometry(r, 6, 5);
+    sp.translate(sx, sy, (Math.random() - 0.5) * 0.04);
     speckles.push(sp);
   }
 
@@ -266,9 +296,13 @@ export function buildTadpoleTailGeometry() {
 /** 互換: 静止シルエット（変容サンプル等） */
 export function buildTadpoleGeometry() {
   const body = buildTadpoleBodyGeometry();
+  const eyes = buildTadpoleEyeGeometry();
+  const pupils = buildTadpolePupilGeometry();
   const tail = buildTadpoleTailGeometry();
   const merged = mergeGeometries([
     prepareTadpoleGeo(body),
+    prepareTadpoleGeo(eyes),
+    prepareTadpoleGeo(pupils),
     prepareTadpoleGeo(tail),
   ], false);
   if (merged) {
@@ -843,6 +877,7 @@ export function createFormBloom(opts) {
 }
 
 export function createHourglassBloom() {
+  // 互換: 砂時計はネオン時計に置換（clockBloom）
   return createFormBloom({ buildGeometry: buildHourglassGeometry, motion: 'spin' });
 }
 
@@ -859,12 +894,18 @@ export function createTadpoleBloom() {
   let currentPalette = 'rainbow';
   let layer = null;
   let bodyMesh = null;
-  let bodyOutline = null;
+  let rimMesh = null;
+  let coreMesh = null;
+  let eyeMesh = null;
+  let pupilMesh = null;
   let tailMesh = null;
-  let tailOutline = null;
   let sparkleField = null;
   let fallField = null;
   let bodyGeo = null;
+  let rimGeo = null;
+  let coreGeo = null;
+  let eyeGeo = null;
+  let pupilGeo = null;
   let tailGeo = null;
   const dummy = new THREE.Object3D();
   const _color = new THREE.Color();
@@ -891,11 +932,11 @@ export function createTadpoleBloom() {
       this.dirX = dir.x;
       this.dirY = dir.y;
       this.dirZ = dir.z;
-      this.speed = 90 + Math.random() * 90;
+      this.speed = 70 + Math.random() * 70;
       this.wagPhase = Math.random() * Math.PI * 2;
-      this.wagSpeed = 36 + Math.random() * 16;
+      this.wagSpeed = 28 + Math.random() * 12;
       this.tremblePhase = Math.random() * Math.PI * 2;
-      this.trembleSpeed = 55 + Math.random() * 25;
+      this.trembleSpeed = 42 + Math.random() * 18;
       // 振り幅: 現在基準の 1/2・1/3・1/4 を個体ごとにランダム
       const wagScale = [0.5, 1 / 3, 0.25][Math.floor(Math.random() * 3)];
       this.wagAmp = (0.75 + Math.random() * 0.35) * wagScale;
@@ -925,7 +966,7 @@ export function createTadpoleBloom() {
       this.wag = swim + tremble;
 
       // 尾の振りに合わせて 3D 前進
-      const thrust = 0.7 + Math.abs(this.wag) * 1.15;
+      const thrust = 0.65 + Math.abs(this.wag) * 0.95;
       const step = this.speed * thrust * dt;
       this.x += this.dirX * step;
       this.y += this.dirY * step;
@@ -1055,42 +1096,52 @@ export function createTadpoleBloom() {
   }
 
   function syncMeshes() {
-    if (!bodyMesh || !tailMesh) return;
+    if (!bodyMesh || !tailMesh || !eyeMesh || !pupilMesh) return;
     const shown = Math.min(marks.length, MAX);
+    const allMeshes = [bodyMesh, rimMesh, coreMesh, eyeMesh, pupilMesh, tailMesh];
     for (let i = 0; i < MAX; i++) {
       const mark = i < shown ? marks[i] : null;
       if (!mark || mark.size < 0.5) {
-        hide(bodyMesh, i);
-        hide(bodyOutline, i);
-        hide(tailMesh, i);
-        hide(tailOutline, i);
+        for (const m of allMeshes) hide(m, i);
         continue;
       }
-      const c = cyberShowColor(mark.rgb, 1.1);
-      const tailC = cyberShowColor(mark.innerRgb, 1.05);
+      const c = cyberShowColor(mark.rgb, 0.95);
+      const rimC = cyberShowColor(mark.innerRgb, 1.25);
+      const coreC = cyberShowColor(mark.innerRgb, 1.1);
+      const tailC = cyberShowColor(mark.rgb, 0.75);
+
       placeBody(mark, 1);
       bodyMesh.setMatrixAt(i, dummy.matrix);
-      bodyMesh.setColorAt(i, _color.setRGB(c.r, c.g, c.b));
-      // 暗い縁は黄ばみの原因になるので同系色の薄い縁のみ
-      placeBody(mark, 1.04);
-      bodyOutline.setMatrixAt(i, dummy.matrix);
-      bodyOutline.setColorAt(i, _color.setRGB(c.r * 0.25, c.g * 0.25, c.b * 0.35));
+      bodyMesh.setColorAt(i, _color.setRGB(c.r * 0.55, c.g * 0.7, Math.min(1, c.b * 0.95)));
+
+      placeBody(mark, 1);
+      rimMesh.setMatrixAt(i, dummy.matrix);
+      rimMesh.setColorAt(i, _color.setRGB(rimC.r, rimC.g, rimC.b));
+
+      placeBody(mark, 0.92);
+      coreMesh.setMatrixAt(i, dummy.matrix);
+      coreMesh.setColorAt(i, _color.setRGB(
+        Math.min(1, coreC.r * 0.7 + 0.25),
+        Math.min(1, coreC.g * 0.75 + 0.3),
+        Math.min(1, coreC.b * 0.7 + 0.35),
+      ));
+
+      placeBody(mark, 1);
+      eyeMesh.setMatrixAt(i, dummy.matrix);
+      eyeMesh.setColorAt(i, _color.setRGB(0.82, 0.94, 1.0));
+
+      placeBody(mark, 1);
+      pupilMesh.setMatrixAt(i, dummy.matrix);
+      pupilMesh.setColorAt(i, _color.setRGB(0.04, 0.06, 0.12));
 
       placeTail(mark, 1);
       tailMesh.setMatrixAt(i, dummy.matrix);
-      tailMesh.setColorAt(i, _color.setRGB(tailC.r, tailC.g, tailC.b));
-      placeTail(mark, 1.05);
-      tailOutline.setMatrixAt(i, dummy.matrix);
-      tailOutline.setColorAt(i, _color.setRGB(tailC.r * 0.22, tailC.g * 0.22, tailC.b * 0.32));
+      tailMesh.setColorAt(i, _color.setRGB(tailC.r * 0.5, tailC.g * 0.65, Math.min(1, tailC.b * 0.9)));
     }
-    bodyMesh.instanceMatrix.needsUpdate = true;
-    bodyOutline.instanceMatrix.needsUpdate = true;
-    tailMesh.instanceMatrix.needsUpdate = true;
-    tailOutline.instanceMatrix.needsUpdate = true;
-    if (bodyMesh.instanceColor) bodyMesh.instanceColor.needsUpdate = true;
-    if (bodyOutline.instanceColor) bodyOutline.instanceColor.needsUpdate = true;
-    if (tailMesh.instanceColor) tailMesh.instanceColor.needsUpdate = true;
-    if (tailOutline.instanceColor) tailOutline.instanceColor.needsUpdate = true;
+    for (const m of allMeshes) {
+      m.instanceMatrix.needsUpdate = true;
+      if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    }
 
     if (sparkleField) {
       sparkles.forEach((s, i) => {
@@ -1140,15 +1191,14 @@ export function createTadpoleBloom() {
     marks.push(new Mark(x, y, currentPalette));
   }
 
-  function makeMat(opacity, back = false) {
+  function makeMat(opacity, additive = false) {
     return new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
       opacity,
-      side: back ? THREE.BackSide : THREE.DoubleSide,
+      side: THREE.DoubleSide,
       depthWrite: false,
-      // Additive は重なりで白〜黄に潰れる。色相維持のため通常合成のみ
-      blending: THREE.NormalBlending,
+      blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
       toneMapped: false,
     });
   }
@@ -1165,12 +1215,20 @@ export function createTadpoleBloom() {
       layer = group;
 
       bodyGeo = buildTadpoleBodyGeometry();
+      rimGeo = buildTadpoleRimGeometry();
+      coreGeo = buildTadpoleCoreGeometry();
+      eyeGeo = buildTadpoleEyeGeometry();
+      pupilGeo = buildTadpolePupilGeometry();
       tailGeo = buildTadpoleTailGeometry();
-      bodyMesh = new THREE.InstancedMesh(bodyGeo, makeMat(0.42), MAX);
-      bodyOutline = new THREE.InstancedMesh(bodyGeo, makeMat(0.16, true), MAX);
-      tailMesh = new THREE.InstancedMesh(tailGeo, makeMat(0.32), MAX);
-      tailOutline = new THREE.InstancedMesh(tailGeo, makeMat(0.12, true), MAX);
-      for (const m of [bodyMesh, bodyOutline, tailMesh, tailOutline]) {
+
+      bodyMesh = new THREE.InstancedMesh(bodyGeo, makeMat(0.28, true), MAX);
+      rimMesh = new THREE.InstancedMesh(rimGeo, makeMat(0.85, true), MAX);
+      coreMesh = new THREE.InstancedMesh(coreGeo, makeMat(0.45, true), MAX);
+      eyeMesh = new THREE.InstancedMesh(eyeGeo, makeMat(0.95, false), MAX);
+      pupilMesh = new THREE.InstancedMesh(pupilGeo, makeMat(1, false), MAX);
+      tailMesh = new THREE.InstancedMesh(tailGeo, makeMat(0.22, true), MAX);
+
+      for (const m of [bodyMesh, rimMesh, coreMesh, eyeMesh, pupilMesh, tailMesh]) {
         m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3);
         m.frustumCulled = false;
         layer.add(m);
@@ -1300,11 +1358,17 @@ export function createTadpoleBloom() {
       shards = [];
       sparkles = [];
       bodyGeo?.dispose();
+      rimGeo?.dispose();
+      coreGeo?.dispose();
+      eyeGeo?.dispose();
+      pupilGeo?.dispose();
       tailGeo?.dispose();
       bodyMesh = null;
-      bodyOutline = null;
+      rimMesh = null;
+      coreMesh = null;
+      eyeMesh = null;
+      pupilMesh = null;
       tailMesh = null;
-      tailOutline = null;
       sparkleField = null;
       fallField = null;
       layer = null;
@@ -1441,7 +1505,7 @@ export function createAngelBloom() {
         vz: (Math.random() - 0.5) * 25,
         rgb: { r: 255, g: 255, b: 255 },
         opacity: 1,
-        glow: 3.6 + Math.random() * 1.8,
+        glow: 2.7 + Math.random() * 1.2,
         kind: 'dust',
         twinkle: Math.random() * Math.PI * 2,
       });
@@ -1459,7 +1523,7 @@ export function createAngelBloom() {
           vz: (Math.random() - 0.5) * 45,
           rgb: { r: 255, g: 255, b: 255 },
           opacity: 1,
-          glow: 4.0 + Math.random() * 1.6,
+          glow: 3.0 + Math.random() * 1.2,
           kind: 'shard',
           rot: Math.random() * Math.PI * 2,
           rotSpeed: (Math.random() - 0.5) * 4,
@@ -1567,7 +1631,7 @@ export function createAngelBloom() {
         sparkleField.positions[i * 3] = wpos.x;
         sparkleField.positions[i * 3 + 1] = wpos.y;
         sparkleField.positions[i * 3 + 2] = wpos.z;
-        const pulse = 1.4 + 1.6 * Math.abs(Math.sin(time * 3.4 + s.phase));
+        const pulse = 0.95 + 1.0 * Math.abs(Math.sin(time * 3.4 + s.phase));
         sparkleField.colors[i * 3] = pulse;
         sparkleField.colors[i * 3 + 1] = pulse;
         sparkleField.colors[i * 3 + 2] = pulse;
@@ -1585,7 +1649,7 @@ export function createAngelBloom() {
         fallField.positions[i * 3 + 1] = wpos.y;
         fallField.positions[i * 3 + 2] = wpos.z;
         const twinkle = 0.75 + 0.45 * Math.abs(Math.sin(time * 5 + (p.twinkle || 0)));
-        const glow = (p.glow || 3.6) * (0.9 + p.opacity * 0.85) * twinkle;
+        const glow = (p.glow || 2.7) * (0.7 + p.opacity * 0.65) * twinkle;
         fallField.colors[i * 3] = glow;
         fallField.colors[i * 3 + 1] = glow;
         fallField.colors[i * 3 + 2] = glow;
@@ -1651,8 +1715,8 @@ export function createAngelBloom() {
       fallField = makePoints(700, 26);
       sparkleField.mat.blending = THREE.AdditiveBlending;
       fallField.mat.blending = THREE.AdditiveBlending;
-      sparkleField.mat.opacity = 1;
-      fallField.mat.opacity = 1;
+      sparkleField.mat.opacity = 0.72;
+      fallField.mat.opacity = 0.72;
       sparkleField.mat.toneMapped = false;
       fallField.mat.toneMapped = false;
       layer.add(sparkleField.points, fallField.points);
