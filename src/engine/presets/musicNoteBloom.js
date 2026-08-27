@@ -70,11 +70,12 @@ function petalParticleRgb(rgb, lift = 1.15) {
 }
 
 function displayColor(rgb, scale = 1) {
-  const cool = saturateRgb(coolToneRgb(rgb), 0.03);
+  // 暗くしすぎない（coolTone を弱めて明るく）
+  const vivid = saturateRgb(rgb, 0.12);
   return {
-    r: Math.min(1, (cool.r / 255) * scale),
-    g: Math.min(1, (cool.g / 255) * scale),
-    b: Math.min(1, (cool.b / 255) * scale),
+    r: Math.min(1, (vivid.r / 255) * scale * 1.15 + 0.06),
+    g: Math.min(1, (vivid.g / 255) * scale * 1.12 + 0.05),
+    b: Math.min(1, (vivid.b / 255) * scale * 1.18 + 0.08),
   };
 }
 
@@ -103,9 +104,9 @@ function paletteAccentRgb(paletteName) {
 
 function pickMarkSize() {
   const r = Math.random();
-  if (r < 0.12) return 72 + Math.random() * 36;
-  if (r < 0.35) return 48 + Math.random() * 22;
-  return 32 + Math.random() * 20;
+  if (r < 0.12) return 68 + Math.random() * 30;
+  if (r < 0.35) return 44 + Math.random() * 20;
+  return 30 + Math.random() * 16;
 }
 
 function pickNote() {
@@ -136,25 +137,34 @@ export function createMusicNoteBloom() {
     constructor(x, y, palette) {
       this.x = x;
       this.y = y;
-      this.z = (Math.random() - 0.5) * 140;
+      this.z = (Math.random() - 0.5) * 280;
       this.note = pickNote();
       this.maxSize = pickMarkSize();
       this.size = 0;
       this.growth = 0;
       this.growthRate = 0.35 + Math.random() * 0.5;
-      this.baseRot = (Math.random() - 0.5) * 0.08;
-      this.tilt = (Math.random() - 0.5) * 0.06;
+      this.baseRot = (Math.random() - 0.5) * 0.35;
+      this.tilt = (Math.random() - 0.5) * 0.45;
+      this.yaw = (Math.random() - 0.5) * 0.55;
       this.windPhase = Math.random() * Math.PI * 2;
-      this.windSpeed = 0.45 + Math.random() * 0.3;
-      this.windAmp = 0.04 + Math.random() * 0.04;
-      this.spinX = 0.12 + Math.random() * 0.1;
-      this.spinY = 0.1 + Math.random() * 0.1;
-      this.spinZ = 0.15 + Math.random() * 0.12;
+      this.windSpeed = 0.55 + Math.random() * 0.35;
+      this.windAmp = 0.05 + Math.random() * 0.04;
+      this.spinX = 0.35 + Math.random() * 0.25;
+      this.spinY = 0.45 + Math.random() * 0.35;
+      this.spinZ = 0.2 + Math.random() * 0.15;
       this.phaseX = Math.random() * Math.PI * 2;
       this.phaseY = Math.random() * Math.PI * 2;
       this.phaseZ = Math.random() * Math.PI * 2;
+      this.bobPhase = Math.random() * Math.PI * 2;
+      this.bobSpeed = 0.7 + Math.random() * 0.5;
+      this.driftZ = (Math.random() - 0.5) * 18;
       this.color = randomFlowerPetalColor(palette);
-      this.rgb = vividPetalRgb(hexToRgb(this.color));
+      const base = vividPetalRgb(hexToRgb(this.color));
+      this.rgb = {
+        r: Math.min(255, Math.round(base.r * 1.2 + 20)),
+        g: Math.min(255, Math.round(base.g * 1.18 + 16)),
+        b: Math.min(255, Math.round(base.b * 1.22 + 24)),
+      };
       this.innerRgb = brightenRgb(this.rgb);
       this.lifetime = 0;
       this.maxLifetime = 4 + Math.random() * 4.5;
@@ -164,9 +174,11 @@ export function createMusicNoteBloom() {
 
     update(dt, t) {
       this.lifetime += dt;
-      this.tumbleX = Math.sin(t * this.spinX + this.phaseX) * 0.04;
-      this.tumbleY = Math.sin(t * this.spinY + this.phaseY) * 0.05;
-      this.tumbleZ = Math.sin(t * this.spinZ + this.phaseZ) * 0.06;
+      // ゆっくり立体回転（読みやすさは残しつつ厚みが見える）
+      this.tumbleX = Math.sin(t * this.spinX + this.phaseX) * 0.28;
+      this.tumbleY = Math.sin(t * this.spinY + this.phaseY) * 0.42;
+      this.tumbleZ = Math.sin(t * this.spinZ + this.phaseZ) * 0.12;
+      this.bob = Math.sin(t * this.bobSpeed + this.bobPhase) * 22;
       switch (this.phase) {
         case 'growing':
           this.growth = Math.min(1, this.growth + this.growthRate * dt);
@@ -235,17 +247,18 @@ export function createMusicNoteBloom() {
   function placeMark(mark, scaleMul = 1) {
     const wind = Math.sin(time * mark.windSpeed + mark.windPhase);
     const wind2 = Math.sin(time * mark.windSpeed * 1.37 + mark.windPhase * 1.2);
-    const pos = toWorld(mark.x, mark.y, mark.z, width, height);
+    const pos = toWorld(mark.x, mark.y, mark.z + mark.bob + wind2 * mark.driftZ, width, height);
     dummy.position.copy(pos);
-    dummy.position.x += wind * mark.windAmp * mark.size * 0.22;
-    dummy.position.z += wind2 * mark.windAmp * mark.size * 0.16;
+    dummy.position.x += wind * mark.windAmp * mark.size * 0.28;
+    dummy.position.y += Math.sin(time * mark.bobSpeed * 0.7 + mark.bobPhase) * mark.size * 0.04;
     dummy.rotation.set(
-      mark.tilt + wind * mark.windAmp * 0.35 + mark.tumbleX,
-      mark.baseRot + wind2 * mark.windAmp * 0.25 + mark.tumbleY,
-      mark.tumbleZ + wind2 * mark.windAmp * 0.4,
+      mark.tilt + mark.tumbleX + wind * mark.windAmp * 0.5,
+      mark.yaw + mark.tumbleY + wind2 * 0.15,
+      mark.baseRot + mark.tumbleZ + wind2 * mark.windAmp * 0.35,
     );
     const s = mark.size * scaleMul;
-    dummy.scale.set(s, s, s);
+    // Z を少し厚くして押し出しの立体感を強調
+    dummy.scale.set(s, s, s * 1.55);
     dummy.updateMatrix();
     return pos;
   }
@@ -281,11 +294,11 @@ export function createMusicNoteBloom() {
         }
         placeMark(mark, 1);
         set.mesh.setMatrixAt(i, dummy.matrix);
-        const c = displayColor(mark.rgb, 0.88 + mark.opacity * 0.12);
+        const c = displayColor(mark.rgb, 1.25 + mark.opacity * 0.2);
         set.mesh.setColorAt(i, _color.setRGB(c.r, c.g, c.b));
         placeMark(mark, 1.06);
         set.outline.setMatrixAt(i, dummy.matrix);
-        set.outline.setColorAt(i, _color.setRGB(0.04, 0.06, 0.12));
+        set.outline.setColorAt(i, _color.setRGB(c.r * 0.35, c.g * 0.4, c.b * 0.55));
       }
       set.mesh.instanceMatrix.needsUpdate = true;
       set.outline.instanceMatrix.needsUpdate = true;
@@ -340,6 +353,7 @@ export function createMusicNoteBloom() {
     side: THREE.DoubleSide,
     depthWrite: true,
     blending: THREE.NormalBlending,
+    toneMapped: false,
   };
 
   return {
@@ -365,7 +379,7 @@ export function createMusicNoteBloom() {
         }
         const mesh = new THREE.InstancedMesh(
           geo,
-          new THREE.MeshBasicMaterial({ ...matOpts, opacity: 0.96 }),
+          new THREE.MeshBasicMaterial({ ...matOpts, opacity: 1 }),
           MAX_PER,
         );
         mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_PER * 3), 3);
@@ -376,7 +390,7 @@ export function createMusicNoteBloom() {
           new THREE.MeshBasicMaterial({
             ...matOpts,
             side: THREE.BackSide,
-            opacity: 0.55,
+            opacity: 0.4,
             depthWrite: false,
           }),
           MAX_PER,

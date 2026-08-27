@@ -10,6 +10,7 @@ import {
   createHourglassBloom,
   createTadpoleBloom,
   createAngelBloom,
+  neonRainbowUnitColors,
 } from './formBloom.js';
 import { samplePetalCloud } from '../morph/sampleShapes.js';
 import { createSolidForm } from '../morph/solidForms.js';
@@ -216,6 +217,12 @@ export function createMorphSequence() {
     }
   }
 
+  function colorsForStage(stepIndex) {
+    const id = SEQUENCE[stepIndex]?.id;
+    if (id === 'tadpole') return neonRainbowUnitColors(currentPalette, count);
+    return paletteUnitColors(currentPalette, count);
+  }
+
   function beginMorph() {
     const step = SEQUENCE[stageIndex];
     const nextIndex = (stageIndex + 1) % SEQUENCE.length;
@@ -225,6 +232,8 @@ export function createMorphSequence() {
 
     fromCloud = sampleStageCloud(stageIndex);
     toCloud = sampleStageCloud(nextIndex);
+    colorA = colorsForStage(stageIndex);
+    colorB = colorsForStage(nextIndex);
 
     stopEverything();
     setFieldVisible(true);

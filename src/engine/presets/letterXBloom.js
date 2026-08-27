@@ -102,8 +102,10 @@ function paletteAccentRgb(paletteName) {
   return vividPetalRgb(hexToRgb(colors[Math.floor(Math.random() * colors.length)]));
 }
 
-/** スリムで読みやすい立体文字（X / Y / Z） */
-function bar(w, h, d, x = 0, y = 0, z = 0, rotZ = 0) {
+/** 立体アルファベット（奥行きを厚く） */
+const LETTER_DEPTH = 0.36;
+
+function bar(w, h, d = LETTER_DEPTH, x = 0, y = 0, z = 0, rotZ = 0) {
   const g = new THREE.BoxGeometry(w, h, d);
   if (rotZ) g.rotateZ(rotZ);
   g.translate(x, y, z);
@@ -111,52 +113,50 @@ function bar(w, h, d, x = 0, y = 0, z = 0, rotZ = 0) {
 }
 
 function buildXGeometry() {
-  const beamA = bar(0.11, 1.12, 0.13, 0, 0, 0, Math.PI / 4);
-  const beamB = bar(0.11, 1.12, 0.13, 0, 0, 0, -Math.PI / 4);
-  const hub = bar(0.14, 0.14, 0.15);
+  const beamA = bar(0.12, 1.12, LETTER_DEPTH, 0, 0, 0, Math.PI / 4);
+  const beamB = bar(0.12, 1.12, LETTER_DEPTH, 0, 0, 0, -Math.PI / 4);
+  const hub = bar(0.16, 0.16, LETTER_DEPTH * 1.08);
   return mergeGeometries([beamA, beamB, hub], false);
 }
 
 function buildYGeometry() {
-  // 下の縦棒 + 上の左右斜め
-  const stem = bar(0.11, 0.58, 0.13, 0, -0.27, 0);
-  const armL = bar(0.11, 0.62, 0.13, -0.2, 0.28, 0, Math.PI / 5.2);
-  const armR = bar(0.11, 0.62, 0.13, 0.2, 0.28, 0, -Math.PI / 5.2);
-  const hub = bar(0.12, 0.12, 0.14, 0, 0.02, 0);
+  const stem = bar(0.12, 0.58, LETTER_DEPTH, 0, -0.27, 0);
+  const armL = bar(0.12, 0.62, LETTER_DEPTH, -0.2, 0.28, 0, Math.PI / 5.2);
+  const armR = bar(0.12, 0.62, LETTER_DEPTH, 0.2, 0.28, 0, -Math.PI / 5.2);
+  const hub = bar(0.14, 0.14, LETTER_DEPTH * 1.05, 0, 0.02, 0);
   return mergeGeometries([stem, armL, armR, hub], false);
 }
 
 function buildZGeometry() {
-  // 上横・斜め・下横
-  const top = bar(0.78, 0.11, 0.13, 0, 0.48, 0);
-  const bot = bar(0.78, 0.11, 0.13, 0, -0.48, 0);
-  const diag = bar(0.11, 1.05, 0.13, 0, 0, 0, -Math.PI / 4.6);
+  const top = bar(0.78, 0.12, LETTER_DEPTH, 0, 0.48, 0);
+  const bot = bar(0.78, 0.12, LETTER_DEPTH, 0, -0.48, 0);
+  const diag = bar(0.12, 1.05, LETTER_DEPTH, 0, 0, 0, -Math.PI / 4.6);
   return mergeGeometries([top, bot, diag], false);
 }
 
 function buildAGeometry() {
-  const left = bar(0.11, 1.05, 0.13, -0.22, 0, 0, Math.PI / 9);
-  const right = bar(0.11, 1.05, 0.13, 0.22, 0, 0, -Math.PI / 9);
-  const cross = bar(0.42, 0.1, 0.13, 0, -0.05, 0);
+  const left = bar(0.12, 1.05, LETTER_DEPTH, -0.22, 0, 0, Math.PI / 9);
+  const right = bar(0.12, 1.05, LETTER_DEPTH, 0.22, 0, 0, -Math.PI / 9);
+  const cross = bar(0.42, 0.11, LETTER_DEPTH, 0, -0.05, 0);
   return mergeGeometries([left, right, cross], false);
 }
 
 function buildBGeometry() {
-  const stem = bar(0.11, 1.05, 0.13, -0.28, 0, 0);
-  const top = bar(0.42, 0.1, 0.13, -0.02, 0.42, 0);
-  const mid = bar(0.4, 0.1, 0.13, -0.02, 0.02, 0);
-  const bot = bar(0.42, 0.1, 0.13, -0.02, -0.42, 0);
-  const bowlT = bar(0.1, 0.38, 0.13, 0.22, 0.22, 0);
-  const bowlB = bar(0.1, 0.38, 0.13, 0.22, -0.2, 0);
+  const stem = bar(0.12, 1.05, LETTER_DEPTH, -0.28, 0, 0);
+  const top = bar(0.42, 0.11, LETTER_DEPTH, -0.02, 0.42, 0);
+  const mid = bar(0.4, 0.11, LETTER_DEPTH, -0.02, 0.02, 0);
+  const bot = bar(0.42, 0.11, LETTER_DEPTH, -0.02, -0.42, 0);
+  const bowlT = bar(0.11, 0.38, LETTER_DEPTH, 0.22, 0.22, 0);
+  const bowlB = bar(0.11, 0.38, LETTER_DEPTH, 0.22, -0.2, 0);
   return mergeGeometries([stem, top, mid, bot, bowlT, bowlB], false);
 }
 
 function buildCGeometry() {
-  const top = bar(0.55, 0.1, 0.13, 0.06, 0.42, 0);
-  const bot = bar(0.55, 0.1, 0.13, 0.06, -0.42, 0);
-  const left = bar(0.11, 0.84, 0.13, -0.24, 0, 0);
-  const tipT = bar(0.18, 0.1, 0.13, 0.28, 0.42, 0);
-  const tipB = bar(0.18, 0.1, 0.13, 0.28, -0.42, 0);
+  const top = bar(0.55, 0.11, LETTER_DEPTH, 0.06, 0.42, 0);
+  const bot = bar(0.55, 0.11, LETTER_DEPTH, 0.06, -0.42, 0);
+  const left = bar(0.12, 0.84, LETTER_DEPTH, -0.24, 0, 0);
+  const tipT = bar(0.18, 0.11, LETTER_DEPTH, 0.28, 0.42, 0);
+  const tipB = bar(0.18, 0.11, LETTER_DEPTH, 0.28, -0.42, 0);
   return mergeGeometries([top, bot, left, tipT, tipB], false);
 }
 
@@ -207,23 +207,27 @@ export function createLetterXBloom() {
     constructor(x, y, palette) {
       this.x = x;
       this.y = y;
-      this.z = (Math.random() - 0.5) * 140;
+      this.z = (Math.random() - 0.5) * 300;
       this.letter = pickLetter();
       this.maxSize = pickMarkSize();
       this.size = 0;
       this.growth = 0;
       this.growthRate = 0.35 + Math.random() * 0.5;
-      this.baseRot = (Math.random() - 0.5) * 0.4;
-      this.tilt = (Math.random() - 0.5) * 0.35;
+      this.baseRot = (Math.random() - 0.5) * 0.7;
+      this.tilt = (Math.random() - 0.5) * 0.65;
+      this.yaw = (Math.random() - 0.5) * 0.8;
       this.windPhase = Math.random() * Math.PI * 2;
-      this.windSpeed = 0.55 + Math.random() * 0.4;
-      this.windAmp = 0.06 + Math.random() * 0.06;
-      this.spinX = 0.28 + Math.random() * 0.25;
-      this.spinY = 0.22 + Math.random() * 0.28;
-      this.spinZ = 0.18 + Math.random() * 0.2;
+      this.windSpeed = 0.65 + Math.random() * 0.45;
+      this.windAmp = 0.08 + Math.random() * 0.07;
+      this.spinX = 0.45 + Math.random() * 0.35;
+      this.spinY = 0.55 + Math.random() * 0.45;
+      this.spinZ = 0.28 + Math.random() * 0.25;
       this.phaseX = Math.random() * Math.PI * 2;
       this.phaseY = Math.random() * Math.PI * 2;
       this.phaseZ = Math.random() * Math.PI * 2;
+      this.bobPhase = Math.random() * Math.PI * 2;
+      this.bobSpeed = 0.75 + Math.random() * 0.55;
+      this.driftZ = (Math.random() - 0.5) * 28;
       this.color = randomFlowerPetalColor(palette);
       this.rgb = vividPetalRgb(hexToRgb(this.color));
       this.innerRgb = brightenRgb(this.rgb);
@@ -235,9 +239,10 @@ export function createLetterXBloom() {
 
     update(dt, t) {
       this.lifetime += dt;
-      this.tumbleX = Math.sin(t * this.spinX + this.phaseX) * 0.32;
-      this.tumbleY = Math.sin(t * this.spinY + this.phaseY) * 0.42;
-      this.tumbleZ = Math.sin(t * this.spinZ + this.phaseZ) * 0.18;
+      this.tumbleX = Math.sin(t * this.spinX + this.phaseX) * 0.48;
+      this.tumbleY = Math.sin(t * this.spinY + this.phaseY) * 0.72;
+      this.tumbleZ = Math.sin(t * this.spinZ + this.phaseZ) * 0.28;
+      this.bob = Math.sin(t * this.bobSpeed + this.bobPhase) * 28;
       switch (this.phase) {
         case 'growing':
           this.growth = Math.min(1, this.growth + this.growthRate * dt);
@@ -310,17 +315,25 @@ export function createLetterXBloom() {
     const wind2 = Math.sin(time * mark.windSpeed * 1.37 + mark.windPhase * 1.2);
     const swayX = wind * mark.windAmp;
     const swayZ = wind2 * mark.windAmp * 0.85;
-    const pos = toWorld(mark.x, mark.y, mark.z, width, height);
+    const pos = toWorld(
+      mark.x,
+      mark.y,
+      mark.z + (mark.bob || 0) + wind2 * (mark.driftZ || 0),
+      width,
+      height,
+    );
     dummy.position.copy(pos);
-    dummy.position.x += swayX * mark.size * 0.22;
-    dummy.position.z += swayZ * mark.size * 0.16;
+    dummy.position.x += swayX * mark.size * 0.28;
+    dummy.position.y += Math.sin(time * mark.bobSpeed * 0.65 + mark.bobPhase) * mark.size * 0.05;
+    dummy.position.z += swayZ * mark.size * 0.22;
     dummy.rotation.set(
-      mark.tilt + swayX * 1.4 + mark.tumbleX,
-      mark.baseRot + swayZ * 0.55 + mark.tumbleY,
-      mark.tumbleZ + wind2 * mark.windAmp * 0.6,
+      mark.tilt + swayX * 1.6 + mark.tumbleX,
+      (mark.yaw || 0) + swayZ * 0.9 + mark.tumbleY,
+      mark.baseRot + mark.tumbleZ + wind2 * mark.windAmp * 0.75,
     );
     const s = mark.size * scaleMul;
-    dummy.scale.set(s, s, s);
+    // Z 方向を伸ばして厚みの立体感を強調
+    dummy.scale.set(s, s, s * 1.85);
     dummy.updateMatrix();
     return pos;
   }

@@ -496,7 +496,7 @@ export function createTadpole(palette = 'rainbow') {
   const tailHex = tint(main, 0.45);
   const spotHex = tint(main, -0.55);
 
-  const bodyMat = petalMat(bodyHex, { roughness: 0.45, ei: 0.35 });
+  const bodyMat = petalMat(bodyHex, { opacity: 0.4, roughness: 0.35, ei: 0.45 });
   const body = new THREE.Mesh(new THREE.SphereGeometry(28, 40, 32), bodyMat);
   body.scale.set(1.45, 1.12, 1.18);
   body.position.set(18, 2, 0);
@@ -507,7 +507,7 @@ export function createTadpole(palette = 'rainbow') {
 
   const belly = new THREE.Mesh(
     new THREE.SphereGeometry(16, 28, 22),
-    petalMat(tint(bodyHex, 0.2), { opacity: 0.9, roughness: 0.55 }),
+    petalMat(tint(bodyHex, 0.2), { opacity: 0.35, roughness: 0.45, ei: 0.25 }),
   );
   belly.scale.set(1.15, 0.82, 1.05);
   belly.position.set(14, -8, 4);
@@ -544,13 +544,13 @@ export function createTadpole(palette = 'rainbow') {
   posAttr.needsUpdate = true;
   tailGeo.computeVertexNormals();
 
-  const tailMat = petalMat(tailHex, { opacity: 0.82, roughness: 0.7, ei: 0.2 });
+  const tailMat = petalMat(tailHex, { opacity: 0.3, roughness: 0.55, ei: 0.35 });
   const tail = new THREE.Mesh(tailGeo, tailMat);
   tail.position.set(-58, 2, 0);
   outlineOf(tail, tint(tailHex, -0.25), 1.015);
   group.add(tail);
 
-  const spotMat = petalMat(spotHex, { roughness: 0.7, ei: 0.15 });
+  const spotMat = petalMat(spotHex, { opacity: 0.45, roughness: 0.6, ei: 0.2 });
   for (let i = 0; i < 28; i++) {
     const t = Math.random();
     const spot = new THREE.Mesh(
@@ -843,151 +843,192 @@ export function createAngel(palette = 'rainbow') {
   const group = new THREE.Group();
   softLights(group);
   const accent = formHex(palette, 'angel');
-  const soft = tint(accent, 0.55);
+  const gold = tint(accent, 0.15);
+  const skinHex = '#ffd9c4';
+  const whiteHex = '#ffffff';
+  const eyeHex = '#4a4450';
 
-  // 体は少し小さく、羽は別スケールで大きく
-  const bodyRoot = new THREE.Group();
-  bodyRoot.scale.setScalar(0.82);
-  group.add(bodyRoot);
+  const root = new THREE.Group();
+  root.scale.setScalar(0.9);
+  group.add(root);
 
-  const skin = petalMat('#ffdcc8', { roughness: 0.7, ei: 0.25, em: 0.12 });
-  const head = new THREE.Mesh(new THREE.SphereGeometry(30, 36, 32), skin);
-  head.position.y = 44;
-  outlineOf(head, '#6b5060', 1.03);
-  bodyRoot.add(head);
+  // 頭（桃色の円・少し小さめ）
+  const skin = petalMat(skinHex, { roughness: 0.75, ei: 0.2, em: 0.1 });
+  const head = new THREE.Mesh(new THREE.SphereGeometry(24, 32, 28), skin);
+  head.position.set(0, 50, 6);
+  outlineOf(head, '#c4b0a8', 1.025);
+  root.add(head);
 
-  const hair = new THREE.Group();
-  hair.position.y = 50;
-  const hairMat = petalMat(accent);
-  const hairBlobs = [
-    [0, 20, 0, 24], [-18, 14, 10, 17], [18, 14, 10, 17],
-    [-24, 4, 0, 15], [24, 4, 0, 15], [0, 10, -18, 16],
-    [-12, 18, -12, 14], [12, 18, -12, 14], [0, 26, 8, 13],
-  ];
-  for (const [x, y, z, r] of hairBlobs) {
-    const blob = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 18), hairMat.clone());
-    blob.position.set(x, y, z);
-    outlineOf(blob, tint(accent, -0.35), 1.03);
-    gloss(blob, -r * 0.25, r * 0.2, r * 0.5, r * 0.2);
-    hair.add(blob);
+  // 黄色い髪スウープ（右上）
+  const hairMat = petalMat(gold, { roughness: 0.55, ei: 0.45 });
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(13, 20, 16), hairMat);
+  hair.scale.set(1.45, 0.58, 0.9);
+  hair.position.set(9, 64, 4);
+  root.add(hair);
+
+  // 閉じた弧の目（参照: ⌒ ⌒）
+  const eyeMat = new THREE.MeshBasicMaterial({ color: col(eyeHex) });
+  for (const s of [-1, 1]) {
+    const eye = new THREE.Mesh(
+      new THREE.TorusGeometry(5.8, 1.05, 6, 18, Math.PI * 0.95),
+      eyeMat.clone(),
+    );
+    eye.position.set(s * 9.5, 53, 28);
+    root.add(eye);
   }
-  bodyRoot.add(hair);
 
-  const face = new THREE.Group();
-  face.position.set(0, 42, 26);
-  dotEyes(face, 2, 0, 14, 3);
-  blush(face, -5, 0, 24, 6);
+  // ごく小さな口
   const mouth = new THREE.Mesh(
-    new THREE.TorusGeometry(2.4, 0.6, 8, 12, Math.PI),
-    petalMat(tint(accent, -0.15), { ei: 0.3 }),
+    new THREE.TorusGeometry(3.2, 0.85, 5, 12, Math.PI * 0.7),
+    eyeMat.clone(),
   );
-  mouth.rotation.x = Math.PI;
-  mouth.position.set(0, -9, 1);
-  face.add(mouth);
-  bodyRoot.add(face);
+  mouth.rotation.z = Math.PI;
+  mouth.position.set(0, 43, 28);
+  root.add(mouth);
 
-  for (const s of [-1, 1]) {
-    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(5.5, 16, 6, 10), skin.clone());
-    arm.position.set(s * 24, 14, 0);
-    arm.rotation.z = s * 0.95;
-    outlineOf(arm, '#6b5060', 1.04);
-    bodyRoot.add(arm);
-  }
-  for (const s of [-1, 1]) {
-    const leg = new THREE.Mesh(new THREE.CapsuleGeometry(6, 12, 6, 10), skin.clone());
-    leg.position.set(s * 11, -30, 2);
-    outlineOf(leg, '#6b5060', 1.04);
-    bodyRoot.add(leg);
-  }
-
-  const dressM = petalMat(soft);
-  const dress = new THREE.Mesh(new THREE.ConeGeometry(34, 50, 28, 1, true), dressM);
-  dress.position.y = -4;
-  outlineOf(dress, tint(accent, -0.3), 1.03);
-  const collar = new THREE.Mesh(new THREE.SphereGeometry(17, 24, 16), dressM.clone());
-  collar.scale.set(1.15, 0.55, 1);
-  collar.position.y = 18;
-  bodyRoot.add(dress, collar);
-
-  const halo = new THREE.Mesh(
-    new THREE.TorusGeometry(24, 2.2, 12, 40),
-    petalMat(accent, { roughness: 0.4, ei: 0.7 }),
-  );
-  halo.rotation.x = Math.PI / 2.2;
-  halo.position.y = 92;
-  bodyRoot.add(halo);
-
-  // 蝶々のように胴体中央〜背中で左右対称に広がる羽（体より大きく）
-  const wingShape = new THREE.Shape();
-  wingShape.moveTo(0, 0);
-  wingShape.quadraticCurveTo(18, 22, 42, 28);
-  wingShape.quadraticCurveTo(58, 18, 52, 4);
-  wingShape.quadraticCurveTo(48, -8, 38, -22);
-  wingShape.quadraticCurveTo(22, -18, 8, -10);
-  wingShape.quadraticCurveTo(2, -4, 0, 0);
-  const wingGeo = new THREE.ExtrudeGeometry(wingShape, {
-    depth: 1.0, bevelEnabled: true, bevelThickness: 0.35, bevelSize: 0.4, bevelSegments: 1, curveSegments: 16,
+  // 細い白い台形ドレス
+  const dressShape = new THREE.Shape();
+  dressShape.moveTo(-12, 24);
+  dressShape.lineTo(12, 24);
+  dressShape.lineTo(24, -52);
+  dressShape.lineTo(-24, -52);
+  dressShape.closePath();
+  const dressGeo = new THREE.ExtrudeGeometry(dressShape, {
+    depth: 12,
+    bevelEnabled: true,
+    bevelThickness: 2,
+    bevelSize: 1.5,
+    bevelSegments: 1,
+    curveSegments: 4,
   });
-  wingGeo.translate(0, 0, -0.5);
-  const wingM = petalMat(soft, { opacity: 0.78, roughness: 0.62 });
-  const wingL = new THREE.Mesh(wingGeo, wingM);
-  const wingR = new THREE.Mesh(wingGeo, wingM.clone());
-  wingL.position.set(-7, 12, -10);
-  wingR.position.set(7, 12, -10);
-  wingL.scale.set(-1.45, 1.4, 0.5);
-  wingR.scale.set(1.45, 1.4, 0.5);
-  // 蝶のように左右へ開く（上向きすぎない）
-  const wingOpenY = 0.75;
-  const wingOpenZ = 0.08;
-  wingL.rotation.set(0.1, wingOpenY, wingOpenZ);
-  wingR.rotation.set(0.1, -wingOpenY, -wingOpenZ);
-  outlineOf(wingL, tint(accent, -0.3), 1.025);
-  outlineOf(wingR, tint(accent, -0.3), 1.025);
-  gloss(wingL, 10, 12, 2, 3.5);
-  gloss(wingR, -10, 12, 2, 3.5);
+  dressGeo.translate(0, 0, -6);
+  const dressMat = petalMat(whiteHex, { roughness: 0.7, ei: 0.15, em: 0.08 });
+  const dress = new THREE.Mesh(dressGeo, dressMat);
+  dress.position.y = 10;
+  outlineOf(dress, '#d0d4dc', 1.02);
+  root.add(dress);
+
+  // 羽（スカラップ）
+  const wingShape = new THREE.Shape();
+  wingShape.moveTo(2, 14);
+  wingShape.quadraticCurveTo(32, 42, 58, 24);
+  wingShape.quadraticCurveTo(68, 8, 62, -8);
+  wingShape.quadraticCurveTo(54, -18, 46, -10);
+  wingShape.quadraticCurveTo(38, -22, 28, -10);
+  wingShape.quadraticCurveTo(18, -22, 10, -8);
+  wingShape.quadraticCurveTo(4, 0, 2, 10);
+  wingShape.closePath();
+  const wingGeo = new THREE.ExtrudeGeometry(wingShape, {
+    depth: 4,
+    bevelEnabled: false,
+    curveSegments: 18,
+  });
+  wingGeo.translate(0, 0, -2);
+  const wingMat = petalMat(whiteHex, { opacity: 0.92, roughness: 0.55, ei: 0.2 });
+  const wingL = new THREE.Mesh(wingGeo, wingMat);
+  const wingR = new THREE.Mesh(wingGeo, wingMat.clone());
+  wingL.position.set(-6, 18, -12);
+  wingR.position.set(6, 18, -12);
+  wingL.scale.set(-1, 1, 1);
+  wingL.rotation.set(0.05, 0.35, 0.05);
+  wingR.rotation.set(0.05, -0.35, -0.05);
+  outlineOf(wingL, '#d0d4dc', 1.015);
+  outlineOf(wingR, '#d0d4dc', 1.015);
   group.add(wingL, wingR);
+
+  // 羽の内側ライン
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 3; i++) {
+      const line = new THREE.Mesh(
+        new THREE.BoxGeometry(22 - i * 4, 1.6, 1.2),
+        petalMat('#e8ecf4', { ei: 0.1 }),
+      );
+      line.position.set(side * (24 + i * 5), 22 - i * 8, -10);
+      line.rotation.z = side * 0.2;
+      root.add(line);
+    }
+  }
+
+  // 光輪
+  const halo = new THREE.Mesh(
+    new THREE.TorusGeometry(22, 2.0, 10, 36),
+    petalMat(gold, { roughness: 0.4, ei: 0.75 }),
+  );
+  halo.rotation.x = Math.PI / 2;
+  halo.position.set(0, 88, 0);
+  root.add(halo);
+
+  // 胸の星
+  const starShape = new THREE.Shape();
+  const outer = 12;
+  const inner = 5;
+  for (let i = 0; i < 5; i++) {
+    const a = (i * Math.PI * 2) / 5 - Math.PI / 2;
+    const b = a + Math.PI / 5;
+    if (i === 0) starShape.moveTo(Math.cos(a) * outer, Math.sin(a) * outer);
+    else starShape.lineTo(Math.cos(a) * outer, Math.sin(a) * outer);
+    starShape.lineTo(Math.cos(b) * inner, Math.sin(b) * inner);
+  }
+  starShape.closePath();
+  const starGeo = new THREE.ExtrudeGeometry(starShape, { depth: 4, bevelEnabled: false });
+  starGeo.translate(0, 0, -2);
+  const star = new THREE.Mesh(starGeo, petalMat(gold, { roughness: 0.45, ei: 0.7 }));
+  star.position.set(0, 12, 18);
+  root.add(star);
+
+  // 周囲の白い発光ドット
+  const sparkMat = petalMat('#ffffff', { opacity: 0.95, ei: 1.4, em: 0.55 });
+  for (let i = 0; i < 16; i++) {
+    const r = 2.5 + Math.random() * 4;
+    const spark = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), sparkMat.clone());
+    const ang = Math.random() * Math.PI * 2;
+    const rad = 35 + Math.random() * 55;
+    spark.position.set(Math.cos(ang) * rad, 25 + Math.random() * 80, Math.sin(ang) * 22 - 8);
+    group.add(spark);
+  }
 
   return {
     group,
     update(_dt, time) {
-      group.position.y = Math.sin(time * 1.15) * 12;
-      group.rotation.y = Math.sin(time * 0.32) * 0.2;
-      const flap = Math.sin(time * 2.6) * 0.18;
-      wingL.rotation.y = wingOpenY + flap;
-      wingR.rotation.y = -wingOpenY - flap;
-      wingL.rotation.z = wingOpenZ + flap * 0.08;
-      wingR.rotation.z = -wingOpenZ - flap * 0.08;
-      halo.rotation.z = time * 0.45;
-      hair.rotation.y = Math.sin(time * 0.7) * 0.05;
-      dress.scale.x = 1 + Math.sin(time * 1.4) * 0.025;
-      dress.scale.z = 1 + Math.cos(time * 1.4) * 0.025;
+      group.position.y = Math.sin(time * 1.1) * 10 + time * 8;
+      if (group.position.y > 120) group.position.y = -40;
+      group.rotation.y = Math.sin(time * 0.28) * 0.2;
+      const flap = Math.sin(time * 5.2) * 0.42;
+      wingL.rotation.y = 0.4 + flap;
+      wingR.rotation.y = -0.4 - flap;
+      wingL.rotation.z = 0.08 + flap * 0.12;
+      wingR.rotation.z = -0.08 - flap * 0.12;
+      wingL.rotation.x = 0.08 + Math.abs(flap) * 0.1;
+      wingR.rotation.x = 0.08 + Math.abs(flap) * 0.1;
+      halo.rotation.z = time * 0.55;
+      star.rotation.z = Math.sin(time * 1.5) * 0.08;
+      root.position.y = Math.sin(time * 1.4) * 6;
     },
     setPalette(p) {
       const a = formHex(p, 'angel');
-      const s = tint(a, 0.55);
-      hair.children.forEach((blob) => {
-        if (blob.isMesh) setMatHex(blob.material, a);
-      });
-      setMatHex(halo.material, a);
-      setMatHex(dressM, s);
-      setMatHex(dress.material, s);
-      setMatHex(collar.material, s);
-      setMatHex(wingL.material, s);
-      setMatHex(wingR.material, s);
+      const g = tint(a, 0.15);
+      setMatHex(hairMat, g);
+      setMatHex(halo.material, g);
+      setMatHex(star.material, g);
     },
     samplePoints(count) {
       const out = new Float32Array(count * 3);
       for (let i = 0; i < count; i++) {
-        if (i < count * 0.4) {
-          out[i * 3] = (Math.random() - 0.5) * 55;
-          out[i * 3 + 1] = -22 + Math.random() * 95;
-          out[i * 3 + 2] = (Math.random() - 0.5) * 32;
-        } else {
+        if (i < count * 0.35) {
+          out[i * 3] = (Math.random() - 0.5) * 50;
+          out[i * 3 + 1] = -30 + Math.random() * 100;
+          out[i * 3 + 2] = (Math.random() - 0.5) * 28;
+        } else if (i < count * 0.7) {
           const side = i % 2 ? 1 : -1;
           const u = Math.random();
-          out[i * 3] = side * (14 + u * 42);
-          out[i * 3 + 1] = 12 + Math.random() * 42;
-          out[i * 3 + 2] = -12 + (Math.random() - 0.5) * 14;
+          out[i * 3] = side * (10 + u * 55);
+          out[i * 3 + 1] = 5 + Math.random() * 45;
+          out[i * 3 + 2] = -14 + (Math.random() - 0.5) * 16;
+        } else {
+          const t = Math.random() * Math.PI * 2;
+          out[i * 3] = Math.cos(t) * 22;
+          out[i * 3 + 1] = 88 + Math.sin(t) * 4;
+          out[i * 3 + 2] = Math.sin(t) * 22;
         }
       }
       return out;

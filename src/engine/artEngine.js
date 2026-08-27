@@ -41,7 +41,7 @@ export class ArtEngine {
     const ambient = new THREE.AmbientLight(0x90a8d8, 0.55);
     const key = new THREE.PointLight(0xffffff, 1.6, 3200);
     key.position.set(160, 240, 480);
-    const fill = new THREE.DirectionalLight(0xffe6cc, 0.85);
+    const fill = new THREE.DirectionalLight(0xa8c8ff, 0.85);
     fill.position.set(-280, 120, 260);
     const rim = new THREE.DirectionalLight(0x6a9cff, 0.55);
     rim.position.set(80, -40, -320);

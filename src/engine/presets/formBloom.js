@@ -108,6 +108,67 @@ function pickMarkSize() {
   return 20 + Math.random() * 24;
 }
 
+/** オタマ専用: 高彩度サイバーネオン（黄・橙・緑成分の強い色なし） */
+const TADPOLE_CYBER_NEON = [
+  '#00b7ff', '#0090ff', '#0066ff', '#3d5afe', // ブルー（シアン緑を弱める）
+  '#5b8cff', '#4d7cff', '#2f6bff',
+  '#7c4dff', '#9d4edd', '#b026ff', '#d500f9', // パープル
+  '#ff00e5', '#ff2bd6', '#e040fb', '#c026d3', // マゼンタ
+];
+
+function randomTadpoleCyberHex() {
+  return TADPOLE_CYBER_NEON[Math.floor(Math.random() * TADPOLE_CYBER_NEON.length)];
+}
+
+/** 青/紫/マゼンタを優先してネオン化し、緑チャンネルを抑えて黄ばみ防止 */
+function cyberHexToRgb(hex) {
+  const rgb = hexToRgb(hex);
+  const max = Math.max(rgb.r, rgb.g, rgb.b, 1);
+  let r = Math.round((rgb.r / max) * 255);
+  let g = Math.round((rgb.g / max) * 255);
+  let b = Math.round((rgb.b / max) * 255);
+  // R+G が高いと黄に見えるので G を抑える
+  g = Math.min(g, Math.round(Math.max(r, b) * 0.35));
+  return { r, g, b };
+}
+
+function cyberShowColor(rgb, boost = 1.4) {
+  let r = Math.min(1, (rgb.r / 255) * boost);
+  let g = Math.min(1, (rgb.g / 255) * boost);
+  let b = Math.min(1, (rgb.b / 255) * boost);
+  g = Math.min(g, Math.max(r, b) * 0.4);
+  return { r, g, b };
+}
+
+/** morph 粒子用: サイバーネオンのみ */
+export function neonRainbowUnitColors(_paletteName, count) {
+  const out = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const c = cyberShowColor(cyberHexToRgb(TADPOLE_CYBER_NEON[i % TADPOLE_CYBER_NEON.length]), 1.45);
+    out[i * 3] = c.r;
+    out[i * 3 + 1] = c.g;
+    out[i * 3 + 2] = c.b;
+  }
+  return out;
+}
+
+export function cyberTadpoleUnitColors(count) {
+  return neonRainbowUnitColors('rainbow', count);
+}
+
+/** オタマ用: 花びらより二段小さめ */
+function pickTadpoleSize() {
+  return pickMarkSize() * 0.48;
+}
+
+/** 単位球上のランダム方向（画面座標: x右 / y下 / z奥） */
+function randomUnitDir3() {
+  const z = Math.random() * 2 - 1;
+  const t = Math.random() * Math.PI * 2;
+  const r = Math.sqrt(Math.max(0, 1 - z * z));
+  return { x: r * Math.cos(t), y: r * Math.sin(t), z };
+}
+
 function bar(w, h, d, x = 0, y = 0, z = 0, rotZ = 0) {
   const g = new THREE.BoxGeometry(w, h, d);
   if (rotZ) g.rotateZ(rotZ);
@@ -233,17 +294,155 @@ export function buildBrainGeometry() {
   return mergeGeometries([dome, ...folds], false);
 }
 
+function makeStarShape(outer = 0.14, inner = 0.055) {
+  const s = new THREE.Shape();
+  for (let i = 0; i < 5; i++) {
+    const a = (i * Math.PI * 2) / 5 - Math.PI / 2;
+    const b = a + Math.PI / 5;
+    const ox = Math.cos(a) * outer;
+    const oy = Math.sin(a) * outer;
+    const ix = Math.cos(b) * inner;
+    const iy = Math.sin(b) * inner;
+    if (i === 0) s.moveTo(ox, oy);
+    else s.lineTo(ox, oy);
+    s.lineTo(ix, iy);
+  }
+  s.closePath();
+  return s;
+}
+
+function makeAngelWingShape() {
+  const s = new THREE.Shape();
+  s.moveTo(0.02, 0.12);
+  s.quadraticCurveTo(0.28, 0.38, 0.52, 0.22);
+  s.quadraticCurveTo(0.62, 0.08, 0.58, -0.06);
+  s.quadraticCurveTo(0.5, -0.16, 0.42, -0.1);
+  s.quadraticCurveTo(0.34, -0.2, 0.26, -0.1);
+  s.quadraticCurveTo(0.18, -0.2, 0.1, -0.08);
+  s.quadraticCurveTo(0.04, -0.02, 0.02, 0.08);
+  s.closePath();
+  return s;
+}
+
+const ANGEL_EXTRUDE = {
+  depth: 0.16,
+  bevelEnabled: true,
+  bevelThickness: 0.025,
+  bevelSize: 0.018,
+  bevelSegments: 2,
+  curveSegments: 18,
+};
+
+/** 胴体（頭・髪・ドレス・星）— 顔・羽・光輪は別ジオメトリ */
+export function buildAngelBodyGeometry() {
+  const parts = [];
+  const head = new THREE.SphereGeometry(0.18, 18, 14);
+  head.translate(0, 0.42, 0.06);
+  parts.push(head);
+
+  const hair = new THREE.SphereGeometry(0.11, 12, 10);
+  hair.scale(1.45, 0.6, 0.9);
+  hair.translate(0.09, 0.55, 0.02);
+  parts.push(hair);
+
+  // 少し細い台形ドレス
+  const dress = new THREE.Shape();
+  dress.moveTo(-0.11, 0.22);
+  dress.lineTo(0.11, 0.22);
+  dress.lineTo(0.22, -0.48);
+  dress.lineTo(-0.22, -0.48);
+  dress.closePath();
+  const dressGeo = new THREE.ExtrudeGeometry(dress, ANGEL_EXTRUDE);
+  dressGeo.translate(0, 0, -ANGEL_EXTRUDE.depth * 0.5);
+  parts.push(dressGeo);
+
+  const starGeo = new THREE.ExtrudeGeometry(makeStarShape(0.1, 0.04), {
+    depth: 0.08,
+    bevelEnabled: true,
+    bevelThickness: 0.012,
+    bevelSize: 0.01,
+    bevelSegments: 1,
+    curveSegments: 2,
+  });
+  starGeo.translate(0, 0.02, 0.14);
+  parts.push(starGeo);
+
+  return mergeTadpoleParts(parts);
+}
+
+
+/** かわいい顔 — 参照どおり閉じた弧の目＋小さな口 */
+export function buildAngelFaceGeometry() {
+  const parts = [];
+  // 細い下向き弧の目（⌒ ⌒）
+  for (const sx of [-1, 1]) {
+    const eye = new THREE.TorusGeometry(0.048, 0.009, 6, 18, Math.PI * 0.95);
+    eye.translate(sx * 0.075, 0.445, 0.235);
+    parts.push(eye);
+  }
+  // ごく小さな笑顔（参照は無口寄りなので控えめ）
+  const mouth = new THREE.TorusGeometry(0.028, 0.007, 5, 12, Math.PI * 0.7);
+  mouth.rotateZ(Math.PI);
+  mouth.translate(0, 0.368, 0.232);
+  parts.push(mouth);
+  return mergeTadpoleParts(parts);
+}
+
+/** ハイライトなし（弧目スタイル）— 空ジオメトリ相当 */
+export function buildAngelFaceHiGeometry() {
+  const hi = new THREE.SphereGeometry(0.001, 4, 4);
+  hi.translate(0, -10, 0);
+  return prepareTadpoleGeo(hi);
+}
+
+/** ほほ紅 */
+export function buildAngelBlushGeometry() {
+  const parts = [];
+  for (const sx of [-1, 1]) {
+    const blush = new THREE.SphereGeometry(0.03, 10, 8);
+    blush.scale(1.35, 0.7, 0.45);
+    blush.translate(sx * 0.115, 0.39, 0.2);
+    parts.push(blush);
+  }
+  return mergeTadpoleParts(parts);
+}
+
+/** 右羽（左はインスタンスで反転） */
+export function buildAngelWingGeometry() {
+  const wing = new THREE.ExtrudeGeometry(makeAngelWingShape(), {
+    depth: 0.1,
+    bevelEnabled: true,
+    bevelThickness: 0.02,
+    bevelSize: 0.015,
+    bevelSegments: 2,
+    curveSegments: 18,
+  });
+  wing.scale(0.88, 0.92, 1);
+  wing.translate(0, 0, -0.05);
+  const lines = [];
+  for (let i = 0; i < 3; i++) {
+    lines.push(bar(0.24 - i * 0.035, 0.018, 0.035, 0.2 + i * 0.035, 0.11 - i * 0.055, 0.02, 0.2));
+  }
+  return mergeTadpoleParts([wing, ...lines]);
+}
+
+export function buildAngelHaloGeometry() {
+  const halo = new THREE.TorusGeometry(0.2, 0.028, 10, 32);
+  halo.rotateX(Math.PI / 2);
+  halo.translate(0, 0.72, 0);
+  return prepareTadpoleGeo(halo);
+}
+
+/** 互換: 一体型シルエット */
 export function buildAngelGeometry() {
-  const head = new THREE.SphereGeometry(0.18, 14, 12);
-  head.translate(0, 0.42, 0);
-  const body = new THREE.ConeGeometry(0.28, 0.55, 16, 1, true);
-  body.translate(0, 0.05, 0);
-  const wingL = bar(0.55, 0.08, 0.35, -0.38, 0.22, -0.05, 0.35);
-  const wingR = bar(0.55, 0.08, 0.35, 0.38, 0.22, -0.05, -0.35);
-  const halo = new THREE.TorusGeometry(0.22, 0.025, 8, 20);
-  halo.rotateX(Math.PI / 2.3);
-  halo.translate(0, 0.68, 0);
-  return mergeGeometries([head, body, wingL, wingR, halo], false);
+  const body = buildAngelBodyGeometry();
+  const wingR = buildAngelWingGeometry();
+  const wingL = buildAngelWingGeometry().clone();
+  wingL.scale(-1, 1, 1);
+  wingL.translate(-0.04, 0.08, -0.1);
+  wingR.translate(0.04, 0.08, -0.1);
+  const halo = buildAngelHaloGeometry();
+  return mergeTadpoleParts([body, wingL, wingR, halo]);
 }
 
 /**
@@ -631,21 +830,6 @@ export function createFormBloom(opts) {
   };
 }
 
-function tadpolePetalColor(paletteName) {
-  const colors = getPaletteColors(paletteName).filter((hex) => {
-    const { r, g, b } = hexToRgb(hex);
-    if (r > 230 && g > 230 && b > 230) return false;
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    const isWarmEarth = r > 40 && g > 25 && b < r * 0.95 && (r + g) > b * 1.2;
-    const isOlive = g >= r * 0.7 && g >= b && max < 200;
-    const isDark = max < 160;
-    return isWarmEarth || isOlive || isDark;
-  });
-  const pool = colors.length ? colors : getPaletteColors(paletteName);
-  return pool[Math.floor(Math.random() * pool.length)];
-}
-
 export function createHourglassBloom() {
   return createFormBloom({ buildGeometry: buildHourglassGeometry, motion: 'spin' });
 }
@@ -672,33 +856,45 @@ export function createTadpoleBloom() {
   let tailGeo = null;
   const dummy = new THREE.Object3D();
   const _color = new THREE.Color();
+  const _fwd = new THREE.Vector3();
+  const _modelFwd = new THREE.Vector3(1, 0, 0);
+  const _baseQuat = new THREE.Quaternion();
+  const _wagQuat = new THREE.Quaternion();
+  const _wagAxis = new THREE.Vector3(0, 0, 1);
+  const _flipAxis = new THREE.Vector3(0, 1, 0);
+  const Z_SPAN = 260;
   const MAX = 64;
 
   class Mark {
     constructor(x, y, palette) {
       this.x = x;
       this.y = y;
-      this.z = (Math.random() - 0.5) * 100;
-      this.maxSize = pickMarkSize();
+      this.z = (Math.random() - 0.5) * Z_SPAN;
+      this.maxSize = pickTadpoleSize();
       this.size = 0;
       this.growth = 0;
       this.growthRate = 0.4 + Math.random() * 0.45;
-      // 進行方向: 全方位ランダム（斜め含む）
-      const ang = Math.random() * Math.PI * 2;
-      this.dirX = Math.cos(ang);
-      this.dirY = Math.sin(ang);
-      // モデルは +X 向き。画面座標 y↓ → ワールド y↑ なので heading は atan2(-dirY, dirX)
-      this.heading = Math.atan2(-this.dirY, this.dirX);
+      // 進行方向: 3D 球面上の 360° ランダム
+      const dir = randomUnitDir3();
+      this.dirX = dir.x;
+      this.dirY = dir.y;
+      this.dirZ = dir.z;
       this.speed = 90 + Math.random() * 90;
       this.wagPhase = Math.random() * Math.PI * 2;
       this.wagSpeed = 36 + Math.random() * 16;
       this.tremblePhase = Math.random() * Math.PI * 2;
       this.trembleSpeed = 55 + Math.random() * 25;
-      this.wagAmp = 0.75 + Math.random() * 0.35;
-      this.trembleAmp = 0.22 + Math.random() * 0.14;
-      this.color = tadpolePetalColor(palette);
-      this.rgb = vividPetalRgb(hexToRgb(this.color));
-      this.innerRgb = brightenRgb(this.rgb);
+      // 振り幅: 現在基準の 1/2・1/3・1/4 を個体ごとにランダム
+      const wagScale = [0.5, 1 / 3, 0.25][Math.floor(Math.random() * 3)];
+      this.wagAmp = (0.75 + Math.random() * 0.35) * wagScale;
+      this.trembleAmp = (0.22 + Math.random() * 0.14) * wagScale;
+      this.color = randomTadpoleCyberHex();
+      this.rgb = cyberHexToRgb(this.color);
+      this.innerRgb = {
+        r: Math.min(255, this.rgb.r + 50),
+        g: Math.min(255, this.rgb.g + 40),
+        b: Math.min(255, this.rgb.b + 55),
+      };
       this.lifetime = 0;
       this.maxLifetime = 8 + Math.random() * 5;
       this.phase = 'growing';
@@ -716,17 +912,21 @@ export function createTadpoleBloom() {
         Math.sin(t * this.trembleSpeed * 3.4 + this.tremblePhase * 0.6) * this.trembleAmp * 0.35;
       this.wag = swim + tremble;
 
-      // 尾の振りに合わせて前進（はっきり泳がせる）
+      // 尾の振りに合わせて 3D 前進
       const thrust = 0.7 + Math.abs(this.wag) * 1.15;
-      this.x += this.dirX * this.speed * thrust * dt;
-      this.y += this.dirY * this.speed * thrust * dt;
+      const step = this.speed * thrust * dt;
+      this.x += this.dirX * step;
+      this.y += this.dirY * step;
+      this.z += this.dirZ * step;
 
-      // 画面外で反対側へ
+      // 画面外・奥行き外で反対側へ
       const margin = 80;
       if (this.x < -margin) this.x = width + margin;
       if (this.x > width + margin) this.x = -margin;
       if (this.y < -margin) this.y = height + margin;
       if (this.y > height + margin) this.y = -margin;
+      if (this.z < -Z_SPAN * 0.5) this.z = Z_SPAN * 0.5;
+      if (this.z > Z_SPAN * 0.5) this.z = -Z_SPAN * 0.5;
 
       switch (this.phase) {
         case 'growing': {
@@ -740,46 +940,92 @@ export function createTadpoleBloom() {
         }
         case 'bloomed':
           if (this.lifetime > this.maxLifetime * 0.6) this.phase = 'wilting';
+          if (Math.random() < dt * 4.5) this._sparkTrail();
           break;
         case 'wilting':
           this.opacity -= dt * 0.25;
-          if (Math.random() < dt * 3.5) this._shed();
+          if (Math.random() < dt * 5) this._shed();
+          if (Math.random() < dt * 6) this._sparkTrail();
           break;
       }
       return this.opacity > 0.01 && this.lifetime < this.maxLifetime;
     }
 
     _shed() {
-      for (let i = 0; i < 2; i++) {
+      for (let i = 0; i < 4 + Math.floor(Math.random() * 4); i++) {
+        const neon = cyberHexToRgb(randomTadpoleCyberHex());
         shards.push({
           x: this.x + (Math.random() - 0.5) * this.size,
           y: this.y + (Math.random() - 0.5) * this.size,
-          z: this.z + (Math.random() - 0.5) * 40,
-          vx: (Math.random() - 0.5) * 60,
-          vy: -15 - Math.random() * 40,
-          vz: (Math.random() - 0.5) * 40,
-          rgb: petalParticleRgb(this.rgb, 1.2),
+          z: this.z + (Math.random() - 0.5) * 50,
+          vx: (Math.random() - 0.5) * 90,
+          vy: -10 - Math.random() * 50,
+          vz: (Math.random() - 0.5) * 55,
+          rgb: {
+            r: Math.round(neon.r + (255 - neon.r) * 0.72),
+            g: Math.round(neon.g + (255 - neon.g) * 0.72),
+            b: Math.round(neon.b + (255 - neon.b) * 0.72),
+          },
           opacity: 1,
-          glow: 1.4,
+          glow: 1.55 + Math.random() * 0.7,
           kind: 'shard',
+          twinkle: Math.random() * Math.PI * 2,
         });
       }
+    }
+
+    /** 泳ぎながらきらめきを撒く */
+    _sparkTrail() {
+      const neon = cyberHexToRgb(this.color);
+      shards.push({
+        x: this.x - this.dirX * this.size * 0.35 + (Math.random() - 0.5) * this.size * 0.4,
+        y: this.y - this.dirY * this.size * 0.35 + (Math.random() - 0.5) * this.size * 0.4,
+        z: this.z - this.dirZ * 12 + (Math.random() - 0.5) * 30,
+        vx: -this.dirX * 20 + (Math.random() - 0.5) * 40,
+        vy: -this.dirY * 20 + (Math.random() - 0.5) * 40,
+        vz: -this.dirZ * 20 + (Math.random() - 0.5) * 30,
+        rgb: {
+          r: Math.round(neon.r + (255 - neon.r) * 0.78),
+          g: Math.round(neon.g + (255 - neon.g) * 0.78),
+          b: Math.round(neon.b + (255 - neon.b) * 0.78),
+        },
+        opacity: 1,
+        glow: 1.7 + Math.random() * 0.7,
+        kind: 'dust',
+        twinkle: Math.random() * Math.PI * 2,
+      });
     }
   }
 
   function hide(mesh, i) {
     dummy.position.set(0, 0, -4000);
     dummy.scale.set(0.001, 0.001, 0.001);
-    dummy.rotation.set(0, 0, 0);
+    dummy.quaternion.identity();
     dummy.updateMatrix();
     mesh.setMatrixAt(i, dummy.matrix);
     if (mesh.instanceColor) mesh.setColorAt(i, _color.setRGB(0, 0, 0));
   }
 
+  /** モデル +X を進行方向（ワールド）に合わせ、局所 Z で尾を振る */
+  function orientMark(mark, wagMul) {
+    // 画面 y↓ → ワールド y↑
+    _fwd.set(mark.dirX, -mark.dirY, mark.dirZ);
+    if (_fwd.lengthSq() < 1e-8) _fwd.set(1, 0, 0);
+    else _fwd.normalize();
+    if (Math.abs(_fwd.x) > 0.999) {
+      _baseQuat.identity();
+      if (_fwd.x < 0) _baseQuat.setFromAxisAngle(_flipAxis, Math.PI);
+    } else {
+      _baseQuat.setFromUnitVectors(_modelFwd, _fwd);
+    }
+    _wagQuat.setFromAxisAngle(_wagAxis, mark.wag * wagMul);
+    dummy.quaternion.copy(_baseQuat).multiply(_wagQuat);
+  }
+
   function placeBody(mark, scaleMul = 1) {
     const pos = toWorld(mark.x, mark.y, mark.z, width, height);
     dummy.position.copy(pos);
-    dummy.rotation.set(0, 0, mark.heading + mark.wag * 0.12);
+    orientMark(mark, 0.12);
     const s = mark.size * scaleMul;
     dummy.scale.set(s, s, s);
     dummy.updateMatrix();
@@ -788,8 +1034,7 @@ export function createTadpoleBloom() {
   function placeTail(mark, scaleMul = 1) {
     const pos = toWorld(mark.x, mark.y, mark.z, width, height);
     dummy.position.copy(pos);
-    // 進行方向基準で上下に大きくぷるぷる
-    dummy.rotation.set(0, 0, mark.heading + mark.wag * 1.35);
+    orientMark(mark, 1.35);
     const s = mark.size * scaleMul;
     const squash = 1 + Math.sin(time * mark.trembleSpeed + mark.tremblePhase) * 0.16
       + Math.sin(time * mark.trembleSpeed * 2.4 + mark.tremblePhase) * 0.08;
@@ -809,21 +1054,22 @@ export function createTadpoleBloom() {
         hide(tailOutline, i);
         continue;
       }
-      const c = displayColor(mark.rgb, 0.7 + mark.opacity * 0.28);
-      const tailC = displayColor(mark.innerRgb, 0.75 + mark.opacity * 0.22);
+      const c = cyberShowColor(mark.rgb, 1.1);
+      const tailC = cyberShowColor(mark.innerRgb, 1.05);
       placeBody(mark, 1);
       bodyMesh.setMatrixAt(i, dummy.matrix);
-      bodyMesh.setColorAt(i, _color.setRGB(c.r * 0.85, c.g * 0.8, c.b * 0.75));
-      placeBody(mark, 1.03);
+      bodyMesh.setColorAt(i, _color.setRGB(c.r, c.g, c.b));
+      // 暗い縁は黄ばみの原因になるので同系色の薄い縁のみ
+      placeBody(mark, 1.04);
       bodyOutline.setMatrixAt(i, dummy.matrix);
-      bodyOutline.setColorAt(i, _color.setRGB(0.05, 0.06, 0.1));
+      bodyOutline.setColorAt(i, _color.setRGB(c.r * 0.25, c.g * 0.25, c.b * 0.35));
 
       placeTail(mark, 1);
       tailMesh.setMatrixAt(i, dummy.matrix);
       tailMesh.setColorAt(i, _color.setRGB(tailC.r, tailC.g, tailC.b));
-      placeTail(mark, 1.04);
+      placeTail(mark, 1.05);
       tailOutline.setMatrixAt(i, dummy.matrix);
-      tailOutline.setColorAt(i, _color.setRGB(0.05, 0.06, 0.1));
+      tailOutline.setColorAt(i, _color.setRGB(tailC.r * 0.22, tailC.g * 0.22, tailC.b * 0.32));
     }
     bodyMesh.instanceMatrix.needsUpdate = true;
     bodyOutline.instanceMatrix.needsUpdate = true;
@@ -840,11 +1086,14 @@ export function createTadpoleBloom() {
         sparkleField.positions[i * 3] = wpos.x;
         sparkleField.positions[i * 3 + 1] = wpos.y;
         sparkleField.positions[i * 3 + 2] = wpos.z;
-        const pulse = 0.12 + 0.14 * Math.abs(Math.sin(time * 2.8 + s.phase));
-        const c = displayColor(s.rgb, pulse);
-        sparkleField.colors[i * 3] = c.r;
-        sparkleField.colors[i * 3 + 1] = c.g;
-        sparkleField.colors[i * 3 + 2] = c.b;
+        const pulse = 0.55 + 0.35 * Math.abs(Math.sin(time * 3.4 + s.phase));
+        // ネオンを白寄りに（少し色味は残す）
+        const wr = (s.rgb.r / 255) * 0.28 + 0.72;
+        const wg = (s.rgb.g / 255) * 0.28 + 0.72;
+        const wb = (s.rgb.b / 255) * 0.28 + 0.72;
+        sparkleField.colors[i * 3] = wr * pulse;
+        sparkleField.colors[i * 3 + 1] = wg * pulse;
+        sparkleField.colors[i * 3 + 2] = wb * pulse;
       });
       sparkleField.geo.setDrawRange(0, sparkles.length);
       sparkleField.geo.attributes.position.needsUpdate = true;
@@ -859,8 +1108,12 @@ export function createTadpoleBloom() {
         fallField.positions[i * 3] = wpos.x;
         fallField.positions[i * 3 + 1] = wpos.y;
         fallField.positions[i * 3 + 2] = wpos.z;
-        const [r, g, b] = rgbToUnit(p.rgb);
-        const glow = (p.glow || 1.4) * (0.5 + p.opacity * 0.55);
+        const [r0, g0, b0] = rgbToUnit(p.rgb);
+        const r = r0 * 0.3 + 0.7;
+        const g = g0 * 0.3 + 0.7;
+        const b = b0 * 0.3 + 0.7;
+        const twinkle = 0.7 + 0.3 * Math.abs(Math.sin(time * 9 + (p.twinkle || 0)));
+        const glow = (p.glow || 1.6) * (0.55 + p.opacity * 0.45) * twinkle;
         fallField.colors[i * 3] = Math.min(1, r * glow);
         fallField.colors[i * 3 + 1] = Math.min(1, g * glow);
         fallField.colors[i * 3 + 2] = Math.min(1, b * glow);
@@ -881,8 +1134,10 @@ export function createTadpoleBloom() {
       transparent: true,
       opacity,
       side: back ? THREE.BackSide : THREE.DoubleSide,
-      depthWrite: !back,
+      depthWrite: false,
+      // Additive は重なりで白〜黄に潰れる。色相維持のため通常合成のみ
       blending: THREE.NormalBlending,
+      toneMapped: false,
     });
   }
 
@@ -899,10 +1154,10 @@ export function createTadpoleBloom() {
 
       bodyGeo = buildTadpoleBodyGeometry();
       tailGeo = buildTadpoleTailGeometry();
-      bodyMesh = new THREE.InstancedMesh(bodyGeo, makeMat(0.95), MAX);
-      bodyOutline = new THREE.InstancedMesh(bodyGeo, makeMat(0.45, true), MAX);
-      tailMesh = new THREE.InstancedMesh(tailGeo, makeMat(0.88), MAX);
-      tailOutline = new THREE.InstancedMesh(tailGeo, makeMat(0.4, true), MAX);
+      bodyMesh = new THREE.InstancedMesh(bodyGeo, makeMat(0.42), MAX);
+      bodyOutline = new THREE.InstancedMesh(bodyGeo, makeMat(0.16, true), MAX);
+      tailMesh = new THREE.InstancedMesh(tailGeo, makeMat(0.32), MAX);
+      tailOutline = new THREE.InstancedMesh(tailGeo, makeMat(0.12, true), MAX);
       for (const m of [bodyMesh, bodyOutline, tailMesh, tailOutline]) {
         m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3);
         m.frustumCulled = false;
@@ -911,7 +1166,13 @@ export function createTadpoleBloom() {
 
       sparkleField = makePoints(80, 5);
       fallField = makePoints(700, 14);
-      fallField.mat.opacity = 0.85;
+      // パーティクルだけ加算で輝かせる（本体は通常合成のまま）
+      sparkleField.mat.blending = THREE.AdditiveBlending;
+      fallField.mat.blending = THREE.AdditiveBlending;
+      sparkleField.mat.opacity = 0.7;
+      fallField.mat.opacity = 0.65;
+      sparkleField.mat.toneMapped = false;
+      fallField.mat.toneMapped = false;
       layer.add(sparkleField.points, fallField.points);
 
       for (let i = 0; i < 12; i++) spawn(Math.random() * w, Math.random() * h);
@@ -922,7 +1183,14 @@ export function createTadpoleBloom() {
           z: (Math.random() - 0.5) * 220,
           speedY: -(0.08 + Math.random() * 0.25),
           phase: Math.random() * Math.PI * 2,
-          rgb: paletteAccentRgb(currentPalette),
+          rgb: (() => {
+            const n = cyberHexToRgb(randomTadpoleCyberHex());
+            return {
+              r: Math.round(n.r + (255 - n.r) * 0.75),
+              g: Math.round(n.g + (255 - n.g) * 0.75),
+              b: Math.round(n.b + (255 - n.b) * 0.75),
+            };
+          })(),
         });
       }
     },
@@ -1036,6 +1304,455 @@ export function createBrainBloom() {
   return createFormBloom({ buildGeometry: buildBrainGeometry, motion: 'sway' });
 }
 
+/**
+ * 天使専用: 羽ばたき + 浮上 + 立体配置
+ */
 export function createAngelBloom() {
-  return createFormBloom({ buildGeometry: buildAngelGeometry, motion: 'sway' });
+  let marks = [];
+  let shards = [];
+  let sparkles = [];
+  let width = 0;
+  let height = 0;
+  let time = 0;
+  let currentPalette = 'rainbow';
+  let layer = null;
+  let bodyMesh = null;
+  let bodyOutline = null;
+  let faceMesh = null;
+  let faceHiMesh = null;
+  let blushMesh = null;
+  let wingLMesh = null;
+  let wingRMesh = null;
+  let haloMesh = null;
+  let sparkleField = null;
+  let fallField = null;
+  let bodyGeo = null;
+  let faceGeo = null;
+  let faceHiGeo = null;
+  let blushGeo = null;
+  let wingGeo = null;
+  let haloGeo = null;
+  const root = new THREE.Object3D();
+  const wingHoldL = new THREE.Object3D();
+  const wingHoldR = new THREE.Object3D();
+  const haloHold = new THREE.Object3D();
+  root.add(wingHoldL, wingHoldR, haloHold);
+  wingHoldL.position.set(-0.04, 0.1, -0.1);
+  wingHoldR.position.set(0.04, 0.1, -0.1);
+  const dummy = new THREE.Object3D();
+  const _color = new THREE.Color();
+  const MAX = 48;
+
+  class Mark {
+    constructor(x, y, palette) {
+      this.x = x;
+      this.y = y;
+      this.z = (Math.random() - 0.5) * 280;
+      this.maxSize = pickMarkSize() * 0.92;
+      this.size = 0;
+      this.growth = 0;
+      this.growthRate = 0.32 + Math.random() * 0.4;
+      this.baseRot = (Math.random() - 0.5) * 0.35;
+      this.tilt = (Math.random() - 0.5) * 0.4;
+      this.yaw = (Math.random() - 0.5) * 0.5;
+      this.windPhase = Math.random() * Math.PI * 2;
+      this.windSpeed = 0.7 + Math.random() * 0.5;
+      this.windAmp = 0.06 + Math.random() * 0.05;
+      this.flapPhase = Math.random() * Math.PI * 2;
+      this.flapSpeed = 4.2 + Math.random() * 2.2;
+      this.riseSpeed = 55 + Math.random() * 45;
+      this.bobPhase = Math.random() * Math.PI * 2;
+      this.bobSpeed = 1.1 + Math.random() * 0.7;
+      this.spinY = 0.25 + Math.random() * 0.2;
+      this.phaseY = Math.random() * Math.PI * 2;
+      this.color = randomFlowerPetalColor(palette);
+      this.rgb = vividPetalRgb(hexToRgb(this.color));
+      this.innerRgb = brightenRgb(this.rgb);
+      this.lifetime = 0;
+      this.maxLifetime = 7 + Math.random() * 5;
+      this.phase = 'growing';
+      this.opacity = 1;
+      this.flap = 0;
+    }
+
+    update(dt, t) {
+      this.lifetime += dt;
+      this.flap = Math.sin(t * this.flapSpeed + this.flapPhase) * 0.55;
+      this.bob = Math.sin(t * this.bobSpeed + this.bobPhase) * 18;
+      this.sway = Math.sin(t * this.windSpeed + this.windPhase) * this.windAmp;
+      this.spin = Math.sin(t * this.spinY + this.phaseY) * 0.35;
+
+      // 画面上方向へ浮上（y は下向きなので減算）
+      const lift = this.riseSpeed * (0.75 + Math.abs(this.flap) * 0.55);
+      this.y -= lift * dt;
+      this.x += Math.sin(t * 0.9 + this.flapPhase) * 18 * dt;
+      this.z += Math.cos(t * 0.7 + this.bobPhase) * 12 * dt;
+
+      if (this.y < -100) {
+        this.y = height + 80;
+        this.x = Math.random() * width;
+        this.z = (Math.random() - 0.5) * 280;
+      }
+
+      switch (this.phase) {
+        case 'growing': {
+          this.growth = Math.min(1, this.growth + this.growthRate * dt);
+          const c1 = 1.70158;
+          const c3 = c1 + 1;
+          const u = this.growth;
+          this.size = this.maxSize * (1 + c3 * Math.pow(u - 1, 3) + c1 * Math.pow(u - 1, 2));
+          if (this.growth >= 1) this.phase = 'bloomed';
+          break;
+        }
+        case 'bloomed':
+          if (Math.random() < dt * 5.5) this._sparkTrail();
+          if (this.lifetime > this.maxLifetime * 0.65) this.phase = 'wilting';
+          break;
+        case 'wilting':
+          this.opacity -= dt * 0.22;
+          if (Math.random() < dt * 6) this._shed();
+          if (Math.random() < dt * 4) this._sparkTrail();
+          break;
+      }
+      return this.opacity > 0.01 && this.lifetime < this.maxLifetime;
+    }
+
+    _sparkTrail() {
+      // 顔（上部）を避け、胴〜羽まわりに放出
+      const side = Math.random() < 0.5 ? -1 : 1;
+      shards.push({
+        x: this.x + side * this.size * (0.35 + Math.random() * 0.55),
+        y: this.y + this.size * (0.2 + Math.random() * 0.55),
+        z: this.z - 30 - Math.random() * 40,
+        vx: side * (15 + Math.random() * 25) + (Math.random() - 0.5) * 20,
+        vy: 10 + Math.random() * 30,
+        vz: (Math.random() - 0.5) * 25,
+        rgb: { r: 255, g: 255, b: 255 },
+        opacity: 1,
+        glow: 3.6 + Math.random() * 1.8,
+        kind: 'dust',
+        twinkle: Math.random() * Math.PI * 2,
+      });
+    }
+
+    _shed() {
+      for (let i = 0; i < 5; i++) {
+        const side = Math.random() < 0.5 ? -1 : 1;
+        shards.push({
+          x: this.x + side * this.size * (0.2 + Math.random() * 0.6),
+          y: this.y + this.size * (0.25 + Math.random() * 0.5),
+          z: this.z - 20 - Math.random() * 40,
+          vx: (Math.random() - 0.5) * 55,
+          vy: -45 - Math.random() * 45,
+          vz: (Math.random() - 0.5) * 45,
+          rgb: { r: 255, g: 255, b: 255 },
+          opacity: 1,
+          glow: 4.0 + Math.random() * 1.6,
+          kind: 'shard',
+          rot: Math.random() * Math.PI * 2,
+          rotSpeed: (Math.random() - 0.5) * 4,
+          twinkle: Math.random() * Math.PI * 2,
+        });
+      }
+    }
+  }
+
+  function hide(mesh, i) {
+    dummy.position.set(0, 0, -4000);
+    dummy.scale.set(0.001, 0.001, 0.001);
+    dummy.rotation.set(0, 0, 0);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+    if (mesh.instanceColor) mesh.setColorAt(i, _color.setRGB(0, 0, 0));
+  }
+
+  function poseRoot(mark) {
+    const pos = toWorld(mark.x, mark.y, mark.z + mark.bob, width, height);
+    root.position.copy(pos);
+    root.position.x += mark.sway * mark.size * 0.35;
+    root.rotation.set(
+      mark.tilt + mark.sway * 0.6,
+      mark.yaw + mark.spin,
+      mark.baseRot + mark.sway * 0.4,
+    );
+    const s = mark.size;
+    root.scale.set(s, s, s * 1.75);
+    const flap = mark.flap;
+    wingHoldL.rotation.set(0.12 + flap * 0.15, 0.55 + flap, 0.1 + flap * 0.08);
+    wingHoldR.rotation.set(0.12 + flap * 0.15, -0.55 - flap, -0.1 - flap * 0.08);
+    wingHoldL.scale.set(-1, 1, 1);
+    wingHoldR.scale.set(1, 1, 1);
+    haloHold.rotation.z = time * 0.8 + mark.flapPhase;
+    root.updateMatrixWorld(true);
+  }
+
+  function syncMeshes() {
+    if (!bodyMesh || !faceMesh || !wingLMesh || !wingRMesh || !haloMesh) return;
+    const shown = Math.min(marks.length, MAX);
+    for (let i = 0; i < MAX; i++) {
+      const mark = i < shown ? marks[i] : null;
+      if (!mark || mark.size < 0.5) {
+        hide(bodyMesh, i);
+        hide(bodyOutline, i);
+        hide(faceMesh, i);
+        hide(faceHiMesh, i);
+        hide(blushMesh, i);
+        hide(wingLMesh, i);
+        hide(wingRMesh, i);
+        hide(haloMesh, i);
+        continue;
+      }
+      poseRoot(mark);
+      const c = displayColor(mark.rgb, 0.85 + mark.opacity * 0.2);
+      const bright = displayColor(mark.innerRgb, 1.05 + mark.opacity * 0.15);
+
+      dummy.matrix.copy(root.matrixWorld);
+      bodyMesh.setMatrixAt(i, dummy.matrix);
+      bodyMesh.setColorAt(i, _color.setRGB(c.r, c.g, c.b));
+
+      const sx = root.scale.x;
+      const sy = root.scale.y;
+      const sz = root.scale.z;
+      root.scale.set(sx * 1.035, sy * 1.035, sz * 1.035);
+      root.updateMatrixWorld(true);
+      dummy.matrix.copy(root.matrixWorld);
+      bodyOutline.setMatrixAt(i, dummy.matrix);
+      bodyOutline.setColorAt(i, _color.setRGB(c.r * 0.25, c.g * 0.28, c.b * 0.4));
+      root.scale.set(sx, sy, sz);
+      root.updateMatrixWorld(true);
+
+      dummy.matrix.copy(wingHoldL.matrixWorld);
+      wingLMesh.setMatrixAt(i, dummy.matrix);
+      wingLMesh.setColorAt(i, _color.setRGB(bright.r, bright.g, bright.b));
+
+      dummy.matrix.copy(wingHoldR.matrixWorld);
+      wingRMesh.setMatrixAt(i, dummy.matrix);
+      wingRMesh.setColorAt(i, _color.setRGB(bright.r, bright.g, bright.b));
+
+      dummy.matrix.copy(root.matrixWorld);
+      haloMesh.setMatrixAt(i, dummy.matrix);
+      haloMesh.setColorAt(i, _color.setRGB(
+        Math.min(1, bright.r * 1.15),
+        Math.min(1, bright.g * 1.1),
+        Math.min(1, bright.b * 0.9),
+      ));
+
+      // 顔は体色と独立（弧の目・口のみ。ほほ紅は出さない）
+      dummy.matrix.copy(root.matrixWorld);
+      faceMesh.setMatrixAt(i, dummy.matrix);
+      faceMesh.setColorAt(i, _color.setRGB(0.12, 0.1, 0.14));
+      hide(faceHiMesh, i);
+      hide(blushMesh, i);
+    }
+    for (const m of [bodyMesh, bodyOutline, faceMesh, faceHiMesh, blushMesh, wingLMesh, wingRMesh, haloMesh]) {
+      m.instanceMatrix.needsUpdate = true;
+      if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    }
+
+    if (sparkleField) {
+      sparkles.forEach((s, i) => {
+        const wpos = toWorld(s.x, s.y, s.z, width, height);
+        sparkleField.positions[i * 3] = wpos.x;
+        sparkleField.positions[i * 3 + 1] = wpos.y;
+        sparkleField.positions[i * 3 + 2] = wpos.z;
+        const pulse = 1.4 + 1.6 * Math.abs(Math.sin(time * 3.4 + s.phase));
+        sparkleField.colors[i * 3] = pulse;
+        sparkleField.colors[i * 3 + 1] = pulse;
+        sparkleField.colors[i * 3 + 2] = pulse;
+      });
+      sparkleField.geo.setDrawRange(0, sparkles.length);
+      sparkleField.geo.attributes.position.needsUpdate = true;
+      sparkleField.geo.attributes.color.needsUpdate = true;
+    }
+    if (fallField) {
+      const n = Math.min(shards.length, 700);
+      for (let i = 0; i < n; i++) {
+        const p = shards[i];
+        const wpos = toWorld(p.x, p.y, p.z, width, height);
+        fallField.positions[i * 3] = wpos.x;
+        fallField.positions[i * 3 + 1] = wpos.y;
+        fallField.positions[i * 3 + 2] = wpos.z;
+        const twinkle = 0.75 + 0.45 * Math.abs(Math.sin(time * 5 + (p.twinkle || 0)));
+        const glow = (p.glow || 3.6) * (0.9 + p.opacity * 0.85) * twinkle;
+        fallField.colors[i * 3] = glow;
+        fallField.colors[i * 3 + 1] = glow;
+        fallField.colors[i * 3 + 2] = glow;
+      }
+      fallField.geo.setDrawRange(0, n);
+      fallField.geo.attributes.position.needsUpdate = true;
+      fallField.geo.attributes.color.needsUpdate = true;
+    }
+  }
+
+  function spawn(x, y) {
+    marks.push(new Mark(x, y, currentPalette));
+  }
+
+  function makeMat(opacity, back = false) {
+    return new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity,
+      side: back ? THREE.BackSide : THREE.DoubleSide,
+      depthWrite: !back,
+      blending: THREE.NormalBlending,
+      toneMapped: false,
+    });
+  }
+
+  return {
+    init(w, h, params, group) {
+      width = w;
+      height = h;
+      currentPalette = params.palette || 'rainbow';
+      marks = [];
+      shards = [];
+      sparkles = [];
+      time = 0;
+      layer = group;
+
+      bodyGeo = buildAngelBodyGeometry();
+      faceGeo = buildAngelFaceGeometry();
+      faceHiGeo = buildAngelFaceHiGeometry();
+      blushGeo = buildAngelBlushGeometry();
+      wingGeo = buildAngelWingGeometry();
+      haloGeo = buildAngelHaloGeometry();
+      bodyMesh = new THREE.InstancedMesh(bodyGeo, makeMat(0.98), MAX);
+      bodyOutline = new THREE.InstancedMesh(bodyGeo, makeMat(0.35, true), MAX);
+      faceMesh = new THREE.InstancedMesh(faceGeo, makeMat(1), MAX);
+      faceHiMesh = new THREE.InstancedMesh(faceHiGeo, makeMat(1), MAX);
+      blushMesh = new THREE.InstancedMesh(blushGeo, makeMat(0.55), MAX);
+      wingLMesh = new THREE.InstancedMesh(wingGeo, makeMat(0.92), MAX);
+      wingRMesh = new THREE.InstancedMesh(wingGeo, makeMat(0.92), MAX);
+      haloMesh = new THREE.InstancedMesh(haloGeo, makeMat(1), MAX);
+      for (const m of [bodyMesh, bodyOutline, faceMesh, faceHiMesh, blushMesh, wingLMesh, wingRMesh, haloMesh]) {
+        m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3);
+        m.frustumCulled = false;
+        layer.add(m);
+      }
+
+      sparkleField = makePoints(120, 12);
+      fallField = makePoints(700, 26);
+      sparkleField.mat.blending = THREE.AdditiveBlending;
+      fallField.mat.blending = THREE.AdditiveBlending;
+      sparkleField.mat.opacity = 1;
+      fallField.mat.opacity = 1;
+      sparkleField.mat.toneMapped = false;
+      fallField.mat.toneMapped = false;
+      layer.add(sparkleField.points, fallField.points);
+
+      for (let i = 0; i < 10; i++) spawn(Math.random() * w, height * 0.35 + Math.random() * height * 0.7);
+      for (let i = 0; i < 100; i++) {
+        sparkles.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          z: (Math.random() - 0.5) * 220,
+          speedY: -(0.12 + Math.random() * 0.32),
+          phase: Math.random() * Math.PI * 2,
+          rgb: { r: 255, g: 255, b: 255 },
+        });
+      }
+    },
+
+    resize(w, h) {
+      width = w;
+      height = h;
+    },
+
+    update(dt, pointer, audioData, params) {
+      time += dt;
+      currentPalette = params.palette || currentPalette;
+      marks = marks.filter((m) => m.update(dt, time));
+
+      if (pointer?.velocity > 3) {
+        const n = Math.min(2, Math.floor(pointer.velocity / 16) + 1);
+        for (let i = 0; i < n; i++) {
+          spawn(pointer.x + (Math.random() - 0.5) * 50, pointer.y + (Math.random() - 0.5) * 40);
+        }
+      }
+      if (Math.random() < dt * 1.4 * (params.speed || 1)) {
+        spawn(Math.random() * width, height + 40 + Math.random() * 80);
+      }
+      if (audioData?.isActive && audioData.bass > 0.3) {
+        const n = Math.floor(audioData.bass * 3);
+        for (let i = 0; i < n; i++) spawn(Math.random() * width, height + 20);
+      }
+
+      shards = shards.filter((p) => {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.z += p.vz * dt;
+        p.vy -= 25 * dt;
+        p.opacity -= dt * 0.12;
+        return p.opacity > 0.02 && p.y > -80;
+      });
+
+      sparkles.forEach((s) => {
+        s.y += s.speedY * (params.speed || 1) * 70 * dt;
+        if (s.y < -10) {
+          s.y = height + 10;
+          s.x = Math.random() * width;
+        }
+      });
+
+      const maxMarks = Math.min(MAX, Math.max(16, Math.floor((params.particleCount || 1030) / 5)));
+      if (marks.length > maxMarks) marks.splice(0, marks.length - maxMarks);
+    },
+
+    render() {
+      syncMeshes();
+    },
+
+    onPointerDown(x, y) {
+      for (let i = 0; i < 5; i++) spawn(x + (Math.random() - 0.5) * 70, y + (Math.random() - 0.5) * 50);
+    },
+    onPointerMove() {},
+    onPointerUp() {},
+
+    setPalette(name) {
+      currentPalette = name;
+    },
+
+    samplePoints(count) {
+      const out = new Float32Array(count * 3);
+      const src = marks.length ? marks : [{ x: width * 0.5, y: height * 0.5, z: 0, size: 40 }];
+      for (let i = 0; i < count; i++) {
+        const m = src[i % src.length];
+        const wpos = toWorld(
+          m.x + (Math.random() - 0.5) * m.size,
+          m.y + (Math.random() - 0.5) * m.size,
+          m.z + (Math.random() - 0.5) * 40,
+          width,
+          height,
+        );
+        out[i * 3] = wpos.x;
+        out[i * 3 + 1] = wpos.y;
+        out[i * 3 + 2] = wpos.z;
+      }
+      return out;
+    },
+
+    destroy() {
+      marks = [];
+      shards = [];
+      sparkles = [];
+      bodyGeo?.dispose();
+      faceGeo?.dispose();
+      faceHiGeo?.dispose();
+      blushGeo?.dispose();
+      wingGeo?.dispose();
+      haloGeo?.dispose();
+      bodyMesh = null;
+      bodyOutline = null;
+      faceMesh = null;
+      faceHiMesh = null;
+      blushMesh = null;
+      wingLMesh = null;
+      wingRMesh = null;
+      haloMesh = null;
+      sparkleField = null;
+      fallField = null;
+      layer = null;
+    },
+  };
 }
