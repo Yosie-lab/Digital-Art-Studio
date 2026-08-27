@@ -230,149 +230,235 @@ export function createLetterX(palette = 'rainbow') {
 export function createJellyfish(palette = 'rainbow') {
   const group = new THREE.Group();
   softLights(group);
-  const main = formHex(palette, 'jellyfish');
-  const lite = tint(main, 0.22);
 
-  const bellMat = jellyMat(main, 0.42);
+  const NEON = ['#00e8ff', '#00b7ff', '#2f6bff', '#1a48ff', '#4d7cff', '#7c4dff', '#ff2bd6', '#b026ff'];
+  const NEON_WEIGHTED = [
+    '#00e8ff', '#00e8ff', '#00b7ff', '#00b7ff', '#2f6bff', '#2f6bff', '#2f6bff',
+    '#1a48ff', '#1a48ff', '#4d7cff', '#7c4dff', '#ff2bd6', '#b026ff',
+  ];
+  const neonHex = NEON_WEIGHTED[Math.floor(Math.random() * NEON_WEIGHTED.length)];
+  const neonCol = col(neonHex);
+
+  function neonEdge(opacity = 0.9) {
+    return new THREE.MeshBasicMaterial({
+      color: neonCol.clone(),
+      transparent: true,
+      opacity,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+    });
+  }
+
+  // 見える半透明ネオン青の傘
+  const bellMat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color('#1a48ff'),
+    transparent: true,
+    opacity: 0.38,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+  });
   const bell = new THREE.Mesh(
-    new THREE.SphereGeometry(50, 48, 36, 0, Math.PI * 2, 0, Math.PI * 0.68),
+    new THREE.SphereGeometry(52, 48, 36, 0, Math.PI * 2, 0, Math.PI * 0.58),
     bellMat,
   );
-  bell.scale.set(1.12, 0.95, 1.12);
-  bell.position.y = 26;
-  // 半透明なので太いアウトラインは弱く
-  outlineOf(bell, tint(main, -0.25), 1.015);
-  gloss(bell, -16, 18, 32, 10);
-  gloss(bell, 8, 10, 36, 5);
+  bell.scale.set(1.2, 0.88, 1.2);
+  bell.position.y = 22;
   group.add(bell);
 
-  const rim = new THREE.Group();
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(58, 1.15, 6, 48),
+    neonEdge(1),
+  );
+  rim.rotation.x = Math.PI / 2;
   rim.position.y = 2;
-  const rimMat = jellyMat(lite, 0.38);
-  for (let i = 0; i < 12; i++) {
-    const ang = (i / 12) * Math.PI * 2;
-    const bump = new THREE.Mesh(new THREE.SphereGeometry(11, 18, 14), rimMat.clone());
-    bump.position.set(Math.cos(ang) * 46, Math.sin(i * 1.7) * 2, Math.sin(ang) * 46);
-    bump.scale.set(1.05, 0.65, 1.05);
-    rim.add(bump);
-  }
   group.add(rim);
 
-  const face = new THREE.Group();
-  face.position.set(0, 28, 44);
-  dotEyes(face, 3, 2, 16, 3.4);
-  blush(face, -3, 0, 28, 6.5);
-  group.add(face);
+  // 内部ネット
+  const net = new THREE.Group();
+  for (let i = 0; i < 12; i++) {
+    const ang = (i / 12) * Math.PI * 2;
+    const rib = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 42, 4), neonEdge(0.75));
+    rib.rotation.z = Math.PI / 2;
+    rib.rotation.y = ang;
+    rib.position.set(Math.cos(ang) * 22, 32, Math.sin(ang) * 22);
+    net.add(rib);
+  }
+  for (let i = 0; i < 40; i++) {
+    const u = Math.random() * Math.PI * 2;
+    const v = Math.random() * Math.PI * 0.5;
+    const r = 46;
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(1.4 + Math.random(), 6, 5), neonEdge(0.9));
+    dot.position.set(
+      Math.sin(v) * Math.cos(u) * r * 1.2,
+      22 + Math.cos(v) * r * 0.88,
+      Math.sin(v) * Math.sin(u) * r * 1.2,
+    );
+    net.add(dot);
+  }
+  group.add(net);
 
-  const tentMat = jellyMat(main, 0.36);
-  const tentacles = [];
-  for (let i = 0; i < 9; i++) {
-    const ang = (i / 9) * Math.PI * 2;
+  // 暖色コア
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(10, 14, 12),
+    new THREE.MeshBasicMaterial({
+      color: 0xa8e8ff,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+    }),
+  );
+  core.scale.set(1.4, 0.7, 1.4);
+  core.position.y = 8;
+  group.add(core);
+
+  const gonads = new THREE.Group();
+  gonads.position.y = 28;
+  for (let i = 0; i < 4; i++) {
+    const ang = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    const g = new THREE.Mesh(
+      new THREE.TorusGeometry(11, 2.4, 8, 20, Math.PI * 1.35),
+      neonEdge(0.75),
+    );
+    g.rotation.x = Math.PI * 0.55;
+    g.rotation.y = ang;
+    g.position.set(Math.cos(ang) * 14, 0, Math.sin(ang) * 14);
+    gonads.add(g);
+  }
+  group.add(gonads);
+
+  const fringe = new THREE.Group();
+  fringe.position.y = 2;
+  const fringeTips = [];
+  for (let i = 0; i < 48; i++) {
+    const ang = (i / 48) * Math.PI * 2;
+    const len = 34 + (i % 4) * 10;
+    const tip = new THREE.Mesh(new THREE.CapsuleGeometry(0.35, len, 2, 4), neonEdge(0.35));
+    tip.position.set(Math.cos(ang) * 54, -len * 0.42, Math.sin(ang) * 54);
+    tip.userData = { ang, len, phase: i * 0.2 };
+    fringe.add(tip);
+    const node = new THREE.Mesh(new THREE.SphereGeometry(1.2, 6, 5), neonEdge(0.55));
+    node.position.set(Math.cos(ang) * 54, -len * 0.85, Math.sin(ang) * 54);
+    fringe.add(node);
+    fringeTips.push(tip);
+  }
+  group.add(fringe);
+
+  const arms = [];
+  for (let i = 0; i < 4; i++) {
+    const ang = (i / 4) * Math.PI * 2;
     const root = new THREE.Group();
-    root.position.set(Math.cos(ang) * 20, 0, Math.sin(ang) * 20);
-    root.userData = { phase: i * 0.65, ang };
-    const len = 58 + (i % 3) * 6;
-    const beads = [];
-    for (let s = 0; s < 7; s++) {
-      const t = (s + 0.5) / 7;
-      const rad = 8.5 * (1 - t * 0.4);
-      const bead = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 14), tentMat.clone());
-      bead.scale.setScalar(rad);
-      bead.position.set(Math.cos(ang) * t * t * 16, -t * len, Math.sin(ang) * t * t * 16);
-      root.add(bead);
-      beads.push(bead);
+    root.position.set(Math.cos(ang) * 8, 6, Math.sin(ang) * 8);
+    root.rotation.y = ang;
+    root.userData = { phase: i * 1.15 };
+    const armCol = i % 2 === 0 ? neonEdge(0.32) : neonEdge(0.32);
+    if (i % 2 === 1) armCol.color.copy(col(NEON[(i + 2) % NEON.length]));
+    for (let s = 0; s < 16; s++) {
+      const t = (s + 0.5) / 16;
+      const sway = Math.sin(t * Math.PI * 1.6) * 10;
+      const y = -t * 100;
+      const rad = 5.5 * (1 - t * 0.55);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(rad, 0.55, 5, 14), armCol.clone());
+      ring.rotation.x = Math.PI / 2;
+      ring.position.set(sway, y, 0);
+      root.add(ring);
+      if (s % 2 === 0) {
+        const node = new THREE.Mesh(new THREE.SphereGeometry(1.3, 6, 5), armCol.clone());
+        node.position.set(sway + rad * 0.7, y, 0);
+        root.add(node);
+      }
     }
-    root.userData.beads = beads;
-    root.userData.len = len;
     group.add(root);
-    tentacles.push(root);
+    arms.push(root);
   }
 
-  const bubbles = [];
-  const bubMat = jellyMat(lite, 0.28);
-  for (let i = 0; i < 6; i++) {
-    const bub = new THREE.Mesh(new THREE.SphereGeometry(5 + (i % 3) * 2.2, 16, 16), bubMat.clone());
-    bub.position.set((i - 2.5) * 20, 48 + (i % 3) * 14, 18 + (i % 2) * 12);
-    gloss(bub, -1.2, 1.5, 3, 1.6);
-    group.add(bub);
-    bubbles.push(bub);
-  }
+  let driftY = -40;
 
   return {
     group,
-    update(_dt, time) {
-      // プカプカ浮遊（上下＋左右にゆるく漂う）
-      group.position.y = Math.sin(time * 0.85) * 16 + Math.sin(time * 1.7) * 4;
-      group.position.x = Math.sin(time * 0.45) * 10;
-      group.position.z = Math.cos(time * 0.38) * 6;
-      group.rotation.y = Math.sin(time * 0.28) * 0.18;
-      group.rotation.z = Math.sin(time * 0.55) * 0.06;
-      group.rotation.x = Math.sin(time * 0.4) * 0.05;
+    update(dt, time) {
+      driftY += dt * 14;
+      if (driftY > 130) driftY = -50;
+      group.position.y = driftY + Math.sin(time * 0.7) * 8;
+      group.position.x = Math.sin(time * 0.35) * 12;
+      group.position.z = Math.cos(time * 0.28) * 8;
+      group.rotation.y = Math.sin(time * 0.22) * 0.15;
+      group.rotation.z = Math.sin(time * 0.48) * 0.08;
+      group.rotation.x = Math.sin(time * 0.38) * 0.05;
 
-      // 傘のやわらかい収縮
-      const pulse = Math.sin(time * 1.6);
-      bell.scale.y = 0.95 + pulse * 0.07;
-      bell.scale.x = bell.scale.z = 1.12 - pulse * 0.04;
+      const pulse = Math.sin(time * 1.35);
+      bell.scale.y = 0.88 + pulse * 0.08;
+      bell.scale.x = bell.scale.z = 1.2 - pulse * 0.05;
+      bell.material.opacity = 0.32 + 0.12 * Math.abs(pulse);
       rim.scale.x = rim.scale.z = 1 + pulse * 0.03;
-      face.position.y = 28 + pulse * 1.5;
+      rim.material.opacity = 0.85 + 0.15 * Math.abs(pulse);
+      core.material.opacity = 0.7 + 0.25 * Math.abs(pulse);
+      gonads.position.y = 28 + pulse * 1.2;
 
-      // 触手ユラユラ（先ほど遅れ・横揺れ大きめ）
-      for (const root of tentacles) {
-        const { phase, ang, beads, len } = root.userData;
-        root.rotation.z = Math.sin(time * 1.1 + phase) * 0.12;
-        root.rotation.x = Math.cos(time * 0.9 + phase) * 0.1;
-        for (let s = 0; s < beads.length; s++) {
-          const t = (s + 0.5) / beads.length;
-          const lag = phase + t * 2.8;
-          const swayX = Math.sin(time * 1.35 + lag) * t * t * 22;
-          const swayZ = Math.cos(time * 1.15 + lag * 0.9) * t * t * 18;
-          const droop = Math.sin(time * 0.95 + lag) * t * 5;
-          beads[s].position.set(
-            Math.cos(ang) * (t * t * 10) + Math.cos(ang + Math.PI * 0.5) * swayX,
-            -t * len + droop,
-            Math.sin(ang) * (t * t * 10) + Math.sin(ang + Math.PI * 0.5) * swayZ,
-          );
-        }
+      for (const tip of fringeTips) {
+        const { ang, len, phase } = tip.userData;
+        const sway = Math.sin(time * 1.5 + phase) * 4;
+        tip.position.set(
+          Math.cos(ang) * 54 + Math.cos(ang + Math.PI * 0.5) * sway,
+          -len * 0.35 + Math.sin(time * 1.2 + phase) * 2,
+          Math.sin(ang) * 54 + Math.sin(ang + Math.PI * 0.5) * sway,
+        );
+        tip.rotation.x = Math.sin(time * 1.3 + phase) * 0.15;
       }
 
-      bubbles.forEach((b, i) => {
-        b.position.y = 48 + (i % 3) * 14 + Math.sin(time * 0.7 + i * 1.3) * 8;
-        b.position.x = (i - 2.5) * 20 + Math.cos(time * 0.5 + i) * 5;
-      });
+      for (const root of arms) {
+        const { phase } = root.userData;
+        root.rotation.x = 0.2 + Math.sin(time * 1.1 + phase) * 0.45;
+        root.rotation.z = Math.cos(time * 0.9 + phase * 0.8) * 0.3;
+        root.rotation.y = Math.sin(time * 0.7 + phase) * 0.18;
+        root.scale.y = 1.05 + Math.abs(Math.sin(time * 1.1 + phase)) * 0.15;
+      }
     },
-    setPalette(p) {
-      const m = formHex(p, 'jellyfish');
-      const l = tint(m, 0.22);
-      setMatHex(bellMat, m);
-      rim.children.forEach((ch) => setMatHex(ch.material, l));
-      tentacles.forEach((root) => root.userData.beads.forEach((bead) => setMatHex(bead.material, m)));
-      bubbles.forEach((b) => setMatHex(b.material, l));
+    setPalette(_p) {
+      const pick = NEON[Math.floor(Math.random() * NEON.length)];
+      const c = col(pick);
+      rim.material.color.copy(c);
+      bell.material.color.set('#1a48ff');
+      net.traverse((ch) => { if (ch.isMesh) ch.material.color.copy(c); });
+      gonads.children.forEach((ch) => ch.material.color.copy(c));
+      fringeTips.forEach((t) => t.material.color.copy(c));
+      arms.forEach((root) => root.traverse((ch) => {
+        if (ch.isMesh && ch.material?.color) ch.material.color.copy(c);
+      }));
     },
     samplePoints(count) {
       const out = new Float32Array(count * 3);
       for (let i = 0; i < count; i++) {
         if (i < count * 0.45) {
           const u = Math.random() * Math.PI * 2;
-          const v = Math.random() * Math.PI * 0.6;
-          out[i * 3] = Math.sin(v) * Math.cos(u) * 50 * 1.12;
-          out[i * 3 + 1] = 26 + Math.cos(v) * 50 * 0.95;
-          out[i * 3 + 2] = Math.sin(v) * Math.sin(u) * 50 * 1.12;
+          const v = Math.random() * Math.PI * 0.55;
+          out[i * 3] = Math.sin(v) * Math.cos(u) * 52 * 1.2;
+          out[i * 3 + 1] = 22 + Math.cos(v) * 52 * 0.88;
+          out[i * 3 + 2] = Math.sin(v) * Math.sin(u) * 52 * 1.2;
+        } else if (i < count * 0.7) {
+          const ang = Math.random() * Math.PI * 2;
+          out[i * 3] = Math.cos(ang) * 54;
+          out[i * 3 + 1] = -Math.random() * 20;
+          out[i * 3 + 2] = Math.sin(ang) * 54;
         } else {
-          const ti = Math.floor(Math.random() * 9);
-          const ang = (ti / 9) * Math.PI * 2;
+          const ang = (Math.floor(Math.random() * 4) / 4) * Math.PI * 2;
           const t = Math.random();
-          out[i * 3] = Math.cos(ang) * (20 + t * 16);
-          out[i * 3 + 1] = -t * 60;
-          out[i * 3 + 2] = Math.sin(ang) * (20 + t * 16);
+          out[i * 3] = Math.cos(ang) * 8 + t * t * 10;
+          out[i * 3 + 1] = 6 - t * 78;
+          out[i * 3 + 2] = Math.sin(ang) * 8;
         }
       }
       return out;
     },
-    dispose() { disposeObject(group); },
   };
 }
 
-/** ——— 砂時計: 紫＋同系の薄いガラス ——— */
+
 export function createHourglass(palette = 'rainbow') {
   const group = new THREE.Group();
   softLights(group);
@@ -853,37 +939,51 @@ export function createAngel(palette = 'rainbow') {
   group.add(root);
 
   // 頭（桃色の円・少し小さめ）
-  const skin = petalMat(skinHex, { roughness: 0.75, ei: 0.2, em: 0.1 });
+  const skin = petalMat(skinHex, { opacity: 0.58, roughness: 0.65, ei: 0.25, em: 0.12 });
   const head = new THREE.Mesh(new THREE.SphereGeometry(24, 32, 28), skin);
   head.position.set(0, 50, 6);
   outlineOf(head, '#c4b0a8', 1.025);
   root.add(head);
 
   // 黄色い髪スウープ（右上）
-  const hairMat = petalMat(gold, { roughness: 0.55, ei: 0.45 });
+  const hairMat = petalMat(gold, { opacity: 0.65, roughness: 0.5, ei: 0.5 });
   const hair = new THREE.Mesh(new THREE.SphereGeometry(13, 20, 16), hairMat);
   hair.scale.set(1.45, 0.58, 0.9);
   hair.position.set(9, 64, 4);
   root.add(hair);
 
-  // 閉じた弧の目（参照: ⌒ ⌒）
-  const eyeMat = new THREE.MeshBasicMaterial({ color: col(eyeHex) });
+  // 閉じた弧の目（参照: ⌒ ⌒）— 頭表面に密着
+  const eyeMat = new THREE.MeshBasicMaterial({
+    color: col(eyeHex),
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+  });
+  const headC = { x: 0, y: 50, z: 6 };
+  const faceR = 22.5;
+  function onFace(lx, ly) {
+    const xy = Math.hypot(lx, ly);
+    const zRel = Math.sqrt(Math.max(1, faceR * faceR - xy * xy));
+    return [headC.x + lx, headC.y + ly, headC.z + zRel];
+  }
   for (const s of [-1, 1]) {
     const eye = new THREE.Mesh(
-      new THREE.TorusGeometry(5.8, 1.05, 6, 18, Math.PI * 0.95),
+      new THREE.TorusGeometry(5.6, 0.9, 6, 18, Math.PI * 0.95),
       eyeMat.clone(),
     );
-    eye.position.set(s * 9.5, 53, 28);
+    eye.scale.set(1, 1, 0.28);
+    eye.position.set(...onFace(s * 9.2, 2.5));
     root.add(eye);
   }
 
   // ごく小さな口
   const mouth = new THREE.Mesh(
-    new THREE.TorusGeometry(3.2, 0.85, 5, 12, Math.PI * 0.7),
+    new THREE.TorusGeometry(3.0, 0.75, 5, 12, Math.PI * 0.7),
     eyeMat.clone(),
   );
   mouth.rotation.z = Math.PI;
-  mouth.position.set(0, 43, 28);
+  mouth.scale.set(1, 1, 0.28);
+  mouth.position.set(...onFace(0, -7));
   root.add(mouth);
 
   // 細い白い台形ドレス
@@ -902,7 +1002,7 @@ export function createAngel(palette = 'rainbow') {
     curveSegments: 4,
   });
   dressGeo.translate(0, 0, -6);
-  const dressMat = petalMat(whiteHex, { roughness: 0.7, ei: 0.15, em: 0.08 });
+  const dressMat = petalMat(whiteHex, { opacity: 0.52, roughness: 0.6, ei: 0.2, em: 0.1 });
   const dress = new THREE.Mesh(dressGeo, dressMat);
   dress.position.y = 10;
   outlineOf(dress, '#d0d4dc', 1.02);
@@ -924,7 +1024,7 @@ export function createAngel(palette = 'rainbow') {
     curveSegments: 18,
   });
   wingGeo.translate(0, 0, -2);
-  const wingMat = petalMat(whiteHex, { opacity: 0.92, roughness: 0.55, ei: 0.2 });
+  const wingMat = petalMat(whiteHex, { opacity: 0.4, roughness: 0.5, ei: 0.28 });
   const wingL = new THREE.Mesh(wingGeo, wingMat);
   const wingR = new THREE.Mesh(wingGeo, wingMat.clone());
   wingL.position.set(-6, 18, -12);
@@ -952,7 +1052,7 @@ export function createAngel(palette = 'rainbow') {
   // 光輪
   const halo = new THREE.Mesh(
     new THREE.TorusGeometry(22, 2.0, 10, 36),
-    petalMat(gold, { roughness: 0.4, ei: 0.75 }),
+    petalMat(gold, { opacity: 0.7, roughness: 0.4, ei: 0.8 }),
   );
   halo.rotation.x = Math.PI / 2;
   halo.position.set(0, 88, 0);
@@ -972,7 +1072,7 @@ export function createAngel(palette = 'rainbow') {
   starShape.closePath();
   const starGeo = new THREE.ExtrudeGeometry(starShape, { depth: 4, bevelEnabled: false });
   starGeo.translate(0, 0, -2);
-  const star = new THREE.Mesh(starGeo, petalMat(gold, { roughness: 0.45, ei: 0.7 }));
+  const star = new THREE.Mesh(starGeo, petalMat(gold, { opacity: 0.7, roughness: 0.45, ei: 0.75 }));
   star.position.set(0, 12, 18);
   root.add(star);
 

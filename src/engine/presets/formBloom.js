@@ -371,19 +371,31 @@ export function buildAngelBodyGeometry() {
 }
 
 
-/** かわいい顔 — 参照どおり閉じた弧の目＋小さな口 */
+/** かわいい顔 — 参照どおり閉じた弧の目＋小さな口（頭表面に密着） */
 export function buildAngelFaceGeometry() {
   const parts = [];
+  // 頭: center (0,0.42,0.06) r=0.18 — 表面より少し内側＋Z扁平で密着
+  const headC = { x: 0, y: 0.42, z: 0.06 };
+  const faceR = 0.168;
+  function onFace(lx, ly) {
+    const xy = Math.hypot(lx, ly);
+    const zRel = Math.sqrt(Math.max(0.0001, faceR * faceR - xy * xy));
+    return [headC.x + lx, headC.y + ly, headC.z + zRel];
+  }
   // 細い下向き弧の目（⌒ ⌒）
   for (const sx of [-1, 1]) {
-    const eye = new THREE.TorusGeometry(0.048, 0.009, 6, 18, Math.PI * 0.95);
-    eye.translate(sx * 0.075, 0.445, 0.235);
+    const eye = new THREE.TorusGeometry(0.046, 0.0075, 6, 18, Math.PI * 0.95);
+    eye.scale(1, 1, 0.28);
+    const [ex, ey, ez] = onFace(sx * 0.072, 0.022);
+    eye.translate(ex, ey, ez);
     parts.push(eye);
   }
-  // ごく小さな笑顔（参照は無口寄りなので控えめ）
-  const mouth = new THREE.TorusGeometry(0.028, 0.007, 5, 12, Math.PI * 0.7);
+  // ごく小さな笑顔
+  const mouth = new THREE.TorusGeometry(0.026, 0.006, 5, 12, Math.PI * 0.7);
   mouth.rotateZ(Math.PI);
-  mouth.translate(0, 0.368, 0.232);
+  mouth.scale(1, 1, 0.28);
+  const [mx, my, mz] = onFace(0, -0.055);
+  mouth.translate(mx, my, mz);
   parts.push(mouth);
   return mergeTadpoleParts(parts);
 }
@@ -1594,7 +1606,7 @@ export function createAngelBloom() {
       transparent: true,
       opacity,
       side: back ? THREE.BackSide : THREE.DoubleSide,
-      depthWrite: !back,
+      depthWrite: false,
       blending: THREE.NormalBlending,
       toneMapped: false,
     });
@@ -1617,14 +1629,18 @@ export function createAngelBloom() {
       blushGeo = buildAngelBlushGeometry();
       wingGeo = buildAngelWingGeometry();
       haloGeo = buildAngelHaloGeometry();
-      bodyMesh = new THREE.InstancedMesh(bodyGeo, makeMat(0.98), MAX);
-      bodyOutline = new THREE.InstancedMesh(bodyGeo, makeMat(0.35, true), MAX);
-      faceMesh = new THREE.InstancedMesh(faceGeo, makeMat(1), MAX);
-      faceHiMesh = new THREE.InstancedMesh(faceHiGeo, makeMat(1), MAX);
-      blushMesh = new THREE.InstancedMesh(blushGeo, makeMat(0.55), MAX);
-      wingLMesh = new THREE.InstancedMesh(wingGeo, makeMat(0.92), MAX);
-      wingRMesh = new THREE.InstancedMesh(wingGeo, makeMat(0.92), MAX);
-      haloMesh = new THREE.InstancedMesh(haloGeo, makeMat(1), MAX);
+      bodyMesh = new THREE.InstancedMesh(bodyGeo, makeMat(0.55), MAX);
+      bodyOutline = new THREE.InstancedMesh(bodyGeo, makeMat(0.18, true), MAX);
+      const faceMat = makeMat(0.82);
+      faceMat.polygonOffset = true;
+      faceMat.polygonOffsetFactor = -2;
+      faceMat.polygonOffsetUnits = -2;
+      faceMesh = new THREE.InstancedMesh(faceGeo, faceMat, MAX);
+      faceHiMesh = new THREE.InstancedMesh(faceHiGeo, makeMat(0.7), MAX);
+      blushMesh = new THREE.InstancedMesh(blushGeo, makeMat(0.35), MAX);
+      wingLMesh = new THREE.InstancedMesh(wingGeo, makeMat(0.42), MAX);
+      wingRMesh = new THREE.InstancedMesh(wingGeo, makeMat(0.42), MAX);
+      haloMesh = new THREE.InstancedMesh(haloGeo, makeMat(0.7), MAX);
       for (const m of [bodyMesh, bodyOutline, faceMesh, faceHiMesh, blushMesh, wingLMesh, wingRMesh, haloMesh]) {
         m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3);
         m.frustumCulled = false;

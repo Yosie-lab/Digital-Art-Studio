@@ -48,15 +48,6 @@ function vividPetalRgb(rgb) {
   };
 }
 
-function brightenRgb(rgb) {
-  const base = coolToneRgb(rgb);
-  return {
-    r: Math.min(255, base.r + 18),
-    g: Math.min(255, base.g + 14),
-    b: Math.min(255, base.b + 18),
-  };
-}
-
 function petalParticleRgb(rgb, lift = 1.15) {
   return {
     r: Math.min(255, Math.round(rgb.r * lift)),
@@ -96,40 +87,235 @@ function randomFlowerPetalColor(paletteName) {
   return pick[Math.floor(Math.random() * pick.length)];
 }
 
-function paletteAccentRgb(paletteName) {
-  const colors = getPaletteColors(paletteName);
-  return vividPetalRgb(hexToRgb(colors[Math.floor(Math.random() * colors.length)]));
-}
-
 function pickMarkSize() {
   const r = Math.random();
   if (r < 0.1) return 58 + Math.random() * 42;
   if (r < 0.28) return 40 + Math.random() * 22;
-  return 20 + Math.random() * 24;
+  return 22 + Math.random() * 26;
 }
 
-/** 単位スケールのかわいいクラゲ（傘＋触手） */
-function buildJellyGeometry() {
-  const bell = new THREE.SphereGeometry(0.42, 22, 16, 0, Math.PI * 2, 0, Math.PI * 0.62);
-  bell.scale(1.15, 0.92, 1.15);
-  bell.translate(0, 0.22, 0);
+/** 傘の面用: メインネオンを薄くした半透明色 */
+function moonJellyRgbFromNeon(neonRgb) {
+  return {
+    r: Math.round(neonRgb.r * 0.28 + 12),
+    g: Math.round(Math.min(neonRgb.g, Math.max(neonRgb.r, neonRgb.b) * 0.22) * 0.4 + 8),
+    b: Math.round(neonRgb.b * 0.65 + 100),
+  };
+}
 
-  const rim = new THREE.TorusGeometry(0.4, 0.045, 8, 24);
-  rim.rotateX(Math.PI / 2);
-  rim.translate(0, 0.02, 0);
+/** サイバーネオン（ブルー多め。黄成分なし） */
+const JELLY_CYBER_NEON = [
+  '#00e8ff', // シアン
+  '#00b7ff', // ブライトブルー
+  '#2f6bff', // 電光ブルー
+  '#1a48ff', // ディープネオンブルー
+  '#4d7cff', // ライトブルー
+  '#7c4dff', // パープル（少数）
+  '#ff2bd6', // マゼンタ（少数）
+  '#b026ff', // バイオレット（少数）
+];
 
-  const parts = [bell, rim];
-  for (let i = 0; i < 7; i++) {
-    const ang = (i / 7) * Math.PI * 2;
-    const tent = new THREE.CapsuleGeometry(0.028, 0.52, 3, 6);
-    tent.translate(Math.cos(ang) * 0.16, -0.38, Math.sin(ang) * 0.16);
-    parts.push(tent);
+/** ブルー系を厚く引く */
+const JELLY_CYBER_WEIGHTED = [
+  '#00e8ff', '#00e8ff', '#00e8ff',
+  '#00b7ff', '#00b7ff', '#00b7ff',
+  '#2f6bff', '#2f6bff', '#2f6bff', '#2f6bff',
+  '#1a48ff', '#1a48ff', '#1a48ff',
+  '#4d7cff', '#4d7cff',
+  '#7c4dff',
+  '#ff2bd6',
+  '#b026ff',
+];
+
+function randomJellyCyberHex() {
+  return JELLY_CYBER_WEIGHTED[Math.floor(Math.random() * JELLY_CYBER_WEIGHTED.length)];
+}
+
+/** パーティクル専用: シアン〜ネオンブルーをさらに厚く */
+const JELLY_PARTICLE_CYAN_BLUE = [
+  '#00ffff', '#00ffff', '#00ffff', '#00ffff',
+  '#00e8ff', '#00e8ff', '#00e8ff', '#00e8ff', '#00e8ff',
+  '#00b7ff', '#00b7ff', '#00b7ff', '#00b7ff',
+  '#2f6bff', '#2f6bff', '#2f6bff',
+  '#1a48ff', '#1a48ff',
+  '#4d7cff',
+  // ごく少数だけ他色
+  '#7c4dff',
+  '#ff2bd6',
+];
+
+function randomJellyParticleHex() {
+  return JELLY_PARTICLE_CYAN_BLUE[Math.floor(Math.random() * JELLY_PARTICLE_CYAN_BLUE.length)];
+}
+
+function pickAccentHex(mainHex) {
+  // アクセントもブルー寄り（たまにマゼンタ／紫）
+  const pool = JELLY_CYBER_WEIGHTED.filter((h) => h !== mainHex);
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function cyberHexToRgb(hex) {
+  const rgb = hexToRgb(hex);
+  const max = Math.max(rgb.r, rgb.g, rgb.b, 1);
+  let r = Math.round((rgb.r / max) * 255);
+  let g = Math.round((rgb.g / max) * 255);
+  let b = Math.round((rgb.b / max) * 255);
+  // 黄ばみ防止: G を強く抑える
+  g = Math.min(g, Math.round(Math.max(r, b) * 0.22));
+  return { r, g, b };
+}
+
+function cyberShowColor(rgb, boost = 1.4) {
+  let r = Math.min(1, (rgb.r / 255) * boost);
+  let g = Math.min(1, (rgb.g / 255) * boost);
+  let b = Math.min(1, (rgb.b / 255) * boost);
+  g = Math.min(g, Math.max(r, b) * 0.22);
+  return { r, g, b };
+}
+
+function prepareGeo(geometry) {
+  const geo = geometry.index ? geometry.toNonIndexed() : geometry.clone();
+  geo.computeVertexNormals();
+  const count = geo.attributes.position.count;
+  if (!geo.attributes.uv) {
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(count * 2), 2));
   }
-  return mergeGeometries(parts, false);
+  return geo;
+}
+
+function mergeParts(parts) {
+  const prepared = parts.map(prepareGeo);
+  const merged = mergeGeometries(prepared, false);
+  if (merged) {
+    merged.computeVertexNormals();
+    return merged;
+  }
+  return prepared[0];
+}
+
+/** 半球の傘（面・ほぼ透明用） */
+export function buildMoonBellGeometry() {
+  const bell = new THREE.SphereGeometry(0.42, 28, 18, 0, Math.PI * 2, 0, Math.PI * 0.58);
+  bell.scale(1.18, 0.88, 1.18);
+  bell.translate(0, 0.18, 0);
+  return prepareGeo(bell);
+}
+
+/** 傘縁のネオンリム（明るめ） */
+export function buildMoonRimGeometry() {
+  const rim = new THREE.TorusGeometry(0.47, 0.011, 6, 48);
+  rim.rotateX(Math.PI / 2);
+  rim.translate(0, 0.01, 0);
+  return prepareGeo(rim);
+}
+
+/** 傘内部のコンステレーション網（点＋放射線） */
+export function buildMoonNetGeometry() {
+  const parts = [];
+  // 放射リブ
+  for (let i = 0; i < 12; i++) {
+    const ang = (i / 12) * Math.PI * 2;
+    const rib = new THREE.CylinderGeometry(0.004, 0.004, 0.38, 4);
+    rib.rotateZ(Math.PI / 2);
+    rib.rotateY(ang);
+    rib.translate(Math.cos(ang) * 0.19, 0.28, Math.sin(ang) * 0.19);
+    parts.push(rib);
+  }
+  // 点ネットワーク（半球面上）
+  for (let i = 0; i < 48; i++) {
+    const u = Math.random() * Math.PI * 2;
+    const v = Math.random() * Math.PI * 0.5;
+    const r = 0.38;
+    const x = Math.sin(v) * Math.cos(u) * r * 1.18;
+    const y = 0.18 + Math.cos(v) * r * 0.88;
+    const z = Math.sin(v) * Math.sin(u) * r * 1.18;
+    const dot = new THREE.SphereGeometry(0.012 + Math.random() * 0.01, 6, 5);
+    dot.translate(x, y, z);
+    parts.push(dot);
+  }
+  // 細い緯線リング
+  for (let k = 0; k < 3; k++) {
+    const yy = 0.12 + k * 0.12;
+    const rr = 0.28 + k * 0.08;
+    const ring = new THREE.TorusGeometry(rr, 0.0035, 4, 32);
+    ring.rotateX(Math.PI / 2);
+    ring.translate(0, yy, 0);
+    parts.push(ring);
+  }
+  return mergeParts(parts);
+}
+
+/** 傘中央下の暖色コア */
+export function buildMoonCoreGeometry() {
+  const core = new THREE.SphereGeometry(0.09, 12, 10);
+  core.scale(1.35, 0.7, 1.35);
+  core.translate(0, 0.08, 0);
+  return prepareGeo(core);
+}
+
+/** 4つの蹄鉄状生殖腺（クローバー） */
+export function buildMoonGonadGeometry() {
+  const parts = [];
+  for (let i = 0; i < 4; i++) {
+    const ang = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    const g = new THREE.TorusGeometry(0.09, 0.028, 8, 20, Math.PI * 1.35);
+    g.rotateX(Math.PI * 0.55);
+    g.rotateY(ang);
+    g.translate(Math.cos(ang) * 0.12, 0.22, Math.sin(ang) * 0.12);
+    parts.push(g);
+  }
+  return mergeParts(parts);
+}
+
+/** 傘縁の細い半透明ネオン触手（長い糸＋先端点） */
+export function buildMoonFringeGeometry() {
+  const parts = [];
+  const n = 48;
+  for (let i = 0; i < n; i++) {
+    const ang = (i / n) * Math.PI * 2;
+    const len = 0.32 + (i % 4) * 0.08;
+    const tent = new THREE.CapsuleGeometry(0.0032, len, 2, 4);
+    const x = Math.cos(ang) * 0.45;
+    const z = Math.sin(ang) * 0.45;
+    tent.translate(x, -len * 0.42, z);
+    parts.push(tent);
+    const tip = new THREE.SphereGeometry(0.01, 6, 5);
+    tip.translate(x, -len * 0.85, z);
+    parts.push(tip);
+  }
+  return mergeParts(parts);
+}
+
+/** 半透明レース状の口腕（リング縁＋細い芯・サイバーネオン） */
+export function buildMoonOralArmGeometry() {
+  const parts = [];
+  const segs = 16;
+  for (let s = 0; s < segs; s++) {
+    const t = (s + 0.5) / segs;
+    const sway = Math.sin(t * Math.PI * 1.6) * 0.09;
+    const y = -t * 1.15;
+    const rad = 0.048 * (1 - t * 0.55);
+    // ひだの縁リング（透明感のあるネオン輪郭）
+    const ring = new THREE.TorusGeometry(rad, 0.0055, 5, 14);
+    ring.rotateX(Math.PI / 2);
+    ring.translate(sway, y, 0);
+    parts.push(ring);
+    // 細い芯糸
+    const thread = new THREE.CapsuleGeometry(0.0035, 0.06, 2, 4);
+    thread.translate(sway, y, 0);
+    parts.push(thread);
+    // 発光ノード
+    if (s % 2 === 0) {
+      const node = new THREE.SphereGeometry(0.011, 6, 5);
+      node.translate(sway + rad * 0.7, y, 0);
+      parts.push(node);
+    }
+  }
+  return mergeParts(parts);
 }
 
 /**
- * Letter Bloom と同じ出現ロジックのクラゲ群
+ * ミズクラゲ群: 半透明・傘の脈動・触手のゆらぎ・ゆっくり上昇
  */
 export function createJellyfishBloom() {
   let marks = [];
@@ -140,159 +326,270 @@ export function createJellyfishBloom() {
   let time = 0;
   let currentPalette = 'rainbow';
   let layer = null;
-  let jellyMesh = null;
-  let outlineMesh = null;
+  let bellMesh = null;
+  let rimMesh = null;
+  let netMesh = null;
+  let coreMesh = null;
+  let gonadMesh = null;
+  let fringeMesh = null;
+  let armMeshes = [];
   let sparkleField = null;
   let fallField = null;
-  let jellyGeo = null;
+  let bellGeo = null;
+  let rimGeo = null;
+  let netGeo = null;
+  let coreGeo = null;
+  let gonadGeo = null;
+  let fringeGeo = null;
+  let armGeo = null;
+  const root = new THREE.Object3D();
+  const bellHold = new THREE.Object3D();
+  const fringeHold = new THREE.Object3D();
+  const armHolds = [0, 1, 2, 3].map(() => new THREE.Object3D());
+  root.add(bellHold, fringeHold, ...armHolds);
+  fringeHold.position.y = 0.02;
+  for (let i = 0; i < 4; i++) {
+    const ang = (i / 4) * Math.PI * 2;
+    armHolds[i].position.set(Math.cos(ang) * 0.06, 0.05, Math.sin(ang) * 0.06);
+    armHolds[i].rotation.y = ang;
+  }
   const dummy = new THREE.Object3D();
   const _color = new THREE.Color();
-  const MAX = 64;
+  const MAX = 40;
 
   class Mark {
     constructor(x, y, palette) {
       this.x = x;
       this.y = y;
-      this.z = (Math.random() - 0.5) * 140;
-      this.maxSize = pickMarkSize();
+      this.z = (Math.random() - 0.5) * 200;
+      this.maxSize = pickMarkSize() * 0.95;
       this.size = 0;
       this.growth = 0;
-      this.growthRate = 0.35 + Math.random() * 0.5;
-      this.baseRot = (Math.random() - 0.5) * 0.5;
-      this.tilt = (Math.random() - 0.5) * 0.25;
+      this.growthRate = 0.28 + Math.random() * 0.35;
+      this.baseRot = Math.random() * Math.PI * 2;
+      this.tilt = (Math.random() - 0.5) * 0.2;
       this.windPhase = Math.random() * Math.PI * 2;
-      this.windSpeed = 0.55 + Math.random() * 0.45;
-      this.windAmp = 0.08 + Math.random() * 0.08;
+      this.windSpeed = 0.45 + Math.random() * 0.35;
+      this.windAmp = 0.06 + Math.random() * 0.05;
       this.bobPhase = Math.random() * Math.PI * 2;
-      this.bobSpeed = 0.7 + Math.random() * 0.5;
-      this.spinY = 0.18 + Math.random() * 0.22;
+      this.bobSpeed = 0.55 + Math.random() * 0.35;
+      this.pulsePhase = Math.random() * Math.PI * 2;
+      this.pulseSpeed = 1.15 + Math.random() * 0.55;
+      this.spinY = 0.08 + Math.random() * 0.12;
       this.phaseY = Math.random() * Math.PI * 2;
-      this.color = randomFlowerPetalColor(palette);
-      this.rgb = vividPetalRgb(hexToRgb(this.color));
-      this.innerRgb = brightenRgb(this.rgb);
+      this.riseSpeed = 22 + Math.random() * 18;
+      this.neonHex = randomJellyCyberHex();
+      this.rgb = cyberHexToRgb(this.neonHex);
+      this.accentRgb = cyberHexToRgb(pickAccentHex(this.neonHex));
+      this.fillRgb = moonJellyRgbFromNeon(this.rgb);
+      this.innerRgb = {
+        r: Math.min(255, this.rgb.r + 40),
+        g: Math.min(255, this.rgb.g + 20),
+        b: Math.min(255, this.rgb.b + 50),
+      };
       this.lifetime = 0;
-      this.maxLifetime = 4 + Math.random() * 4.5;
+      this.maxLifetime = 9 + Math.random() * 6;
       this.phase = 'growing';
       this.opacity = 1;
+      this.pulse = 0;
+      this.sway = 0;
+      this.bob = 0;
+      this.spin = 0;
     }
 
     update(dt, t) {
       this.lifetime += dt;
-      this.bob = Math.sin(t * this.bobSpeed + this.bobPhase) * 0.12;
+      this.pulse = Math.sin(t * this.pulseSpeed + this.pulsePhase);
+      this.bob = Math.sin(t * this.bobSpeed + this.bobPhase) * 10;
       this.sway = Math.sin(t * this.windSpeed + this.windPhase) * this.windAmp;
-      this.spin = Math.sin(t * this.spinY + this.phaseY) * 0.35;
+      this.spin = Math.sin(t * this.spinY + this.phaseY) * 0.2;
+
+      const lift = this.riseSpeed * (0.7 + Math.max(0, this.pulse) * 0.45);
+      this.y -= lift * dt;
+      this.x += Math.sin(t * 0.55 + this.windPhase) * 10 * dt;
+      this.z += Math.cos(t * 0.4 + this.bobPhase) * 8 * dt;
+
+      if (this.y < -120) {
+        this.y = height + 60 + Math.random() * 40;
+        this.x = Math.random() * width;
+        this.z = (Math.random() - 0.5) * 200;
+      }
+
       switch (this.phase) {
-        case 'growing':
+        case 'growing': {
           this.growth = Math.min(1, this.growth + this.growthRate * dt);
-          this.size = this.maxSize * this._easeOutBack(this.growth);
+          const c1 = 1.70158;
+          const c3 = c1 + 1;
+          const u = this.growth;
+          this.size = this.maxSize * (1 + c3 * Math.pow(u - 1, 3) + c1 * Math.pow(u - 1, 2));
           if (this.growth >= 1) this.phase = 'bloomed';
           break;
+        }
         case 'bloomed':
-          if (this.lifetime > this.maxLifetime * 0.55) this.phase = 'wilting';
+          if (Math.random() < dt * 7) this._neonSpark();
+          if (this.lifetime > this.maxLifetime * 0.72) this.phase = 'wilting';
           break;
         case 'wilting':
-          this.opacity -= dt * 0.28;
-          if (Math.random() < dt * 3.5) this._shedShard();
-          if (Math.random() < dt * 5) this._shedDust();
+          this.opacity -= dt * 0.18;
+          if (Math.random() < dt * 5) this._neonSpark();
+          if (Math.random() < dt * 3) this._shedDust();
           break;
       }
       return this.opacity > 0.01 && this.lifetime < this.maxLifetime;
     }
 
-    _easeOutBack(u) {
-      const c1 = 1.70158;
-      const c3 = c1 + 1;
-      return 1 + c3 * Math.pow(u - 1, 3) + c1 * Math.pow(u - 1, 2);
-    }
-
-    _shedShard() {
-      const burst = 2 + Math.floor(Math.random() * 3);
-      for (let i = 0; i < burst; i++) {
-        shards.push({
-          x: this.x + (Math.random() - 0.5) * this.size * 1.1,
-          y: this.y + (Math.random() - 0.5) * this.size * 1.1,
-          z: this.z + (Math.random() - 0.5) * 40,
-          vx: (Math.random() - 0.5) * 60,
-          vy: -15 - Math.random() * 40,
-          vz: (Math.random() - 0.5) * 40,
-          size: this.size * 0.12 + Math.random() * 6,
-          rot: Math.random() * Math.PI * 2,
-          rotSpeed: (Math.random() - 0.5) * 5,
-          rgb: petalParticleRgb(this.rgb, 1.2),
-          opacity: 1,
-          glow: 1.4 + Math.random() * 0.3,
-          kind: 'shard',
-        });
-      }
+    /** サイバーネオンシアンブルー寄りの発光パーティクル（本体色を少し混ぜる） */
+    _neonSpark() {
+      const particle = cyberHexToRgb(randomJellyParticleHex());
+      const body = Math.random() < 0.25 ? this.accentRgb : this.rgb;
+      // 粒子はシアンブルー主体、本体色は2〜3割だけ反映
+      const rgb = {
+        r: Math.round(particle.r * 0.75 + body.r * 0.25),
+        g: Math.min(
+          Math.round(particle.g * 0.7 + body.g * 0.2),
+          Math.round(Math.max(particle.r, particle.b, body.b) * 0.2),
+        ),
+        b: Math.min(255, Math.round(particle.b * 0.8 + body.b * 0.2 + 20)),
+      };
+      const side = Math.random() < 0.5 ? -1 : 1;
+      shards.push({
+        x: this.x + side * this.size * (0.15 + Math.random() * 0.55),
+        y: this.y + this.size * (0.05 + Math.random() * 0.7),
+        z: this.z + (Math.random() - 0.5) * 50,
+        vx: side * (8 + Math.random() * 28) + (Math.random() - 0.5) * 12,
+        vy: -12 - Math.random() * 28,
+        vz: (Math.random() - 0.5) * 24,
+        size: 2 + Math.random() * 5,
+        rot: Math.random() * Math.PI * 2,
+        rotSpeed: (Math.random() - 0.5) * 5,
+        rgb,
+        opacity: 1,
+        glow: 2.4 + Math.random() * 1.4,
+        kind: 'neon',
+        twinkle: Math.random() * Math.PI * 2,
+      });
     }
 
     _shedDust() {
-      const dust = 3 + Math.floor(Math.random() * 4);
-      for (let i = 0; i < dust; i++) {
-        shards.push({
-          x: this.x + (Math.random() - 0.5) * this.size * 0.5,
-          y: this.y + (Math.random() - 0.5) * this.size * 0.5,
-          z: this.z + (Math.random() - 0.5) * 30,
-          vx: (Math.random() - 0.5) * 80,
-          vy: (Math.random() - 0.5) * 80 - 8,
-          vz: (Math.random() - 0.5) * 50,
-          size: 2 + Math.random() * 5,
-          rot: Math.random() * Math.PI * 2,
-          rotSpeed: (Math.random() - 0.5) * 8,
-          rgb: petalParticleRgb(this.innerRgb, 1.25),
-          opacity: 1,
-          glow: 1.5 + Math.random() * 0.3,
-          kind: 'dust',
-        });
+      for (let i = 0; i < 5; i++) {
+        this._neonSpark();
       }
     }
   }
 
-  function placeMark(mark, scaleMul = 1) {
-    const pos = toWorld(mark.x, mark.y, mark.z, width, height);
-    dummy.position.copy(pos);
-    dummy.position.y += mark.bob * mark.size;
-    dummy.position.x += mark.sway * mark.size * 0.35;
-    dummy.rotation.set(
-      mark.tilt + mark.sway * 0.8,
-      mark.baseRot + mark.spin,
-      mark.sway * 0.5,
-    );
-    const pulse = 1 + Math.sin(time * mark.bobSpeed * 1.6 + mark.bobPhase) * 0.04;
-    const s = mark.size * scaleMul * pulse;
-    dummy.scale.set(s * 1.05, s * (0.92 + mark.bob * 0.15), s * 1.05);
+  function hide(mesh, i) {
+    dummy.position.set(0, 0, -4000);
+    dummy.scale.set(0.001, 0.001, 0.001);
+    dummy.rotation.set(0, 0, 0);
     dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+    if (mesh.instanceColor) mesh.setColorAt(i, _color.setRGB(0, 0, 0));
+  }
+
+  function poseRoot(mark) {
+    const pos = toWorld(mark.x, mark.y, mark.z + mark.bob, width, height);
+    root.position.copy(pos);
+    root.position.x += mark.sway * mark.size * 0.4;
+    root.rotation.set(
+      mark.tilt + mark.sway * 0.7 + mark.pulse * 0.04,
+      mark.baseRot + mark.spin,
+      mark.sway * 0.55,
+    );
+    const s = mark.size;
+    const bx = 1.05 - mark.pulse * 0.06;
+    const by = 0.92 + mark.pulse * 0.1;
+    root.scale.set(s * bx, s * by, s * bx * 1.15);
+
+    const fringeSway = Math.sin(time * 1.4 + mark.windPhase) * 0.12;
+    fringeHold.rotation.set(fringeSway * 0.4, 0, fringeSway);
+
+    for (let i = 0; i < 4; i++) {
+      const lag = mark.pulsePhase + i * 1.2;
+      const wave = Math.sin(time * 1.15 + lag) * 0.42;
+      const side = Math.cos(time * 0.9 + lag * 0.8) * 0.28;
+      const twist = Math.sin(time * 0.75 + lag) * 0.2;
+      armHolds[i].rotation.x = 0.2 + wave;
+      armHolds[i].rotation.z = side;
+      armHolds[i].rotation.y = (i / 4) * Math.PI * 2 + twist;
+      armHolds[i].scale.set(1, 1.05 + Math.abs(wave) * 0.18, 1);
+    }
+    root.updateMatrixWorld(true);
   }
 
   function syncMeshes() {
-    if (!jellyMesh) return;
+    if (!bellMesh || !rimMesh || !netMesh || !coreMesh || !gonadMesh || !fringeMesh || armMeshes.length < 4) return;
     const shown = Math.min(marks.length, MAX);
     for (let i = 0; i < MAX; i++) {
       const mark = i < shown ? marks[i] : null;
       if (!mark || mark.size < 0.5) {
-        dummy.position.set(0, 0, -4000);
-        dummy.scale.set(0.001, 0.001, 0.001);
-        dummy.rotation.set(0, 0, 0);
-        dummy.updateMatrix();
-        jellyMesh.setMatrixAt(i, dummy.matrix);
-        outlineMesh.setMatrixAt(i, dummy.matrix);
-        jellyMesh.setColorAt(i, _color.setRGB(0, 0, 0));
-      } else {
-        placeMark(mark, 1);
-        jellyMesh.setMatrixAt(i, dummy.matrix);
-        const c = displayColor(mark.rgb, 0.62 + mark.opacity * 0.28);
-        jellyMesh.setColorAt(i, _color.setRGB(c.r, c.g, c.b));
+        hide(bellMesh, i);
+        hide(rimMesh, i);
+        hide(netMesh, i);
+        hide(coreMesh, i);
+        hide(gonadMesh, i);
+        hide(fringeMesh, i);
+        for (const m of armMeshes) hide(m, i);
+        continue;
+      }
+      poseRoot(mark);
+      // 傘: 半透明ネオン青 / 縁・網・触手: 強発光 / コア: 暖白
+      const fill = cyberShowColor(mark.fillRgb, 0.85 + mark.opacity * 0.35);
+      const neon = cyberShowColor(mark.rgb, 1.65 + mark.opacity * 0.4);
+      const neonPulse = cyberShowColor(mark.innerRgb, 1.85 + 0.4 * Math.abs(mark.pulse));
+      // コアは暖色ではなくクールな白シアン
+      const coreWarm = {
+        r: Math.min(1, 0.55 + 0.15 * Math.abs(mark.pulse)),
+        g: Math.min(1, 0.75 + 0.1 * Math.abs(mark.pulse)),
+        b: Math.min(1, 1.15 + 0.25 * Math.abs(mark.pulse)),
+      };
 
-        placeMark(mark, 1.035);
-        outlineMesh.setMatrixAt(i, dummy.matrix);
-        const outline = displayColor(mark.rgb, 0.26);
-        outlineMesh.setColorAt(i, _color.setRGB(outline.r * 0.55, outline.g * 0.5, outline.b * 0.75));
+      dummy.matrix.copy(bellHold.matrixWorld);
+      bellMesh.setMatrixAt(i, dummy.matrix);
+      bellMesh.setColorAt(i, _color.setRGB(fill.r, fill.g, fill.b));
+
+      dummy.matrix.copy(root.matrixWorld);
+      rimMesh.setMatrixAt(i, dummy.matrix);
+      rimMesh.setColorAt(i, _color.setRGB(
+        Math.min(1, neonPulse.r * 1.15),
+        Math.min(1, neonPulse.g * 1.2),
+        Math.min(1, neonPulse.b * 1.1),
+      ));
+
+      dummy.matrix.copy(root.matrixWorld);
+      netMesh.setMatrixAt(i, dummy.matrix);
+      netMesh.setColorAt(i, _color.setRGB(neonPulse.r, neonPulse.g, neonPulse.b));
+
+      dummy.matrix.copy(root.matrixWorld);
+      coreMesh.setMatrixAt(i, dummy.matrix);
+      coreMesh.setColorAt(i, _color.setRGB(coreWarm.r, coreWarm.g, coreWarm.b));
+
+      dummy.matrix.copy(root.matrixWorld);
+      gonadMesh.setMatrixAt(i, dummy.matrix);
+      gonadMesh.setColorAt(i, _color.setRGB(neon.r, neon.g, neon.b));
+
+      const accent = cyberShowColor(mark.accentRgb, 1.5 + 0.35 * Math.abs(mark.pulse));
+      dummy.matrix.copy(fringeHold.matrixWorld);
+      fringeMesh.setMatrixAt(i, dummy.matrix);
+      // 細い足は半透明ネオン（先端寄りにアクセント）
+      fringeMesh.setColorAt(i, _color.setRGB(
+        neonPulse.r * 0.75 + accent.r * 0.25,
+        neonPulse.g * 0.8 + accent.g * 0.2,
+        neonPulse.b * 0.75 + accent.b * 0.25,
+      ));
+
+      for (let a = 0; a < 4; a++) {
+        dummy.matrix.copy(armHolds[a].matrixWorld);
+        armMeshes[a].setMatrixAt(i, dummy.matrix);
+        const mix = a % 2 === 0 ? neon : accent;
+        armMeshes[a].setColorAt(i, _color.setRGB(mix.r * 0.95, mix.g * 0.9, mix.b));
       }
     }
-    jellyMesh.instanceMatrix.needsUpdate = true;
-    outlineMesh.instanceMatrix.needsUpdate = true;
-    if (jellyMesh.instanceColor) jellyMesh.instanceColor.needsUpdate = true;
-    if (outlineMesh.instanceColor) outlineMesh.instanceColor.needsUpdate = true;
+
+    const all = [bellMesh, rimMesh, netMesh, coreMesh, gonadMesh, fringeMesh, ...armMeshes];
+    for (const m of all) {
+      m.instanceMatrix.needsUpdate = true;
+      if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    }
 
     if (sparkleField) {
       sparkles.forEach((s, i) => {
@@ -300,8 +597,8 @@ export function createJellyfishBloom() {
         sparkleField.positions[i * 3] = wpos.x;
         sparkleField.positions[i * 3 + 1] = wpos.y;
         sparkleField.positions[i * 3 + 2] = wpos.z;
-        const pulse = 0.14 + 0.16 * Math.abs(Math.sin(time * 2.8 + s.phase));
-        const c = displayColor(s.rgb, pulse);
+        const pulse = 0.7 + 0.55 * Math.abs(Math.sin(time * 2.6 + s.phase));
+        const c = cyberShowColor(s.rgb, pulse * 1.55);
         sparkleField.colors[i * 3] = c.r;
         sparkleField.colors[i * 3 + 1] = c.g;
         sparkleField.colors[i * 3 + 2] = c.b;
@@ -319,14 +616,12 @@ export function createJellyfishBloom() {
         fallField.positions[i * 3] = wpos.x;
         fallField.positions[i * 3 + 1] = wpos.y;
         fallField.positions[i * 3 + 2] = wpos.z;
-        const [r, g, b] = rgbToUnit(p.rgb);
-        const glow = (p.glow || 1.4) * (0.5 + p.opacity * 0.55);
-        const twinkle = p.kind === 'dust'
-          ? 0.9 + 0.1 * Math.sin(time * 8 + p.rot * 3)
-          : 1;
-        fallField.colors[i * 3] = Math.min(1, r * glow * twinkle);
-        fallField.colors[i * 3 + 1] = Math.min(1, g * glow * twinkle);
-        fallField.colors[i * 3 + 2] = Math.min(1, b * glow * twinkle);
+        const twinkle = 0.7 + 0.4 * Math.abs(Math.sin(time * 6 + (p.twinkle || 0)));
+        const boost = (p.glow || 2.2) * (0.7 + p.opacity * 0.7) * twinkle;
+        const c = cyberShowColor(p.rgb, boost);
+        fallField.colors[i * 3] = c.r;
+        fallField.colors[i * 3 + 1] = c.g;
+        fallField.colors[i * 3 + 2] = c.b;
       }
       fallField.geo.setDrawRange(0, n);
       fallField.geo.attributes.position.needsUpdate = true;
@@ -336,6 +631,18 @@ export function createJellyfishBloom() {
 
   function spawn(x, y) {
     marks.push(new Mark(x, y, currentPalette));
+  }
+
+  function makeMat(opacity, additive = false) {
+    return new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+      toneMapped: false,
+    });
   }
 
   return {
@@ -349,51 +656,50 @@ export function createJellyfishBloom() {
       time = 0;
       layer = group;
 
-      jellyGeo = buildJellyGeometry();
-      jellyGeo.computeVertexNormals();
+      bellGeo = buildMoonBellGeometry();
+      rimGeo = buildMoonRimGeometry();
+      netGeo = buildMoonNetGeometry();
+      coreGeo = buildMoonCoreGeometry();
+      gonadGeo = buildMoonGonadGeometry();
+      fringeGeo = buildMoonFringeGeometry();
+      armGeo = buildMoonOralArmGeometry();
 
-      const mat = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.78,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-      });
-      jellyMesh = new THREE.InstancedMesh(jellyGeo, mat, MAX);
-      jellyMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3);
-      jellyMesh.frustumCulled = false;
-      layer.add(jellyMesh);
+      // 傘: 見える半透明ネオン青 / 縁・網・触手: 加算発光 / コア: 暖白
+      bellMesh = new THREE.InstancedMesh(bellGeo, makeMat(0.42, true), MAX);
+      rimMesh = new THREE.InstancedMesh(rimGeo, makeMat(1, true), MAX);
+      netMesh = new THREE.InstancedMesh(netGeo, makeMat(0.85, true), MAX);
+      coreMesh = new THREE.InstancedMesh(coreGeo, makeMat(0.9, true), MAX);
+      gonadMesh = new THREE.InstancedMesh(gonadGeo, makeMat(0.7, true), MAX);
+      fringeMesh = new THREE.InstancedMesh(fringeGeo, makeMat(0.38, true), MAX);
+      armMeshes = [0, 1, 2, 3].map(() => new THREE.InstancedMesh(armGeo, makeMat(0.32, true), MAX));
 
-      const outlineMat = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        side: THREE.BackSide,
-        transparent: true,
-        opacity: 0.2,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-      });
-      outlineMesh = new THREE.InstancedMesh(jellyGeo, outlineMat, MAX);
-      outlineMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3);
-      outlineMesh.frustumCulled = false;
-      layer.add(outlineMesh);
+      for (const m of [bellMesh, rimMesh, netMesh, coreMesh, gonadMesh, fringeMesh, ...armMeshes]) {
+        m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3);
+        m.frustumCulled = false;
+        layer.add(m);
+      }
 
-      sparkleField = makePoints(80, 5);
-      fallField = makePoints(700, 14);
-      fallField.mat.opacity = 0.85;
+      sparkleField = makePoints(120, 7);
+      fallField = makePoints(900, 16);
+      sparkleField.mat.blending = THREE.AdditiveBlending;
+      fallField.mat.blending = THREE.AdditiveBlending;
+      sparkleField.mat.opacity = 0.85;
+      fallField.mat.opacity = 0.9;
+      sparkleField.mat.toneMapped = false;
+      fallField.mat.toneMapped = false;
       layer.add(sparkleField.points, fallField.points);
 
-      for (let i = 0; i < 12; i++) {
-        spawn(Math.random() * w, Math.random() * h);
+      for (let i = 0; i < 10; i++) {
+        spawn(Math.random() * w, height * 0.35 + Math.random() * height * 0.7);
       }
-      for (let i = 0; i < 70; i++) {
+      for (let i = 0; i < 90; i++) {
         sparkles.push({
           x: Math.random() * w,
           y: Math.random() * h,
           z: (Math.random() - 0.5) * 220,
-          speedY: -(0.08 + Math.random() * 0.25),
+          speedY: -(0.05 + Math.random() * 0.16),
           phase: Math.random() * Math.PI * 2,
-          rgb: paletteAccentRgb(currentPalette),
+          rgb: cyberHexToRgb(randomJellyParticleHex()),
         });
       }
     },
@@ -413,19 +719,19 @@ export function createJellyfishBloom() {
         for (let i = 0; i < n; i++) {
           spawn(
             pointer.x + (Math.random() - 0.5) * 50,
-            pointer.y + (Math.random() - 0.5) * 50,
+            pointer.y + (Math.random() - 0.5) * 40,
           );
         }
       }
 
-      if (Math.random() < dt * 1.8 * (params.speed || 1)) {
-        spawn(Math.random() * width, Math.random() * height);
+      if (Math.random() < dt * 1.2 * (params.speed || 1)) {
+        spawn(Math.random() * width, height + 30 + Math.random() * 60);
       }
 
       if (audioData?.isActive && audioData.bass > 0.3) {
-        const n = Math.floor(audioData.bass * 4);
+        const n = Math.floor(audioData.bass * 3);
         for (let i = 0; i < n; i++) {
-          spawn(Math.random() * width, Math.random() * height);
+          spawn(Math.random() * width, height + 20);
         }
       }
 
@@ -433,45 +739,51 @@ export function createJellyfishBloom() {
         p.x += p.vx * dt;
         p.y += p.vy * dt;
         p.z += p.vz * dt;
-        p.vy += 18 * dt;
-        p.vx += Math.sin(time * 2.5 + p.x * 0.008) * 18 * dt;
-        p.vz += Math.cos(time * 2.2 + p.y * 0.01) * 12 * dt;
-        p.rot += p.rotSpeed * dt;
-        const fade = p.kind === 'dust' ? 0.14 : 0.1;
-        p.opacity -= dt * fade;
-        p.glow = Math.max(1.2, (p.glow || 1.4) - dt * 0.08);
-        return p.opacity > 0.02 && p.y < height + 80;
+        p.vx *= 0.985;
+        p.vy += (p.kind === 'neon' ? 6 : 10) * dt;
+        p.opacity -= dt * (p.kind === 'neon' ? 0.09 : 0.12);
+        return p.opacity > 0.02 && p.y < height + 80 && p.y > -100;
       });
+      if (shards.length > 900) shards.splice(0, shards.length - 900);
 
       sparkles.forEach((s) => {
-        s.y += s.speedY * (params.speed || 1) * 60 * dt;
-        s.x += Math.sin(time * 1.5 + s.phase) * 0.25;
+        s.y += s.speedY * (params.speed || 1) * 50 * dt;
+        s.x += Math.sin(time * 1.2 + s.phase) * 0.2;
         if (s.y < -10) {
           s.y = height + 10;
           s.x = Math.random() * width;
+          // 画面上のクラゲ色に合わせて再着色
+          // 再出現時もシアンブルー寄り（たまに本体色）
+          if (marks.length && Math.random() < 0.25) {
+            const m = marks[Math.floor(Math.random() * marks.length)];
+            s.rgb = { ...m.rgb };
+          } else {
+            s.rgb = cyberHexToRgb(randomJellyParticleHex());
+          }
         }
       });
 
-      const maxMarks = Math.min(MAX, Math.max(20, Math.floor((params.particleCount || 1030) / 4)));
+      const maxMarks = Math.min(MAX, Math.max(12, Math.floor((params.particleCount || 1030) / 5)));
       if (marks.length > maxMarks) marks.splice(0, marks.length - maxMarks);
       if (shards.length > 700) shards.splice(0, shards.length - 700);
     },
 
     render() {
       syncMeshes();
-      if (jellyMesh) jellyMesh.material.opacity = 0.76;
     },
 
     onPointerDown(x, y) {
-      for (let i = 0; i < 6; i++) {
-        spawn(x + (Math.random() - 0.5) * 90, y + (Math.random() - 0.5) * 90);
+      for (let i = 0; i < 5; i++) {
+        spawn(x + (Math.random() - 0.5) * 80, y + (Math.random() - 0.5) * 60);
       }
     },
-
     onPointerMove() {},
     onPointerUp() {},
     setParams(p) {
       currentPalette = p.palette || currentPalette;
+    },
+    setPalette(name) {
+      currentPalette = name;
     },
 
     samplePoints(count) {
@@ -507,9 +819,20 @@ export function createJellyfishBloom() {
       marks = [];
       shards = [];
       sparkles = [];
-      jellyGeo?.dispose();
-      jellyMesh = null;
-      outlineMesh = null;
+      bellGeo?.dispose();
+      rimGeo?.dispose();
+      netGeo?.dispose();
+      coreGeo?.dispose();
+      gonadGeo?.dispose();
+      fringeGeo?.dispose();
+      armGeo?.dispose();
+      bellMesh = null;
+      rimMesh = null;
+      netMesh = null;
+      coreMesh = null;
+      gonadMesh = null;
+      fringeMesh = null;
+      armMeshes = [];
       sparkleField = null;
       fallField = null;
       layer = null;
