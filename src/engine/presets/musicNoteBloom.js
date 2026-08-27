@@ -294,7 +294,7 @@ export function createMusicNoteBloom() {
         }
         placeMark(mark, 1);
         set.mesh.setMatrixAt(i, dummy.matrix);
-        const c = displayColor(mark.rgb, 1.25 + mark.opacity * 0.2);
+        const c = displayColor(mark.rgb, 1.05 + mark.opacity * 0.15);
         set.mesh.setColorAt(i, _color.setRGB(c.r, c.g, c.b));
         placeMark(mark, 1.06);
         set.outline.setMatrixAt(i, dummy.matrix);
@@ -351,7 +351,7 @@ export function createMusicNoteBloom() {
     color: 0xffffff,
     transparent: true,
     side: THREE.DoubleSide,
-    depthWrite: true,
+    depthWrite: false,
     blending: THREE.NormalBlending,
     toneMapped: false,
   };
@@ -379,7 +379,7 @@ export function createMusicNoteBloom() {
         }
         const mesh = new THREE.InstancedMesh(
           geo,
-          new THREE.MeshBasicMaterial({ ...matOpts, opacity: 1 }),
+          new THREE.MeshBasicMaterial({ ...matOpts, opacity: 0.72 }),
           MAX_PER,
         );
         mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_PER * 3), 3);
@@ -390,7 +390,7 @@ export function createMusicNoteBloom() {
           new THREE.MeshBasicMaterial({
             ...matOpts,
             side: THREE.BackSide,
-            opacity: 0.4,
+            opacity: 0.28,
             depthWrite: false,
           }),
           MAX_PER,

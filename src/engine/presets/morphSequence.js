@@ -7,17 +7,17 @@ import { createLetterXBloom } from './letterXBloom.js';
 import { createJellyfishBloom } from './jellyfishBloom.js';
 import { createMusicNoteBloom } from './musicNoteBloom.js';
 import {
-  createHourglassBloom,
   createTadpoleBloom,
   createAngelBloom,
   neonRainbowUnitColors,
 } from './formBloom.js';
+import { createClockBloom } from './clockBloom.js';
 import { samplePetalCloud } from '../morph/sampleShapes.js';
 import { createSolidForm } from '../morph/solidForms.js';
 
 /**
  * 変容シークエンス
- * 花びら → 文字 → クラゲ → 砂時計 → オタマ → 音楽記号 → 天使
+ * 花びら → 文字 → クラゲ → 時計 → オタマ → 音楽記号 → 天使
  * hold: Infinity = 自動進行なし（ダブルクリックのみ）
  * 花びら以外はすべて同じ出現ロジック（色・サイズ・カーソル追従）
  */
@@ -25,7 +25,7 @@ const SEQUENCE = [
   { id: 'petal', label: '花びら', hold: Infinity, morph: 2.4, style: 'swarm' },
   { id: 'letter', label: 'A B C · X Y Z', hold: Infinity, morph: 2.4, style: 'swarm' },
   { id: 'jellyfish', label: 'クラゲ', hold: Infinity, morph: 2.4, style: 'trail' },
-  { id: 'hourglass', label: '砂時計', hold: Infinity, morph: 2.2, style: 'swarm' },
+  { id: 'clock', label: '時計', hold: Infinity, morph: 2.2, style: 'swarm' },
   { id: 'tadpole', label: 'オタマ', hold: Infinity, morph: 2.4, style: 'trail' },
   { id: 'music', label: '♪ 音楽記号', hold: Infinity, morph: 2.6, style: 'burst' },
   { id: 'angel', label: '天使', hold: Infinity, morph: 2.8, style: 'burst' },
@@ -36,7 +36,7 @@ const MANUAL_HINT = 'じっくり操作可 · 次へはダブルクリックの�
 const BLOOM_FACTORIES = {
   letter: createLetterXBloom,
   jellyfish: createJellyfishBloom,
-  hourglass: createHourglassBloom,
+  clock: createClockBloom,
   tadpole: createTadpoleBloom,
   music: createMusicNoteBloom,
   angel: createAngelBloom,
@@ -220,6 +220,7 @@ export function createMorphSequence() {
   function colorsForStage(stepIndex) {
     const id = SEQUENCE[stepIndex]?.id;
     if (id === 'tadpole') return neonRainbowUnitColors(currentPalette, count);
+    if (id === 'clock') return paletteUnitColors('rainbow', count);
     return paletteUnitColors(currentPalette, count);
   }
 

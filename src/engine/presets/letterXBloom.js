@@ -28,7 +28,7 @@ function coolToneRgb(rgb) {
         b: Math.min(255, Math.round(rgb.b * 1.08 + 8)),
       };
     }
-    return saturateRgb(rgb, 0.05);
+    return saturateRgb(rgb, -0.12);
   }
   const b = Math.min(255, Math.round(rgb.b * 1.08 + 16));
   return {
@@ -40,11 +40,12 @@ function coolToneRgb(rgb) {
 
 function vividPetalRgb(rgb) {
   const cool = coolToneRgb(rgb);
-  const vivid = saturateRgb(cool, 0.05);
+  // 少し落とす（前回より彩度をやや戻す）
+  const muted = saturateRgb(cool, -0.28);
   return {
-    r: Math.min(255, Math.round(vivid.r * 1.06 + 5)),
-    g: Math.min(255, Math.round(vivid.g * 1.05 + 3)),
-    b: Math.min(255, Math.round(vivid.b * 1.06 + 5)),
+    r: Math.min(255, Math.round(muted.r * 0.9 + 10)),
+    g: Math.min(255, Math.round(muted.g * 0.9 + 10)),
+    b: Math.min(255, Math.round(muted.b * 0.9 + 14)),
   };
 }
 
@@ -66,7 +67,7 @@ function petalParticleRgb(rgb, lift = 1.15) {
 }
 
 function displayColor(rgb, scale = 1) {
-  const cool = saturateRgb(coolToneRgb(rgb), 0.03);
+  const cool = saturateRgb(coolToneRgb(rgb), -0.18);
   return {
     r: Math.min(1, (cool.r / 255) * scale),
     g: Math.min(1, (cool.g / 255) * scale),
@@ -280,7 +281,7 @@ export function createLetterXBloom() {
           size: this.size * 0.14 + Math.random() * 7,
           rot: Math.random() * Math.PI * 2,
           rotSpeed: (Math.random() - 0.5) * 6,
-          rgb: petalParticleRgb(this.rgb, 1.2),
+          rgb: petalParticleRgb(this.rgb, 0.85),
           opacity: 1,
           glow: 1.45 + Math.random() * 0.3,
           kind: 'shard',
@@ -301,7 +302,7 @@ export function createLetterXBloom() {
           size: 2 + Math.random() * 5,
           rot: Math.random() * Math.PI * 2,
           rotSpeed: (Math.random() - 0.5) * 8,
-          rgb: petalParticleRgb(this.innerRgb, 1.25),
+          rgb: petalParticleRgb(this.innerRgb, 0.9),
           opacity: 1,
           glow: 1.55 + Math.random() * 0.35,
           kind: 'dust',
@@ -370,12 +371,12 @@ export function createLetterXBloom() {
         }
         placeMark(mark, 1);
         set.mesh.setMatrixAt(i, dummy.matrix);
-        const c = displayColor(mark.rgb, 0.62 + mark.opacity * 0.28);
+        const c = displayColor(mark.rgb, 0.5 + mark.opacity * 0.22);
         set.mesh.setColorAt(i, _color.setRGB(c.r, c.g, c.b));
 
         placeMark(mark, 1.03);
         set.outline.setMatrixAt(i, dummy.matrix);
-        const outline = displayColor(mark.rgb, 0.28);
+        const outline = displayColor(mark.rgb, 0.2);
         set.outline.setColorAt(i, _color.setRGB(outline.r * 0.55, outline.g * 0.5, outline.b * 0.75));
       }
       set.mesh.instanceMatrix.needsUpdate = true;
@@ -394,7 +395,7 @@ export function createLetterXBloom() {
           dummy.scale.set(mark.size * 0.07, mark.size * 0.07, mark.size * 0.07);
           dummy.updateMatrix();
           glossMesh.setMatrixAt(i, dummy.matrix);
-          const core = displayColor(mark.rgb, 0.4);
+          const core = displayColor(mark.rgb, 0.28);
           glossMesh.setColorAt(i, _color.setRGB(core.r, core.g, core.b));
         }
       }
@@ -446,14 +447,15 @@ export function createLetterXBloom() {
     marks.push(new Mark(x, y, currentPalette));
   }
 
-  function makeLetterMaterial(opacity = 0.82) {
+  function makeLetterMaterial(opacity = 0.72) {
     return new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
       opacity,
       side: THREE.DoubleSide,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      blending: THREE.NormalBlending,
+      toneMapped: false,
     });
   }
 
@@ -472,7 +474,7 @@ export function createLetterXBloom() {
       for (const id of LETTER_IDS) {
         const geo = LETTER_BUILDERS[id]();
         geo.computeVertexNormals();
-        const mesh = new THREE.InstancedMesh(geo, makeLetterMaterial(0.82), MAX_PER);
+        const mesh = new THREE.InstancedMesh(geo, makeLetterMaterial(0.72), MAX_PER);
         mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_PER * 3), 3);
         mesh.frustumCulled = false;
         layer.add(mesh);
@@ -483,9 +485,10 @@ export function createLetterXBloom() {
             color: 0xffffff,
             side: THREE.BackSide,
             transparent: true,
-            opacity: 0.22,
+            opacity: 0.16,
             depthWrite: false,
-            blending: THREE.AdditiveBlending,
+            blending: THREE.NormalBlending,
+            toneMapped: false,
           }),
           MAX_PER,
         );
@@ -500,9 +503,10 @@ export function createLetterXBloom() {
       const glossMat = new THREE.MeshBasicMaterial({
         color: 0xffffff,
         transparent: true,
-        opacity: 0.28,
+        opacity: 0.18,
         depthWrite: false,
-        blending: THREE.AdditiveBlending,
+        blending: THREE.NormalBlending,
+        toneMapped: false,
       });
       glossMesh = new THREE.InstancedMesh(glossGeo, glossMat, MAX);
       glossMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3);
@@ -511,7 +515,7 @@ export function createLetterXBloom() {
 
       sparkleField = makePoints(80, 5);
       fallField = makePoints(700, 14);
-      fallField.mat.opacity = 0.85;
+      fallField.mat.opacity = 0.55;
       layer.add(sparkleField.points, fallField.points);
 
       for (let i = 0; i < 12; i++) {
