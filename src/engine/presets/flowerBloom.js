@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { getPaletteColors, hexToRgb } from '../palettes.js';
-import { toWorld, makePoints, rgbToUnit } from '../space3d.js';
+import { toWorld, makePoints, rgbToUnit, stratifiedSpawnPoints, primeGrowingFlowers } from '../space3d.js';
 
 function saturateRgb(rgb, amount = 0.07) {
   const max = Math.max(rgb.r, rgb.g, rgb.b);
@@ -380,9 +380,11 @@ export function createFlowerBloom() {
       fallField.mat.opacity = 1;
       layer.add(sparkleField.points, fallField.points);
 
-      for (let i = 0; i < 12; i++) {
-        flowers.push(new Flower(Math.random() * w, Math.random() * h, currentPalette));
+      for (const [x, y] of stratifiedSpawnPoints(20, w, h)) {
+        flowers.push(new Flower(x, y, currentPalette));
       }
+      primeGrowingFlowers(flowers);
+      syncMeshes();
       for (let i = 0; i < 120; i++) {
         sparkles.push({
           x: Math.random() * w, y: Math.random() * h,

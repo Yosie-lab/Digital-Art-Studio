@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { getPaletteColors, hexToRgb } from '../palettes.js';
-import { toWorld, makePoints, rgbToUnit } from '../space3d.js';
+import { toWorld, makePoints, rgbToUnit, stratifiedSpawnPoints, primeGrowingMarks, sampleMarksWorld, spreadScreenCloud } from '../space3d.js';
 import {
   DEPTH,
   NOTE_IDS,
@@ -406,7 +406,11 @@ export function createMusicNoteBloom() {
       fallField.mat.opacity = 0.85;
       layer.add(sparkleField.points, fallField.points);
 
-      for (let i = 0; i < 12; i++) spawn(Math.random() * w, Math.random() * h);
+      for (const [x, y] of stratifiedSpawnPoints(20, w, h)) {
+        spawn(x, y);
+      }
+      primeGrowingMarks(marks);
+      syncMeshes();
       for (let i = 0; i < 70; i++) {
         sparkles.push({
           x: Math.random() * w,
@@ -481,30 +485,7 @@ export function createMusicNoteBloom() {
     },
 
     samplePoints(count) {
-      const out = new Float32Array(count * 3);
-      const n = marks.length;
-      if (n === 0) {
-        for (let i = 0; i < count; i++) {
-          out[i * 3] = (Math.random() - 0.5) * 70;
-          out[i * 3 + 1] = (Math.random() - 0.5) * 70;
-          out[i * 3 + 2] = (Math.random() - 0.5) * 30;
-        }
-        return out;
-      }
-      for (let i = 0; i < count; i++) {
-        const m = marks[i % n];
-        const wpos = toWorld(
-          m.x + (Math.random() - 0.5) * m.size,
-          m.y + (Math.random() - 0.5) * m.size,
-          m.z + (Math.random() - 0.5) * 24,
-          width,
-          height,
-        );
-        out[i * 3] = wpos.x;
-        out[i * 3 + 1] = wpos.y;
-        out[i * 3 + 2] = wpos.z;
-      }
-      return out;
+      return sampleMarksWorld(marks, count, width, height, spreadScreenCloud);
     },
 
     destroy() {

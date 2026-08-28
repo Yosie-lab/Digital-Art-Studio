@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { getPaletteColors, hexToRgb } from '../palettes.js';
-import { makePoints, clearGroup } from '../space3d.js';
+import { makePoints, clearGroup, spreadModelCloudToWorld, spreadScreenCloud } from '../space3d.js';
 import { morphPositions } from '../morph/morphEngine.js';
 import { createFlowerBloom } from './flowerBloom.js';
 import { createLetterXBloom } from './letterXBloom.js';
@@ -192,17 +192,20 @@ export function createMorphSequence() {
 
   function sampleStageCloud(stepIndex) {
     const step = SEQUENCE[stepIndex];
-    if (step.id === 'petal') return samplePetalCloud(count, 95);
+    if (step.id === 'petal') {
+      const model = samplePetalCloud(count, 95);
+      return spreadModelCloudToWorld(model, count, width, height, 0.12);
+    }
 
     const live = bloomSlots[step.id]?.bloom;
-    if (live) return live.samplePoints(count);
+    if (live?.samplePoints) return live.samplePoints(count);
 
     const tempId = step.id === 'letter' ? 'letter' : step.id;
     const temp = createSolidForm(tempId, currentPalette);
-    if (!temp) return samplePetalCloud(count, 95);
-    const cloud = temp.samplePoints(count);
+    if (!temp) return spreadScreenCloud(count, width, height);
+    const model = temp.samplePoints(count);
     temp.dispose?.();
-    return cloud;
+    return spreadModelCloudToWorld(model, count, width, height, 0.14);
   }
 
   function rebuildColors(n) {

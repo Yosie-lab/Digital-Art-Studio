@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { getPaletteColors, hexToRgb } from '../palettes.js';
-import { toWorld, makePoints, rgbToUnit } from '../space3d.js';
+import { toWorld, makePoints, rgbToUnit, stratifiedSpawnPoints, primeGrowingMarks, sampleMarksWorld, spreadModelCloudToWorld, spreadScreenCloud } from '../space3d.js';
 
 /* ——— Flower Bloom と同一の色処理 ——— */
 function saturateRgb(rgb, amount = 0.07) {
@@ -518,9 +518,11 @@ export function createLetterXBloom() {
       fallField.mat.opacity = 0.55;
       layer.add(sparkleField.points, fallField.points);
 
-      for (let i = 0; i < 12; i++) {
-        spawn(Math.random() * w, Math.random() * h);
+      for (const [x, y] of stratifiedSpawnPoints(20, w, h)) {
+        spawn(x, y);
       }
+      primeGrowingMarks(marks);
+      syncMeshes();
       for (let i = 0; i < 70; i++) {
         sparkles.push({
           x: Math.random() * w,
@@ -612,34 +614,18 @@ export function createLetterXBloom() {
     },
 
     samplePoints(count) {
-      const out = new Float32Array(count * 3);
-      const n = marks.length;
-      if (n === 0) {
-        for (let i = 0; i < count; i++) {
-          const t = Math.random();
+      return sampleMarksWorld(marks, count, width, height, (n, w, h) => {
+        const model = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) {
           const ang = (Math.random() < 0.5 ? Math.PI / 4 : -Math.PI / 4) + (Math.random() - 0.5) * 0.2;
           const along = (Math.random() - 0.5) * 1.0;
           const taper = 0.2 + Math.abs(along) * 0.8;
-          out[i * 3] = Math.sin(ang) * along * taper * 50;
-          out[i * 3 + 1] = Math.cos(ang) * along * 50;
-          out[i * 3 + 2] = (Math.random() - 0.5) * 18;
+          model[i * 3] = Math.sin(ang) * along * taper * 50;
+          model[i * 3 + 1] = Math.cos(ang) * along * 50;
+          model[i * 3 + 2] = (Math.random() - 0.5) * 18;
         }
-        return out;
-      }
-      for (let i = 0; i < count; i++) {
-        const m = marks[i % n];
-        const wpos = toWorld(
-          m.x + (Math.random() - 0.5) * m.size,
-          m.y + (Math.random() - 0.5) * m.size,
-          m.z + (Math.random() - 0.5) * 24,
-          width,
-          height,
-        );
-        out[i * 3] = wpos.x;
-        out[i * 3 + 1] = wpos.y;
-        out[i * 3 + 2] = wpos.z;
-      }
-      return out;
+        return spreadModelCloudToWorld(model, n, w, h, 1);
+      });
     },
 
     destroy() {

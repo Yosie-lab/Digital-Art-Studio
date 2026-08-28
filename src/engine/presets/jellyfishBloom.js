@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { getPaletteColors, hexToRgb } from '../palettes.js';
-import { toWorld, makePoints, rgbToUnit } from '../space3d.js';
+import { toWorld, makePoints, rgbToUnit, stratifiedSpawnPoints, primeGrowingMarks, sampleMarksWorld, spreadModelCloudToWorld } from '../space3d.js';
 
 /* ——— Letter / Flower Bloom と同一の色処理 ——— */
 function saturateRgb(rgb, amount = 0.07) {
@@ -689,9 +689,11 @@ export function createJellyfishBloom() {
       fallField.mat.toneMapped = false;
       layer.add(sparkleField.points, fallField.points);
 
-      for (let i = 0; i < 10; i++) {
-        spawn(Math.random() * w, height * 0.35 + Math.random() * height * 0.7);
+      for (const [x, y] of stratifiedSpawnPoints(20, w, h, 0.06, [h * 0.2, h * 0.95])) {
+        spawn(x, y);
       }
+      primeGrowingMarks(marks);
+      syncMeshes();
       for (let i = 0; i < 90; i++) {
         sparkles.push({
           x: Math.random() * w,
@@ -787,32 +789,17 @@ export function createJellyfishBloom() {
     },
 
     samplePoints(count) {
-      const out = new Float32Array(count * 3);
-      const n = marks.length;
-      if (n === 0) {
-        for (let i = 0; i < count; i++) {
+      return sampleMarksWorld(marks, count, width, height, (n, w, h) => {
+        const out = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) {
           const u = Math.random() * Math.PI * 2;
           const v = Math.random() * Math.PI * 0.55;
           out[i * 3] = Math.sin(v) * Math.cos(u) * 48;
           out[i * 3 + 1] = 10 + Math.cos(v) * 36;
           out[i * 3 + 2] = Math.sin(v) * Math.sin(u) * 48;
         }
-        return out;
-      }
-      for (let i = 0; i < count; i++) {
-        const m = marks[i % n];
-        const wpos = toWorld(
-          m.x + (Math.random() - 0.5) * m.size,
-          m.y + (Math.random() - 0.5) * m.size,
-          m.z + (Math.random() - 0.5) * 24,
-          width,
-          height,
-        );
-        out[i * 3] = wpos.x;
-        out[i * 3 + 1] = wpos.y;
-        out[i * 3 + 2] = wpos.z;
-      }
-      return out;
+        return spreadModelCloudToWorld(out, n, w, h, 1);
+      });
     },
 
     destroy() {

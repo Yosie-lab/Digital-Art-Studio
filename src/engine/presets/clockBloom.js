@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { getPaletteColors, hexToRgb } from '../palettes.js';
-import { toWorld, makePoints } from '../space3d.js';
+import { toWorld, makePoints, stratifiedSpawnPoints, primeGrowingMarks, sampleMarksWorld, spreadScreenCloud } from '../space3d.js';
 
 /** 時計は clockRainbow 固定（花びらの rainbow パレットとは別） */
 function randomPaletteHex(_paletteName = 'rainbow') {
@@ -535,10 +535,11 @@ export function createClockBloom() {
       fallField.mat.toneMapped = false;
       layer.add(sparkleField.points, fallField.points);
 
-      // 初期は画面内〜やや下から（下外ばかりにしない）
-      for (let i = 0; i < 12; i++) {
-        spawn(Math.random() * w, height * 0.15 + Math.random() * height * 0.75);
+      for (const [x, y] of stratifiedSpawnPoints(20, w, h, 0.06, [h * 0.12, h * 0.9])) {
+        spawn(x, y);
       }
+      primeGrowingMarks(marks);
+      syncMeshes();
       for (let i = 0; i < 80; i++) {
         sparkles.push({
           x: Math.random() * w,
@@ -623,28 +624,7 @@ export function createClockBloom() {
     },
 
     samplePoints(count) {
-      const out = new Float32Array(count * 3);
-      const n = marks.length;
-      if (!n) {
-        for (let i = 0; i < count; i++) {
-          const a = Math.random() * Math.PI * 2;
-          const r = Math.random() * 50;
-          out[i * 3] = Math.cos(a) * r;
-          out[i * 3 + 1] = Math.sin(a) * r;
-          out[i * 3 + 2] = (Math.random() - 0.5) * 20;
-        }
-        return out;
-      }
-      for (let i = 0; i < count; i++) {
-        const m = marks[i % n];
-        const a = Math.random() * Math.PI * 2;
-        const r = Math.random() * m.size * 0.45;
-        const wpos = toWorld(m.x + Math.cos(a) * r, m.y + Math.sin(a) * r, m.z, width, height);
-        out[i * 3] = wpos.x;
-        out[i * 3 + 1] = wpos.y;
-        out[i * 3 + 2] = wpos.z;
-      }
-      return out;
+      return sampleMarksWorld(marks, count, width, height, spreadScreenCloud);
     },
 
     destroy() {
