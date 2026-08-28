@@ -17,16 +17,16 @@ import { createSolidForm } from '../morph/solidForms.js';
 
 /**
  * 変容シークエンス
- * 花びら → 文字 → クラゲ → 時計 → オタマ → 音楽記号 → 天使
+ * 花びら → クラゲ → 文字 → オタマ → 時計 → 音楽記号 → 天使
  * hold: Infinity = 自動進行なし（ダブルクリックのみ）
  * 花びら以外はすべて同じ出現ロジック（色・サイズ・カーソル追従）
  */
 const SEQUENCE = [
   { id: 'petal', label: '花びら', hold: Infinity, morph: 2.4, style: 'swarm' },
-  { id: 'letter', label: 'A B C · X Y Z', hold: Infinity, morph: 2.4, style: 'swarm' },
   { id: 'jellyfish', label: 'クラゲ', hold: Infinity, morph: 2.4, style: 'trail' },
-  { id: 'clock', label: '時計', hold: Infinity, morph: 2.2, style: 'swarm' },
+  { id: 'letter', label: 'A B C · X Y Z', hold: Infinity, morph: 2.4, style: 'swarm' },
   { id: 'tadpole', label: 'オタマ', hold: Infinity, morph: 2.4, style: 'trail' },
+  { id: 'clock', label: '時計', hold: Infinity, morph: 2.2, style: 'swarm' },
   { id: 'music', label: '♪ 音楽記号', hold: Infinity, morph: 2.6, style: 'burst' },
   { id: 'angel', label: '天使', hold: Infinity, morph: 2.8, style: 'burst' },
 ];
