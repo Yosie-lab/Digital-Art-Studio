@@ -3,9 +3,9 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { getPaletteColors, hexToRgb } from '../palettes.js';
 import { toWorld, makePoints } from '../space3d.js';
 
-/** 時計は常にレインボースペクトル（設定のサイバーネオンとは別） */
+/** 時計は clockRainbow 固定（花びらの rainbow パレットとは別） */
 function randomPaletteHex(_paletteName = 'rainbow') {
-  const colors = getPaletteColors('rainbow');
+  const colors = getPaletteColors('clockRainbow');
   return colors[Math.floor(Math.random() * colors.length)];
 }
 

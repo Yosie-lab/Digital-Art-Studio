@@ -465,7 +465,7 @@ export function createClock(palette = 'rainbow') {
   const group = new THREE.Group();
   group.scale.setScalar(1.45 * (2 / 3));
   softLights(group);
-  const rainbow = getPaletteColors('rainbow');
+  const rainbow = getPaletteColors('clockRainbow');
   const main = rainbow[Math.floor(Math.random() * rainbow.length)];
   const neon = col(main);
 

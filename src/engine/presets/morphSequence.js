@@ -220,7 +220,7 @@ export function createMorphSequence() {
   function colorsForStage(stepIndex) {
     const id = SEQUENCE[stepIndex]?.id;
     if (id === 'tadpole') return neonRainbowUnitColors(currentPalette, count);
-    if (id === 'clock') return paletteUnitColors('rainbow', count);
+    if (id === 'clock') return paletteUnitColors('clockRainbow', count);
     return paletteUnitColors(currentPalette, count);
   }
 
