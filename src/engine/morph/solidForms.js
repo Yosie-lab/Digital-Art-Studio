@@ -457,6 +457,7 @@ export function createJellyfish(palette = 'rainbow') {
       }
       return out;
     },
+    dispose() { disposeObject(group); },
   };
 }
 
@@ -603,6 +604,7 @@ export function createClock(palette = 'rainbow') {
       }
       return out;
     },
+    dispose() { disposeObject(group); },
   };
 }
 

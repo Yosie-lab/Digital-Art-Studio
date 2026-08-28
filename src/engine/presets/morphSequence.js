@@ -201,7 +201,7 @@ export function createMorphSequence() {
     const temp = createSolidForm(tempId, currentPalette);
     if (!temp) return samplePetalCloud(count, 95);
     const cloud = temp.samplePoints(count);
-    temp.dispose();
+    temp.dispose?.();
     return cloud;
   }
 
