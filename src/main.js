@@ -3,16 +3,11 @@
  * UIイベントハンドラ、プリセット管理、オーディオ・録画の統合
  */
 import { ArtEngine } from './engine/artEngine.js';
-import { createFlowerBloom } from './engine/presets/flowerBloom.js';
-import { createFluidAurora } from './engine/presets/fluidAurora.js';
-import { createCrystalDust } from './engine/presets/crystalDust.js';
-import { createKaleidoPrism } from './engine/presets/kaleidoPrism.js';
-import { createInteractiveRipples } from './engine/presets/interactiveRipples.js';
-import { createMorphSequence } from './engine/presets/morphSequence.js';
+import { UI_PRESET_FACTORIES as PRESET_FACTORIES } from './engine/presets/index.js';
 import { AudioAnalyzer } from './utils/audioAnalyzer.js';
 import { Recorder } from './utils/recorder.js';
 
-const APP_REVISION = '20260829-angel-particle-glow-soft';
+const APP_REVISION = '20260829-refactor-bloom-split';
 console.info(`[Digital Art Studio] ${APP_REVISION}`);
 
 /* ============================================================
@@ -22,17 +17,6 @@ const canvas = document.getElementById('artCanvas');
 const engine = new ArtEngine(canvas);
 const audio = new AudioAnalyzer();
 const recorder = new Recorder(canvas);
-
-/** プリセットファクトリマップ */
-const PRESET_FACTORIES = {
-  flowerBloom: createFlowerBloom,
-  morphSequence: createMorphSequence,
-  fluidAurora: createFluidAurora,
-  crystalDust: createCrystalDust,
-  kaleidoPrism: createKaleidoPrism,
-  interactiveRipples: createInteractiveRipples,
-};
-
 let currentPreset = 'flowerBloom';
 
 // 初期プリセットをセット & 開始

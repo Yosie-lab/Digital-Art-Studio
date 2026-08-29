@@ -1,96 +1,16 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { getPaletteColors, hexToRgb } from '../palettes.js';
 import { toWorld, makePoints, rgbToUnit, stratifiedSpawnPoints, primeGrowingMarks, sampleMarksWorld, spreadModelCloudToWorld, spreadScreenCloud } from '../space3d.js';
-
-/* ——— Flower Bloom と同一の色処理 ——— */
-function saturateRgb(rgb, amount = 0.07) {
-  const max = Math.max(rgb.r, rgb.g, rgb.b);
-  const min = Math.min(rgb.r, rgb.g, rgb.b);
-  const mid = (max + min) * 0.5;
-  return {
-    r: Math.min(255, Math.max(0, Math.round(mid + (rgb.r - mid) * (1 + amount)))),
-    g: Math.min(255, Math.max(0, Math.round(mid + (rgb.g - mid) * (1 + amount)))),
-    b: Math.min(255, Math.max(0, Math.round(mid + (rgb.b - mid) * (1 + amount)))),
-  };
-}
-
-function coolToneRgb(rgb) {
-  const max = Math.max(rgb.r, rgb.g, rgb.b);
-  const min = Math.min(rgb.r, rgb.g, rgb.b);
-  const sat = max === 0 ? 0 : (max - min) / max;
-  if (sat > 0.35 && max > 80) {
-    const isBlueDominant = rgb.b > rgb.r && rgb.b > rgb.g;
-    if (isBlueDominant) {
-      return {
-        r: Math.min(255, Math.round(rgb.r * 0.92)),
-        g: Math.min(255, Math.round(rgb.g * 0.78)),
-        b: Math.min(255, Math.round(rgb.b * 1.12 + 10)),
-      };
-    }
-    return saturateRgb(rgb, 0.04);
-  }
-  return saturateRgb(rgb, 0.06);
-}
-
-function vividPetalRgb(rgb) {
-  const toned = coolToneRgb(rgb);
-  return saturateRgb(toned, 0.14);
-}
-
-function brightenRgb(rgb) {
-  const base = vividPetalRgb(rgb);
-  return {
-    r: Math.min(255, base.r + 18),
-    g: Math.min(255, base.g + 14),
-    b: Math.min(255, base.b + 18),
-  };
-}
-
-function petalParticleRgb(rgb, lift = 1.15) {
-  return {
-    r: Math.min(255, Math.round(rgb.r * lift)),
-    g: Math.min(255, Math.round(rgb.g * lift)),
-    b: Math.min(255, Math.round(rgb.b * lift)),
-  };
-}
-
-function displayColor(rgb, scale = 1) {
-  const vivid = saturateRgb(rgb, 0.08);
-  return {
-    r: Math.min(1, (vivid.r / 255) * scale),
-    g: Math.min(1, (vivid.g / 255) * scale),
-    b: Math.min(1, (vivid.b / 255) * scale),
-  };
-}
-
-function randomFlowerPetalColor(paletteName) {
-  const colors = getPaletteColors(paletteName).filter((hex) => {
-    const { r, g, b } = hexToRgb(hex);
-    const isWhitish = r > 230 && g > 230 && b > 230;
-    const isYellowWhite = r > 220 && g > 210 && b > 180 && Math.min(r, g, b) > 170;
-    return !isWhitish && !isYellowWhite;
-  });
-  const pool = colors.length ? colors : getPaletteColors(paletteName);
-
-  const weighted = [];
-  for (const hex of pool) {
-    const { r, g, b } = hexToRgb(hex);
-    const isYellow = r > 150 && g > 110 && b < 150 && r + g > b * 2.4;
-    const isElectricBlue = b > 200 && g < 140 && r < 120 && b > g * 1.5;
-    const isViolet = b > 160 && r > 40 && r < 140 && g < r * 0.9 && b > r;
-    const isCyanish = b > 150 && g > b * 0.7 && g > r;
-    const copies = (isElectricBlue || isViolet) ? 6 : isCyanish || isYellow ? 1 : 2;
-    for (let i = 0; i < copies; i++) weighted.push(hex);
-  }
-  const pick = weighted.length ? weighted : pool;
-  return pick[Math.floor(Math.random() * pick.length)];
-}
-
-function paletteAccentRgb(paletteName) {
-  const colors = getPaletteColors(paletteName);
-  return vividPetalRgb(hexToRgb(colors[Math.floor(Math.random() * colors.length)]));
-}
+import {
+  letterBrightenRgb as brightenRgb,
+  letterDisplayColor as displayColor,
+  letterVividFromHex as vividPetalRgb,
+  petalParticleRgb,
+  paletteAccentRgb,
+  randomFlowerPetalColor,
+  pickMarkSizeLetter as pickMarkSize,
+} from '../bloom/bloomColors.js';
+import { easeOutBack } from '../ease.js';
 
 /** 立体アルファベット（奥行きを厚く） */
 const LETTER_DEPTH = 0.36;
@@ -164,12 +84,10 @@ function pickLetter() {
   return LETTER_IDS[Math.floor(Math.random() * LETTER_IDS.length)];
 }
 
-function pickMarkSize() {
-  const r = Math.random();
-  if (r < 0.1) return 58 + Math.random() * 42;
-  if (r < 0.28) return 40 + Math.random() * 22;
-  return 20 + Math.random() * 24;
-}
+const LETTER_SPARKLE_COUNT = 220;
+const LETTER_FALL_MAX = 1400;
+const LETTER_PARTICLE_SIZE_SPARKLE = 4;
+const LETTER_PARTICLE_SIZE_FALL = 10;
 
 /**
  * Flower Bloom の出現ロジック + 立体 X / Y / Z
@@ -219,7 +137,7 @@ export function createLetterXBloom() {
       this.bobSpeed = 0.75 + Math.random() * 0.55;
       this.driftZ = (Math.random() - 0.5) * 28;
       this.color = randomFlowerPetalColor(palette);
-      this.rgb = vividPetalRgb(hexToRgb(this.color));
+      this.rgb = vividPetalRgb(this.color);
       this.innerRgb = brightenRgb(this.rgb);
       this.lifetime = 0;
       this.maxLifetime = 4 + Math.random() * 4.5;
@@ -236,66 +154,68 @@ export function createLetterXBloom() {
       switch (this.phase) {
         case 'growing':
           this.growth = Math.min(1, this.growth + this.growthRate * dt);
-          this.size = this.maxSize * this._easeOutBack(this.growth);
+          this.size = this.maxSize * easeOutBack(this.growth);
           if (this.growth >= 1) this.phase = 'bloomed';
           break;
         case 'bloomed':
+          if (Math.random() < dt * 6.5) this._shedDust();
+          if (Math.random() < dt * 2.8) this._shedShard();
           if (this.lifetime > this.maxLifetime * 0.55) this.phase = 'wilting';
           break;
         case 'wilting':
           this.opacity -= dt * 0.28;
-          if (Math.random() < dt * 4.2) this._shedShard();
-          if (Math.random() < dt * 5.5) this._shedDust();
+          if (Math.random() < dt * 10.5) this._shedShard();
+          if (Math.random() < dt * 12) this._shedDust();
           break;
       }
       return this.opacity > 0.01 && this.lifetime < this.maxLifetime;
     }
 
-    _easeOutBack(u) {
-      const c1 = 1.70158;
-      const c3 = c1 + 1;
-      return 1 + c3 * Math.pow(u - 1, 3) + c1 * Math.pow(u - 1, 2);
-    }
-
     _shedShard() {
-      const burst = 2 + Math.floor(Math.random() * 3);
-      for (let i = 0; i < burst; i++) {
-        shards.push({
-          x: this.x + (Math.random() - 0.5) * this.size * 1.2,
-          y: this.y + (Math.random() - 0.5) * this.size * 1.2,
-          z: this.z + (Math.random() - 0.5) * 40,
-          vx: (Math.random() - 0.5) * 70,
-          vy: -20 - Math.random() * 45,
-          vz: (Math.random() - 0.5) * 45,
-          size: this.size * 0.14 + Math.random() * 7,
-          rot: Math.random() * Math.PI * 2,
-          rotSpeed: (Math.random() - 0.5) * 6,
-          rgb: petalParticleRgb(this.rgb, 0.85),
-          opacity: 1,
-          glow: 1.45 + Math.random() * 0.3,
-          kind: 'shard',
-        });
+      const bursts = 1 + (Math.random() < 0.55 ? 1 : 0);
+      for (let b = 0; b < bursts; b++) {
+        const burst = 4 + Math.floor(Math.random() * 5);
+        for (let i = 0; i < burst; i++) {
+          shards.push({
+            x: this.x + (Math.random() - 0.5) * this.size * 1.2,
+            y: this.y + (Math.random() - 0.5) * this.size * 1.2,
+            z: this.z + (Math.random() - 0.5) * 40,
+            vx: (Math.random() - 0.5) * 70,
+            vy: -20 - Math.random() * 45,
+            vz: (Math.random() - 0.5) * 45,
+            size: this.size * 0.14 + Math.random() * 7,
+            rot: Math.random() * Math.PI * 2,
+            rotSpeed: (Math.random() - 0.5) * 6,
+            rgb: petalParticleRgb(this.rgb, 0.85),
+            opacity: 1,
+            glow: 1.45 + Math.random() * 0.3,
+            kind: 'shard',
+          });
+        }
       }
     }
 
     _shedDust() {
-      const dust = 3 + Math.floor(Math.random() * 4);
-      for (let i = 0; i < dust; i++) {
-        shards.push({
-          x: this.x + (Math.random() - 0.5) * this.size * 0.6,
-          y: this.y + (Math.random() - 0.5) * this.size * 0.6,
-          z: this.z + (Math.random() - 0.5) * 30,
-          vx: (Math.random() - 0.5) * 90,
-          vy: (Math.random() - 0.5) * 90 - 10,
-          vz: (Math.random() - 0.5) * 60,
-          size: 2 + Math.random() * 5,
-          rot: Math.random() * Math.PI * 2,
-          rotSpeed: (Math.random() - 0.5) * 8,
-          rgb: petalParticleRgb(this.innerRgb, 0.9),
-          opacity: 1,
-          glow: 1.55 + Math.random() * 0.35,
-          kind: 'dust',
-        });
+      const bursts = 1 + (Math.random() < 0.5 ? 1 : 0);
+      for (let b = 0; b < bursts; b++) {
+        const dust = 7 + Math.floor(Math.random() * 6);
+        for (let i = 0; i < dust; i++) {
+          shards.push({
+            x: this.x + (Math.random() - 0.5) * this.size * 0.6,
+            y: this.y + (Math.random() - 0.5) * this.size * 0.6,
+            z: this.z + (Math.random() - 0.5) * 30,
+            vx: (Math.random() - 0.5) * 90,
+            vy: (Math.random() - 0.5) * 90 - 10,
+            vz: (Math.random() - 0.5) * 60,
+            size: 2 + Math.random() * 5,
+            rot: Math.random() * Math.PI * 2,
+            rotSpeed: (Math.random() - 0.5) * 8,
+            rgb: petalParticleRgb(this.innerRgb, 0.9),
+            opacity: 1,
+            glow: 1.55 + Math.random() * 0.35,
+            kind: 'dust',
+          });
+        }
       }
     }
   }
@@ -410,7 +330,7 @@ export function createLetterXBloom() {
     }
 
     if (fallField) {
-      const n = Math.min(shards.length, 700);
+      const n = Math.min(shards.length, LETTER_FALL_MAX);
       for (let i = 0; i < n; i++) {
         const p = shards[i];
         const wpos = toWorld(p.x, p.y, p.z, width, height);
@@ -502,8 +422,8 @@ export function createLetterXBloom() {
       glossMesh.frustumCulled = false;
       layer.add(glossMesh);
 
-      sparkleField = makePoints(80, 5);
-      fallField = makePoints(700, 14);
+      sparkleField = makePoints(LETTER_SPARKLE_COUNT, LETTER_PARTICLE_SIZE_SPARKLE);
+      fallField = makePoints(LETTER_FALL_MAX, LETTER_PARTICLE_SIZE_FALL);
       fallField.mat.opacity = 0.55;
       layer.add(sparkleField.points, fallField.points);
 
@@ -512,7 +432,7 @@ export function createLetterXBloom() {
       }
       primeGrowingMarks(marks);
       syncMeshes();
-      for (let i = 0; i < 70; i++) {
+      for (let i = 0; i < LETTER_SPARKLE_COUNT; i++) {
         sparkles.push({
           x: Math.random() * w,
           y: Math.random() * h,
@@ -580,7 +500,7 @@ export function createLetterXBloom() {
 
       const maxMarks = Math.min(MAX, Math.max(20, Math.floor((params.particleCount || 1030) / 4)));
       if (marks.length > maxMarks) marks.splice(0, marks.length - maxMarks);
-      if (shards.length > 700) shards.splice(0, shards.length - 700);
+      if (shards.length > LETTER_FALL_MAX) shards.splice(0, shards.length - LETTER_FALL_MAX);
     },
 
     render() {

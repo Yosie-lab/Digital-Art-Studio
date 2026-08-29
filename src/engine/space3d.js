@@ -142,14 +142,8 @@ export function primeGrowingMarks(marks) {
   }
 }
 
-export function primeGrowingFlowers(flowers) {
-  for (const f of flowers) {
-    if (f.maxSize == null) continue;
-    f.growth = 1;
-    f.phase = 'bloomed';
-    f.size = f.maxSize * (0.62 + Math.random() * 0.32);
-  }
-}
+/** @deprecated use primeGrowingMarks */
+export const primeGrowingFlowers = primeGrowingMarks;
 
 /** Bloom mark からモーフ用点群（ワールド座標） */
 export function sampleMarksWorld(marks, count, w, h, fallback = null) {

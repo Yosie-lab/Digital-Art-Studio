@@ -10,6 +10,8 @@ import {
   sampleMarksWorld,
   spreadScreenCloud,
 } from '../space3d.js';
+import { pickMarkSizeButterfly as pickMarkSize } from '../bloom/bloomColors.js';
+import { clamp, expSmooth, lerpAngle } from '../ease.js';
 
 /** レインボー + 青系ウェイト */
 const BUTTERFLY_RAINBOW = getPaletteColors('clockRainbow');
@@ -127,21 +129,10 @@ const BUTTERFLY_WING_MUL_MIN = 0.44;
 const BUTTERFLY_MOVE_REF = [3, 24];
 const BUTTERFLY_MOVE_REF_DEPART = [12, 58];
 const BUTTERFLY_PARTICLE_GLOW = 1.42;
-
-function clamp(v, lo, hi) {
-  return Math.max(lo, Math.min(hi, v));
-}
-
-function lerpAngle(current, target, t) {
-  let d = target - current;
-  while (d > Math.PI) d -= Math.PI * 2;
-  while (d < -Math.PI) d += Math.PI * 2;
-  return current + d * t;
-}
-
-function expSmooth(current, target, dt, rate) {
-  return current + (target - current) * (1 - Math.exp(-rate * dt));
-}
+const BUTTERFLY_SPARKLE_COUNT = 125;
+const BUTTERFLY_FALL_MAX = 780;
+const BUTTERFLY_PARTICLE_SIZE_SPARKLE = 4;
+const BUTTERFLY_PARTICLE_SIZE_FALL = 7;
 
 function flapTempo01(flapSpeed) {
   const lo = BUTTERFLY_FLAP_SLOW[0];
@@ -152,12 +143,6 @@ function flapTempo01(flapSpeed) {
 function moveTempo01(speed, departing = false) {
   const [lo, hi] = departing ? BUTTERFLY_MOVE_REF_DEPART : BUTTERFLY_MOVE_REF;
   return clamp((speed - lo) / (hi - lo), 0, 1);
-}
-
-function pickMarkSize() {
-  const r = Math.random();
-  if (r < 0.28) return 32 + Math.random() * 16;
-  return 19 + Math.random() * 20;
 }
 
 function prepareGeo(geometry) {
@@ -726,7 +711,7 @@ export function createButterflyBloom() {
           break;
         }
         case 'bloomed':
-          if (Math.random() < dt * 4) this._dust();
+          if (Math.random() < dt * 5.2) this._dust();
           this.departTimer -= dt;
           if (this.departTimer <= 0 || this.roamTimer <= 0) {
             this._beginDepart();
@@ -735,11 +720,11 @@ export function createButterflyBloom() {
           break;
         case 'departing':
           if (this._updateDepart(dt) === false) return false;
-          if (Math.random() < dt * 7) this._dust();
+          if (Math.random() < dt * 8.8) this._dust();
           break;
         case 'wilting':
           this.opacity -= dt * 0.14;
-          if (Math.random() < dt * 5) this._dust();
+          if (Math.random() < dt * 6.2) this._dust();
           break;
       }
       return this.opacity > 0.01 && this.lifetime < this.maxLifetime;
@@ -761,18 +746,21 @@ export function createButterflyBloom() {
     }
 
     _dust() {
-      shards.push({
-        x: this.x + (Math.random() - 0.5) * this.size,
-        y: this.y + (Math.random() - 0.5) * this.size,
-        z: this.z + (Math.random() - 0.5) * this.size,
-        vx: (Math.random() - 0.5) * 50,
-        vy: (Math.random() - 0.5) * 50,
-        vz: (Math.random() - 0.5) * 50,
-        rgb: saturateRgb(this.accent, 1.22),
-        opacity: 1,
-        glow: (1.85 + Math.random() * 0.85) * BUTTERFLY_PARTICLE_GLOW,
-        twinkle: Math.random() * Math.PI * 2,
-      });
+      const count = 1 + (Math.random() < 0.45 ? 1 : 0);
+      for (let i = 0; i < count; i++) {
+        shards.push({
+          x: this.x + (Math.random() - 0.5) * this.size,
+          y: this.y + (Math.random() - 0.5) * this.size,
+          z: this.z + (Math.random() - 0.5) * this.size,
+          vx: (Math.random() - 0.5) * 50,
+          vy: (Math.random() - 0.5) * 50,
+          vz: (Math.random() - 0.5) * 50,
+          rgb: saturateRgb(this.accent, 1.22),
+          opacity: 1,
+          glow: (1.85 + Math.random() * 0.85) * BUTTERFLY_PARTICLE_GLOW,
+          twinkle: Math.random() * Math.PI * 2,
+        });
+      }
     }
   }
 
@@ -890,7 +878,7 @@ export function createButterflyBloom() {
     }
 
     if (fallField) {
-      const n = Math.min(shards.length, 500);
+      const n = Math.min(shards.length, BUTTERFLY_FALL_MAX);
       for (let i = 0; i < n; i++) {
         const p = shards[i];
         const wpos = toWorld(p.x, p.y, p.z, width, height);
@@ -971,8 +959,8 @@ export function createButterflyBloom() {
         layer.add(m);
       }
 
-      sparkleField = makePoints(100, 4);
-      fallField = makePoints(600, 8);
+      sparkleField = makePoints(BUTTERFLY_SPARKLE_COUNT, BUTTERFLY_PARTICLE_SIZE_SPARKLE);
+      fallField = makePoints(BUTTERFLY_FALL_MAX, BUTTERFLY_PARTICLE_SIZE_FALL);
       sparkleField.mat.blending = THREE.AdditiveBlending;
       fallField.mat.blending = THREE.AdditiveBlending;
       sparkleField.mat.opacity = 0.78;
@@ -985,7 +973,7 @@ export function createButterflyBloom() {
       primeGrowingMarks(marks);
       syncMeshes();
 
-      for (let i = 0; i < 80; i++) {
+      for (let i = 0; i < BUTTERFLY_SPARKLE_COUNT; i++) {
         sparkles.push({
           x: Math.random() * w,
           y: Math.random() * h,
@@ -1033,6 +1021,7 @@ export function createButterflyBloom() {
         p.opacity -= dt * 0.14;
         return p.opacity > 0.02;
       });
+      if (shards.length > BUTTERFLY_FALL_MAX) shards.splice(0, shards.length - BUTTERFLY_FALL_MAX);
 
       sparkles.forEach((s) => {
         s.x += (s.speedX || 0) * (params.speed || 1) * 45 * dt;

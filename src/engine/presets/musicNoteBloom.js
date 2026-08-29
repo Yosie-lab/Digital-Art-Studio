@@ -1,108 +1,21 @@
 import * as THREE from 'three';
-import { getPaletteColors, hexToRgb } from '../palettes.js';
 import { toWorld, makePoints, rgbToUnit, stratifiedSpawnPoints, primeGrowingMarks, sampleMarksWorld, spreadScreenCloud } from '../space3d.js';
+import {
+  letterBrightenRgb as brightenRgb,
+  letterDisplayColor as displayColor,
+  letterVividFromHex as vividPetalRgb,
+  petalParticleRgb,
+  paletteAccentRgb,
+  randomFlowerPetalColor,
+  pickMarkSizeMusic as pickMarkSize,
+} from '../bloom/bloomColors.js';
+import { easeOutBack } from '../ease.js';
 import {
   DEPTH,
   NOTE_IDS,
   NOTE_BUILDERS,
   pickNoteSymbol,
 } from './musicSymbolGeometries.js';
-
-/* ——— Letter Bloom と同一の色処理 ——— */
-function saturateRgb(rgb, amount = 0.07) {
-  const max = Math.max(rgb.r, rgb.g, rgb.b);
-  const min = Math.min(rgb.r, rgb.g, rgb.b);
-  const mid = (max + min) * 0.5;
-  return {
-    r: Math.min(255, Math.max(0, Math.round(mid + (rgb.r - mid) * (1 + amount)))),
-    g: Math.min(255, Math.max(0, Math.round(mid + (rgb.g - mid) * (1 + amount)))),
-    b: Math.min(255, Math.max(0, Math.round(mid + (rgb.b - mid) * (1 + amount)))),
-  };
-}
-
-function coolToneRgb(rgb) {
-  const max = Math.max(rgb.r, rgb.g, rgb.b);
-  const min = Math.min(rgb.r, rgb.g, rgb.b);
-  const sat = max === 0 ? 0 : (max - min) / max;
-  if (sat > 0.35 && max > 80) {
-    const isBlueDominant = rgb.b > rgb.r && rgb.b > rgb.g;
-    if (isBlueDominant) {
-      return {
-        r: Math.min(255, Math.round(rgb.r * 0.92)),
-        g: Math.min(255, Math.round(rgb.g * 0.78)),
-        b: Math.min(255, Math.round(rgb.b * 1.12 + 10)),
-      };
-    }
-    return saturateRgb(rgb, 0.04);
-  }
-  return saturateRgb(rgb, 0.06);
-}
-
-function vividPetalRgb(rgb) {
-  const toned = coolToneRgb(rgb);
-  return saturateRgb(toned, 0.14);
-}
-
-function brightenRgb(rgb) {
-  const base = vividPetalRgb(rgb);
-  return {
-    r: Math.min(255, base.r + 18),
-    g: Math.min(255, base.g + 14),
-    b: Math.min(255, base.b + 18),
-  };
-}
-
-function petalParticleRgb(rgb, lift = 1.15) {
-  return {
-    r: Math.min(255, Math.round(rgb.r * lift)),
-    g: Math.min(255, Math.round(rgb.g * lift)),
-    b: Math.min(255, Math.round(rgb.b * lift)),
-  };
-}
-
-function displayColor(rgb, scale = 1) {
-  const vivid = saturateRgb(rgb, 0.08);
-  return {
-    r: Math.min(1, (vivid.r / 255) * scale),
-    g: Math.min(1, (vivid.g / 255) * scale),
-    b: Math.min(1, (vivid.b / 255) * scale),
-  };
-}
-
-function randomFlowerPetalColor(paletteName) {
-  const colors = getPaletteColors(paletteName).filter((hex) => {
-    const { r, g, b } = hexToRgb(hex);
-    const isWhitish = r > 230 && g > 230 && b > 230;
-    const isYellowWhite = r > 220 && g > 210 && b > 180 && Math.min(r, g, b) > 170;
-    return !isWhitish && !isYellowWhite;
-  });
-  const pool = colors.length ? colors : getPaletteColors(paletteName);
-
-  const weighted = [];
-  for (const hex of pool) {
-    const { r, g, b } = hexToRgb(hex);
-    const isYellow = r > 150 && g > 110 && b < 150 && r + g > b * 2.4;
-    const isElectricBlue = b > 200 && g < 140 && r < 120 && b > g * 1.5;
-    const isViolet = b > 160 && r > 40 && r < 140 && g < r * 0.9 && b > r;
-    const isCyanish = b > 150 && g > b * 0.7 && g > r;
-    const copies = (isElectricBlue || isViolet) ? 6 : isCyanish || isYellow ? 1 : 2;
-    for (let i = 0; i < copies; i++) weighted.push(hex);
-  }
-  const pick = weighted.length ? weighted : pool;
-  return pick[Math.floor(Math.random() * pick.length)];
-}
-
-function paletteAccentRgb(paletteName) {
-  const colors = getPaletteColors(paletteName);
-  return vividPetalRgb(hexToRgb(colors[Math.floor(Math.random() * colors.length)]));
-}
-
-function pickMarkSize() {
-  const r = Math.random();
-  if (r < 0.12) return 68 + Math.random() * 30;
-  if (r < 0.35) return 44 + Math.random() * 20;
-  return 30 + Math.random() * 16;
-}
 
 function pickNote() {
   return pickNoteSymbol();
@@ -175,7 +88,7 @@ export function createMusicNoteBloom() {
       this.swayY = 0;
       this.swayZ = 0;
       this.color = randomFlowerPetalColor(palette);
-      this.rgb = vividPetalRgb(hexToRgb(this.color));
+      this.rgb = vividPetalRgb(this.color);
       this.innerRgb = brightenRgb(this.rgb);
       this.lifetime = 0;
       this.maxLifetime = 6 + Math.random() * 6;
@@ -230,7 +143,7 @@ export function createMusicNoteBloom() {
       switch (this.phase) {
         case 'growing':
           this.growth = Math.min(1, this.growth + this.growthRate * dt);
-          this.size = this.maxSize * this._easeOutBack(this.growth);
+          this.size = this.maxSize * easeOutBack(this.growth);
           if (this.growth >= 1) this.phase = 'bloomed';
           break;
         case 'bloomed':
@@ -266,12 +179,6 @@ export function createMusicNoteBloom() {
       if (this.y > height + pad) this.y = -pad * 0.4;
       if (this.z < -260) this.z = 220;
       if (this.z > 260) this.z = -220;
-    }
-
-    _easeOutBack(u) {
-      const c1 = 1.70158;
-      const c3 = c1 + 1;
-      return 1 + c3 * Math.pow(u - 1, 3) + c1 * Math.pow(u - 1, 2);
     }
 
     _shedShard() {
