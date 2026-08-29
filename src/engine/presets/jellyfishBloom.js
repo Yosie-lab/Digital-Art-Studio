@@ -479,7 +479,7 @@ export function createJellyfishBloom() {
         rotSpeed: (Math.random() - 0.5) * 5,
         rgb,
         opacity: 1,
-        glow: 1.55 + Math.random() * 0.85,
+        glow: 2.05 + Math.random() * 1.05,
         kind: 'neon',
         twinkle: Math.random() * Math.PI * 2,
       });
@@ -611,8 +611,8 @@ export function createJellyfishBloom() {
         sparkleField.positions[i * 3] = wpos.x;
         sparkleField.positions[i * 3 + 1] = wpos.y;
         sparkleField.positions[i * 3 + 2] = wpos.z;
-        const pulse = 0.7 + 0.55 * Math.abs(Math.sin(time * 2.6 + s.phase));
-        const c = cyberShowColor(s.rgb, pulse * 1.25);
+        const pulse = 0.82 + 0.65 * Math.abs(Math.sin(time * 2.6 + s.phase));
+        const c = cyberShowColor(s.rgb, pulse * 1.65);
         sparkleField.colors[i * 3] = c.r;
         sparkleField.colors[i * 3 + 1] = c.g;
         sparkleField.colors[i * 3 + 2] = c.b;
@@ -630,9 +630,9 @@ export function createJellyfishBloom() {
         fallField.positions[i * 3] = wpos.x;
         fallField.positions[i * 3 + 1] = wpos.y;
         fallField.positions[i * 3 + 2] = wpos.z;
-        const twinkle = 0.68 + 0.35 * Math.abs(Math.sin(time * 6 + (p.twinkle || 0)));
-        const boost = (p.glow || 1.7) * (0.44 + p.opacity * 0.44) * twinkle;
-        const c = cyberShowColor(p.rgb, boost);
+        const twinkle = 0.78 + 0.42 * Math.abs(Math.sin(time * 6 + (p.twinkle || 0)));
+        const boost = (p.glow || 2.1) * (0.58 + p.opacity * 0.52) * twinkle;
+        const c = cyberShowColor(p.rgb, boost * 1.15);
         fallField.colors[i * 3] = c.r;
         fallField.colors[i * 3 + 1] = c.g;
         fallField.colors[i * 3 + 2] = c.b;
@@ -709,12 +709,12 @@ export function createJellyfishBloom() {
         layer.add(m);
       }
 
-      sparkleField = makePoints(160, 4);
-      fallField = makePoints(1100, 10);
+      sparkleField = makePoints(160, 5.5);
+      fallField = makePoints(1100, 13);
       sparkleField.mat.blending = THREE.AdditiveBlending;
       fallField.mat.blending = THREE.AdditiveBlending;
-      sparkleField.mat.opacity = 0.5;
-      fallField.mat.opacity = 0.55;
+      sparkleField.mat.opacity = 0.78;
+      fallField.mat.opacity = 0.72;
       sparkleField.mat.toneMapped = false;
       fallField.mat.toneMapped = false;
       layer.add(sparkleField.points, fallField.points);

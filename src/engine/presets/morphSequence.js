@@ -10,6 +10,7 @@ import {
   createTadpoleBloom,
   createAngelBloom,
   neonRainbowUnitColors,
+  neonAngelUnitColors,
 } from './formBloom.js';
 import { createButterflyBloom } from './butterflyBloom.js';
 import { samplePetalCloud } from '../morph/sampleShapes.js';
@@ -223,7 +224,8 @@ export function createMorphSequence() {
   function colorsForStage(stepIndex) {
     const id = SEQUENCE[stepIndex]?.id;
     if (id === 'tadpole') return neonRainbowUnitColors(currentPalette, count);
-    if (id === 'butterfly') return paletteUnitColors('rainbow', count);
+    if (id === 'angel') return neonAngelUnitColors(count);
+    if (id === 'butterfly') return paletteUnitColors('clockRainbow', count);
     return paletteUnitColors(currentPalette, count);
   }
 
@@ -262,12 +264,19 @@ export function createMorphSequence() {
   }
 
   function paintColors(mix) {
+    const stepId = SEQUENCE[stageIndex]?.id;
+    const nextId = SEQUENCE[(stageIndex + 1) % SEQUENCE.length]?.id;
+    const angelMix = stepId === 'angel' || nextId === 'angel';
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
       const pulse = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(time * 2.5 + i * 0.02));
-      const r = colorA[i3] * (1 - mix) + colorB[i3] * mix;
-      const g = colorA[i3 + 1] * (1 - mix) + colorB[i3 + 1] * mix;
-      const b = colorA[i3 + 2] * (1 - mix) + colorB[i3 + 2] * mix;
+      let r = colorA[i3] * (1 - mix) + colorB[i3] * mix;
+      let g = colorA[i3 + 1] * (1 - mix) + colorB[i3 + 1] * mix;
+      let b = colorA[i3 + 2] * (1 - mix) + colorB[i3 + 2] * mix;
+      if (angelMix) {
+        g = Math.min(g, b * 0.992);
+        r = Math.min(r, g * 0.998);
+      }
       field.colors[i3] = r * pulse;
       field.colors[i3 + 1] = g * pulse;
       field.colors[i3 + 2] = b * pulse;
