@@ -8,6 +8,7 @@ import {
   pickNoteSymbol,
 } from './musicSymbolGeometries.js';
 
+/* ——— Letter Bloom と同一の色処理 ——— */
 function saturateRgb(rgb, amount = 0.07) {
   const max = Math.max(rgb.r, rgb.g, rgb.b);
   const min = Math.min(rgb.r, rgb.g, rgb.b);
@@ -27,33 +28,23 @@ function coolToneRgb(rgb) {
     const isBlueDominant = rgb.b > rgb.r && rgb.b > rgb.g;
     if (isBlueDominant) {
       return {
-        r: Math.min(255, Math.round(rgb.r * 0.95)),
-        g: Math.min(255, Math.round(rgb.g * 0.72)),
-        b: Math.min(255, Math.round(rgb.b * 1.08 + 8)),
+        r: Math.min(255, Math.round(rgb.r * 0.92)),
+        g: Math.min(255, Math.round(rgb.g * 0.78)),
+        b: Math.min(255, Math.round(rgb.b * 1.12 + 10)),
       };
     }
-    return saturateRgb(rgb, 0.05);
+    return saturateRgb(rgb, 0.04);
   }
-  const b = Math.min(255, Math.round(rgb.b * 1.08 + 16));
-  return {
-    r: Math.min(Math.round(rgb.r * 0.7), Math.round(b * 0.55)),
-    g: Math.min(Math.round(rgb.g * 0.55), Math.round(b * 0.4)),
-    b,
-  };
+  return saturateRgb(rgb, 0.06);
 }
 
 function vividPetalRgb(rgb) {
-  const cool = coolToneRgb(rgb);
-  const vivid = saturateRgb(cool, 0.05);
-  return {
-    r: Math.min(255, Math.round(vivid.r * 1.06 + 5)),
-    g: Math.min(255, Math.round(vivid.g * 1.05 + 3)),
-    b: Math.min(255, Math.round(vivid.b * 1.06 + 5)),
-  };
+  const toned = coolToneRgb(rgb);
+  return saturateRgb(toned, 0.14);
 }
 
 function brightenRgb(rgb) {
-  const base = coolToneRgb(rgb);
+  const base = vividPetalRgb(rgb);
   return {
     r: Math.min(255, base.r + 18),
     g: Math.min(255, base.g + 14),
@@ -70,27 +61,31 @@ function petalParticleRgb(rgb, lift = 1.15) {
 }
 
 function displayColor(rgb, scale = 1) {
-  // 暗くしすぎない（coolTone を弱めて明るく）
-  const vivid = saturateRgb(rgb, 0.12);
+  const vivid = saturateRgb(rgb, 0.08);
   return {
-    r: Math.min(1, (vivid.r / 255) * scale * 1.15 + 0.06),
-    g: Math.min(1, (vivid.g / 255) * scale * 1.12 + 0.05),
-    b: Math.min(1, (vivid.b / 255) * scale * 1.18 + 0.08),
+    r: Math.min(1, (vivid.r / 255) * scale),
+    g: Math.min(1, (vivid.g / 255) * scale),
+    b: Math.min(1, (vivid.b / 255) * scale),
   };
 }
 
 function randomFlowerPetalColor(paletteName) {
   const colors = getPaletteColors(paletteName).filter((hex) => {
     const { r, g, b } = hexToRgb(hex);
-    return !(r > 230 && g > 230 && b > 230);
+    const isWhitish = r > 230 && g > 230 && b > 230;
+    const isYellowWhite = r > 220 && g > 210 && b > 180 && Math.min(r, g, b) > 170;
+    return !isWhitish && !isYellowWhite;
   });
   const pool = colors.length ? colors : getPaletteColors(paletteName);
+
   const weighted = [];
   for (const hex of pool) {
     const { r, g, b } = hexToRgb(hex);
+    const isYellow = r > 150 && g > 110 && b < 150 && r + g > b * 2.4;
     const isElectricBlue = b > 200 && g < 140 && r < 120 && b > g * 1.5;
     const isViolet = b > 160 && r > 40 && r < 140 && g < r * 0.9 && b > r;
-    const copies = (isElectricBlue || isViolet) ? 6 : 2;
+    const isCyanish = b > 150 && g > b * 0.7 && g > r;
+    const copies = (isElectricBlue || isViolet) ? 6 : isCyanish || isYellow ? 1 : 2;
     for (let i = 0; i < copies; i++) weighted.push(hex);
   }
   const pick = weighted.length ? weighted : pool;
@@ -130,6 +125,7 @@ export function createMusicNoteBloom() {
   let fallField = null;
   const dummy = new THREE.Object3D();
   const _color = new THREE.Color();
+  const _vel = new THREE.Vector3();
   const MAX = 64;
   const MAX_PER = 10;
 
@@ -147,38 +143,86 @@ export function createMusicNoteBloom() {
       this.tilt = (Math.random() - 0.5) * 0.45;
       this.yaw = (Math.random() - 0.5) * 0.55;
       this.windPhase = Math.random() * Math.PI * 2;
-      this.windSpeed = 0.55 + Math.random() * 0.35;
-      this.windAmp = 0.05 + Math.random() * 0.04;
-      this.spinX = 0.35 + Math.random() * 0.25;
-      this.spinY = 0.45 + Math.random() * 0.35;
-      this.spinZ = 0.2 + Math.random() * 0.15;
+      this.windSpeed = 0.42 + Math.random() * 0.28;
+      this.windAmp = 0.07 + Math.random() * 0.06;
+      this.spinX = 0.22 + Math.random() * 0.18;
+      this.spinY = 0.28 + Math.random() * 0.22;
+      this.spinZ = 0.12 + Math.random() * 0.1;
       this.phaseX = Math.random() * Math.PI * 2;
       this.phaseY = Math.random() * Math.PI * 2;
       this.phaseZ = Math.random() * Math.PI * 2;
       this.bobPhase = Math.random() * Math.PI * 2;
-      this.bobSpeed = 0.7 + Math.random() * 0.5;
-      this.driftZ = (Math.random() - 0.5) * 18;
+      this.bobSpeed = 0.52 + Math.random() * 0.38;
+      this.driftZ = (Math.random() - 0.5) * 28;
+      this.driftPhase = Math.random() * Math.PI * 2;
+      this.glidePhase = Math.random() * Math.PI * 2;
+      this.flowAngle = Math.random() * Math.PI * 2;
+      this.flowTurn = 0.18 + Math.random() * 0.32;
+      this.flutterAmp = 0.72 + Math.random() * 0.55;
+      this.smoothRate = 0.9 + Math.random() * 0.75;
+      const driftSpeed = 7 + Math.random() * 10;
+      this.vx = Math.cos(this.flowAngle) * driftSpeed;
+      this.vy = -5 - Math.random() * 7;
+      this.vz = (Math.random() - 0.5) * 22;
+      this.targetVx = this.vx;
+      this.targetVy = this.vy;
+      this.targetVz = this.vz;
+      this.swayX = 0;
+      this.swayY = 0;
+      this.swayZ = 0;
       this.color = randomFlowerPetalColor(palette);
-      const base = vividPetalRgb(hexToRgb(this.color));
-      this.rgb = {
-        r: Math.min(255, Math.round(base.r * 1.2 + 20)),
-        g: Math.min(255, Math.round(base.g * 1.18 + 16)),
-        b: Math.min(255, Math.round(base.b * 1.22 + 24)),
-      };
+      this.rgb = vividPetalRgb(hexToRgb(this.color));
       this.innerRgb = brightenRgb(this.rgb);
       this.lifetime = 0;
-      this.maxLifetime = 4 + Math.random() * 4.5;
+      this.maxLifetime = 6 + Math.random() * 6;
       this.phase = 'growing';
       this.opacity = 1;
     }
 
     update(dt, t) {
       this.lifetime += dt;
-      // ゆっくり立体回転（読みやすさは残しつつ厚みが見える）
-      this.tumbleX = Math.sin(t * this.spinX + this.phaseX) * 0.28;
-      this.tumbleY = Math.sin(t * this.spinY + this.phaseY) * 0.42;
-      this.tumbleZ = Math.sin(t * this.spinZ + this.phaseZ) * 0.12;
-      this.bob = Math.sin(t * this.bobSpeed + this.bobPhase) * 22;
+      this.flowAngle += this.flowTurn * dt * (0.45 + 0.35 * Math.sin(t * 0.28 + this.driftPhase));
+
+      const glide = (6 + Math.sin(t * 0.32 + this.glidePhase) * 3.5) * this.flutterAmp;
+      this.targetVx = Math.cos(this.flowAngle) * glide
+        + Math.sin(t * 0.4 + this.phaseX) * 7;
+      this.targetVy = Math.sin(this.flowAngle) * glide * 0.3 - 4.5
+        + Math.cos(t * 0.3 + this.bobPhase) * 3.5;
+      this.targetVz = Math.sin(t * 0.26 + this.windPhase) * glide * 0.42
+        + Math.cos(this.flowAngle * 1.2 + this.glidePhase) * 5;
+
+      const smooth = 1 - Math.exp(-this.smoothRate * dt);
+      this.vx += (this.targetVx - this.vx) * smooth;
+      this.vy += (this.targetVy - this.vy) * smooth;
+      this.vz += (this.targetVz - this.vz) * smooth;
+
+      _vel.set(this.vx, this.vy, this.vz);
+      const speed = _vel.length();
+      if (speed > 28) _vel.multiplyScalar(28 / speed);
+      if (speed < 4 && speed > 0.01) _vel.multiplyScalar(4 / speed);
+      this.vx = _vel.x;
+      this.vy = _vel.y;
+      this.vz = _vel.z;
+
+      const a = this.flutterAmp;
+      this.swayX = Math.sin(t * 0.58 + this.phaseX) * 22 * a
+        + Math.sin(t * 1.12 + this.driftPhase) * 9 * a;
+      this.swayY = Math.cos(t * 0.46 + this.bobPhase) * 18 * a
+        + Math.sin(t * 0.92 + this.phaseY) * 7 * a;
+      this.swayZ = Math.sin(t * 0.38 + this.windPhase) * 16 * a
+        + Math.cos(t * 0.74 + this.driftPhase) * 8 * a;
+
+      this.x += this.vx * dt + this.swayX * dt * 0.55;
+      this.y += this.vy * dt + this.swayY * dt * 0.55;
+      this.z += this.vz * dt + this.swayZ * dt * 0.48;
+
+      this.tumbleX = Math.sin(t * this.spinX + this.phaseX) * 0.2;
+      this.tumbleY = Math.sin(t * this.spinY + this.phaseY) * 0.34;
+      this.tumbleZ = Math.sin(t * this.spinZ + this.phaseZ) * 0.1;
+      this.bob = Math.sin(t * this.bobSpeed + this.bobPhase) * 28;
+
+      this._softBounds(dt);
+
       switch (this.phase) {
         case 'growing':
           this.growth = Math.min(1, this.growth + this.growthRate * dt);
@@ -195,6 +239,29 @@ export function createMusicNoteBloom() {
           break;
       }
       return this.opacity > 0.01 && this.lifetime < this.maxLifetime;
+    }
+
+    _softBounds(dt) {
+      const margin = 60;
+      const steer = 22 * dt;
+      if (this.x < margin) {
+        this.vx += steer;
+        this.flowAngle += dt * 0.35;
+      }
+      if (this.x > width - margin) {
+        this.vx -= steer;
+        this.flowAngle -= dt * 0.35;
+      }
+      if (this.y < margin) this.vy += steer * 0.5;
+      if (this.y > height - margin) this.vy -= steer * 0.4;
+
+      const pad = 80;
+      if (this.x < -pad) this.x = width + pad * 0.4;
+      if (this.x > width + pad) this.x = -pad * 0.4;
+      if (this.y < -pad) this.y = height + pad * 0.4;
+      if (this.y > height + pad) this.y = -pad * 0.4;
+      if (this.z < -260) this.z = 220;
+      if (this.z > 260) this.z = -220;
     }
 
     _easeOutBack(u) {
@@ -247,14 +314,22 @@ export function createMusicNoteBloom() {
   function placeMark(mark, scaleMul = 1) {
     const wind = Math.sin(time * mark.windSpeed + mark.windPhase);
     const wind2 = Math.sin(time * mark.windSpeed * 1.37 + mark.windPhase * 1.2);
-    const pos = toWorld(mark.x, mark.y, mark.z + mark.bob + wind2 * mark.driftZ, width, height);
+    const pos = toWorld(
+      mark.x + mark.swayX * 0.08,
+      mark.y + mark.swayY * 0.08,
+      mark.z + mark.bob + wind2 * mark.driftZ + mark.swayZ * 0.1,
+      width,
+      height,
+    );
     dummy.position.copy(pos);
-    dummy.position.x += wind * mark.windAmp * mark.size * 0.28;
-    dummy.position.y += Math.sin(time * mark.bobSpeed * 0.7 + mark.bobPhase) * mark.size * 0.04;
+    dummy.position.x += wind * mark.windAmp * mark.size * 0.32;
+    dummy.position.y += Math.sin(time * mark.bobSpeed * 0.65 + mark.bobPhase) * mark.size * 0.06;
+    dummy.position.z += wind2 * mark.windAmp * mark.size * 0.18;
+    const bankY = Math.atan2(mark.vx + mark.swayX * 0.3, mark.vy + mark.swayY * 0.3 + 0.001) * 0.14;
     dummy.rotation.set(
-      mark.tilt + mark.tumbleX + wind * mark.windAmp * 0.5,
-      mark.yaw + mark.tumbleY + wind2 * 0.15,
-      mark.baseRot + mark.tumbleZ + wind2 * mark.windAmp * 0.35,
+      mark.tilt + mark.tumbleX + wind * mark.windAmp * 0.45,
+      mark.yaw + mark.tumbleY + wind2 * 0.12 + bankY,
+      mark.baseRot + mark.tumbleZ + wind2 * mark.windAmp * 0.28,
     );
     const s = mark.size * scaleMul;
     // Z を少し厚くして押し出しの立体感を強調
@@ -294,11 +369,12 @@ export function createMusicNoteBloom() {
         }
         placeMark(mark, 1);
         set.mesh.setMatrixAt(i, dummy.matrix);
-        const c = displayColor(mark.rgb, 1.05 + mark.opacity * 0.15);
+        const c = displayColor(mark.rgb, 0.82 + mark.opacity * 0.28);
         set.mesh.setColorAt(i, _color.setRGB(c.r, c.g, c.b));
-        placeMark(mark, 1.06);
+        placeMark(mark, 1.03);
         set.outline.setMatrixAt(i, dummy.matrix);
-        set.outline.setColorAt(i, _color.setRGB(c.r * 0.35, c.g * 0.4, c.b * 0.55));
+        const outline = displayColor(mark.rgb, 0.34);
+        set.outline.setColorAt(i, _color.setRGB(outline.r * 0.55, outline.g * 0.5, outline.b * 0.75));
       }
       set.mesh.instanceMatrix.needsUpdate = true;
       set.outline.instanceMatrix.needsUpdate = true;
@@ -333,9 +409,12 @@ export function createMusicNoteBloom() {
         fallField.positions[i * 3 + 2] = wpos.z;
         const [r, g, b] = rgbToUnit(p.rgb);
         const glow = (p.glow || 1.4) * (0.5 + p.opacity * 0.55);
-        fallField.colors[i * 3] = Math.min(1, r * glow);
-        fallField.colors[i * 3 + 1] = Math.min(1, g * glow);
-        fallField.colors[i * 3 + 2] = Math.min(1, b * glow);
+        const twinkle = p.kind === 'dust'
+          ? 0.9 + 0.1 * Math.sin(time * 8 + p.rot * 3)
+          : 1;
+        fallField.colors[i * 3] = Math.min(1, r * glow * twinkle);
+        fallField.colors[i * 3 + 1] = Math.min(1, g * glow * twinkle);
+        fallField.colors[i * 3 + 2] = Math.min(1, b * glow * twinkle);
       }
       fallField.geo.setDrawRange(0, n);
       fallField.geo.attributes.position.needsUpdate = true;
@@ -390,7 +469,7 @@ export function createMusicNoteBloom() {
           new THREE.MeshBasicMaterial({
             ...matOpts,
             side: THREE.BackSide,
-            opacity: 0.28,
+            opacity: 0.16,
             depthWrite: false,
           }),
           MAX_PER,
@@ -403,7 +482,7 @@ export function createMusicNoteBloom() {
 
       sparkleField = makePoints(80, 5);
       fallField = makePoints(700, 14);
-      fallField.mat.opacity = 0.85;
+      fallField.mat.opacity = 0.55;
       layer.add(sparkleField.points, fallField.points);
 
       for (const [x, y] of stratifiedSpawnPoints(20, w, h)) {

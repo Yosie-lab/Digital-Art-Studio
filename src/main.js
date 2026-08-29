@@ -12,7 +12,7 @@ import { createMorphSequence } from './engine/presets/morphSequence.js';
 import { AudioAnalyzer } from './utils/audioAnalyzer.js';
 import { Recorder } from './utils/recorder.js';
 
-const APP_REVISION = '20260829-jelly-dimmer2';
+const APP_REVISION = '20260829-music-drift-flow';
 console.info(`[Digital Art Studio] ${APP_REVISION}`);
 
 /* ============================================================

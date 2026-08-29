@@ -474,7 +474,7 @@ export function createJellyfishBloom() {
         vx: side * (8 + Math.random() * 28) + (Math.random() - 0.5) * 12,
         vy: -12 - Math.random() * 28,
         vz: (Math.random() - 0.5) * 24,
-        size: 3 + Math.random() * 7,
+        size: 2.5 + Math.random() * 5.5,
         rot: Math.random() * Math.PI * 2,
         rotSpeed: (Math.random() - 0.5) * 5,
         rgb,
@@ -548,13 +548,13 @@ export function createJellyfishBloom() {
       }
       poseRoot(mark);
       // 傘: 半透明ネオン青 / 縁・網・触手: 強発光 / コア: 暖白
-      const fill = cyberShowColor(mark.fillRgb, 0.54 + mark.opacity * 0.18);
-      const neon = cyberShowColor(mark.rgb, 1.05 + mark.opacity * 0.22);
-      const neonPulse = cyberShowColor(mark.innerRgb, 1.15 + 0.22 * Math.abs(mark.pulse));
+      const fill = cyberShowColor(mark.fillRgb, 0.48 + mark.opacity * 0.15);
+      const neon = cyberShowColor(mark.rgb, 0.92 + mark.opacity * 0.18);
+      const neonPulse = cyberShowColor(mark.innerRgb, 1.0 + 0.18 * Math.abs(mark.pulse));
       const coreWarm = {
-        r: Math.min(1, 0.38 + 0.08 * Math.abs(mark.pulse)),
-        g: Math.min(1, 0.52 + 0.05 * Math.abs(mark.pulse)),
-        b: Math.min(1, 0.72 + 0.1 * Math.abs(mark.pulse)),
+        r: Math.min(1, 0.34 + 0.07 * Math.abs(mark.pulse)),
+        g: Math.min(1, 0.46 + 0.04 * Math.abs(mark.pulse)),
+        b: Math.min(1, 0.64 + 0.08 * Math.abs(mark.pulse)),
       };
 
       dummy.matrix.copy(bellHold.matrixWorld);
@@ -564,9 +564,9 @@ export function createJellyfishBloom() {
       dummy.matrix.copy(root.matrixWorld);
       rimMesh.setMatrixAt(i, dummy.matrix);
       rimMesh.setColorAt(i, _color.setRGB(
-        Math.min(1, neonPulse.r * 0.92),
-        Math.min(1, neonPulse.g * 0.94),
-        Math.min(1, neonPulse.b * 0.9),
+        Math.min(1, neonPulse.r * 0.86),
+        Math.min(1, neonPulse.g * 0.88),
+        Math.min(1, neonPulse.b * 0.84),
       ));
 
       dummy.matrix.copy(root.matrixWorld);
@@ -581,7 +581,7 @@ export function createJellyfishBloom() {
       gonadMesh.setMatrixAt(i, dummy.matrix);
       gonadMesh.setColorAt(i, _color.setRGB(neon.r, neon.g, neon.b));
 
-      const accent = cyberShowColor(mark.accentRgb, 0.92 + 0.18 * Math.abs(mark.pulse));
+      const accent = cyberShowColor(mark.accentRgb, 0.82 + 0.15 * Math.abs(mark.pulse));
       dummy.matrix.copy(fringeHold.matrixWorld);
       fringeMesh.setMatrixAt(i, dummy.matrix);
       // 細い足は半透明ネオン（先端寄りにアクセント）
@@ -695,13 +695,13 @@ export function createJellyfishBloom() {
       armGeo = buildMoonOralArmGeometry();
 
       // 傘: 見える半透明ネオン青 / 縁・網・触手: 加算発光 / コア: 暖白
-      bellMesh = new THREE.InstancedMesh(bellGeo, makeMat(0.3, true), MAX);
-      rimMesh = new THREE.InstancedMesh(rimGeo, makeMat(0.68, true), MAX);
-      netMesh = new THREE.InstancedMesh(netGeo, makeMat(0.6, true), MAX);
-      coreMesh = new THREE.InstancedMesh(coreGeo, makeMat(0.62, true), MAX);
-      gonadMesh = new THREE.InstancedMesh(gonadGeo, makeMat(0.48, true), MAX);
-      fringeMesh = new THREE.InstancedMesh(fringeGeo, makeMat(0.26, true), MAX);
-      armMeshes = [0, 1, 2, 3].map(() => new THREE.InstancedMesh(armGeo, makeMat(0.24, true), MAX));
+      bellMesh = new THREE.InstancedMesh(bellGeo, makeMat(0.26, true), MAX);
+      rimMesh = new THREE.InstancedMesh(rimGeo, makeMat(0.58, true), MAX);
+      netMesh = new THREE.InstancedMesh(netGeo, makeMat(0.52, true), MAX);
+      coreMesh = new THREE.InstancedMesh(coreGeo, makeMat(0.54, true), MAX);
+      gonadMesh = new THREE.InstancedMesh(gonadGeo, makeMat(0.42, true), MAX);
+      fringeMesh = new THREE.InstancedMesh(fringeGeo, makeMat(0.22, true), MAX);
+      armMeshes = [0, 1, 2, 3].map(() => new THREE.InstancedMesh(armGeo, makeMat(0.2, true), MAX));
 
       for (const m of [bellMesh, rimMesh, netMesh, coreMesh, gonadMesh, fringeMesh, ...armMeshes]) {
         m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3);
@@ -709,8 +709,8 @@ export function createJellyfishBloom() {
         layer.add(m);
       }
 
-      sparkleField = makePoints(160, 5);
-      fallField = makePoints(1100, 12);
+      sparkleField = makePoints(160, 4);
+      fallField = makePoints(1100, 10);
       sparkleField.mat.blending = THREE.AdditiveBlending;
       fallField.mat.blending = THREE.AdditiveBlending;
       sparkleField.mat.opacity = 0.5;

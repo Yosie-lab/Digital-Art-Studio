@@ -895,7 +895,7 @@ export function createTadpoleBloom() {
   const _wagAxis = new THREE.Vector3(0, 0, 1);
   const _flipAxis = new THREE.Vector3(0, 1, 0);
   const Z_SPAN = 260;
-  const MAX = 64;
+  const MAX = 128;
 
   class Mark {
     constructor(x, y, palette) {
@@ -1170,6 +1170,11 @@ export function createTadpoleBloom() {
     marks.push(new Mark(x, y, currentPalette));
   }
 
+  function spawnPair(x, y) {
+    spawn(x, y);
+    spawn(x + (Math.random() - 0.5) * 100, y + (Math.random() - 0.5) * 80);
+  }
+
   function makeMat(opacity, additive = false) {
     return new THREE.MeshBasicMaterial({
       color: 0xffffff,
@@ -1224,7 +1229,7 @@ export function createTadpoleBloom() {
       fallField.mat.toneMapped = false;
       layer.add(sparkleField.points, fallField.points);
 
-      for (const [x, y] of stratifiedSpawnPoints(20, w, h)) spawn(x, y);
+      for (const [x, y] of stratifiedSpawnPoints(40, w, h)) spawnPair(x, y);
       primeGrowingMarks(marks);
       syncMeshes();
       for (let i = 0; i < 70; i++) {
@@ -1257,17 +1262,17 @@ export function createTadpoleBloom() {
       marks = marks.filter((m) => m.update(dt, time));
 
       if (pointer?.velocity > 3) {
-        const n = Math.min(2, Math.floor(pointer.velocity / 16) + 1);
+        const n = Math.min(4, Math.floor(pointer.velocity / 16) + 1);
         for (let i = 0; i < n; i++) {
           spawn(pointer.x + (Math.random() - 0.5) * 50, pointer.y + (Math.random() - 0.5) * 50);
         }
       }
-      if (Math.random() < dt * 1.8 * (params.speed || 1)) {
-        spawn(Math.random() * width, Math.random() * height);
+      if (Math.random() < dt * 3.6 * (params.speed || 1)) {
+        spawnPair(Math.random() * width, Math.random() * height);
       }
       if (audioData?.isActive && audioData.bass > 0.3) {
-        const n = Math.floor(audioData.bass * 4);
-        for (let i = 0; i < n; i++) spawn(Math.random() * width, Math.random() * height);
+        const n = Math.floor(audioData.bass * 8);
+        for (let i = 0; i < n; i++) spawnPair(Math.random() * width, Math.random() * height);
       }
 
       shards = shards.filter((p) => {
@@ -1287,7 +1292,7 @@ export function createTadpoleBloom() {
         }
       });
 
-      const maxMarks = Math.min(MAX, Math.max(20, Math.floor((params.particleCount || 1030) / 4)));
+      const maxMarks = Math.min(MAX, Math.max(40, Math.floor((params.particleCount || 1030) / 2)));
       if (marks.length > maxMarks) marks.splice(0, marks.length - maxMarks);
     },
 
@@ -1296,8 +1301,8 @@ export function createTadpoleBloom() {
     },
 
     onPointerDown(x, y) {
-      for (let i = 0; i < 6; i++) {
-        spawn(x + (Math.random() - 0.5) * 90, y + (Math.random() - 0.5) * 90);
+      for (let i = 0; i < 12; i++) {
+        spawnPair(x + (Math.random() - 0.5) * 90, y + (Math.random() - 0.5) * 90);
       }
     },
 
@@ -1463,7 +1468,7 @@ export function createAngelBloom() {
         vz: (Math.random() - 0.5) * 25,
         rgb: { r: 255, g: 255, b: 255 },
         opacity: 1,
-        glow: 2.7 + Math.random() * 1.2,
+        glow: 2.15 + Math.random() * 0.95,
         kind: 'dust',
         twinkle: Math.random() * Math.PI * 2,
       });
@@ -1481,7 +1486,7 @@ export function createAngelBloom() {
           vz: (Math.random() - 0.5) * 45,
           rgb: { r: 255, g: 255, b: 255 },
           opacity: 1,
-          glow: 3.0 + Math.random() * 1.2,
+          glow: 2.35 + Math.random() * 0.95,
           kind: 'shard',
           rot: Math.random() * Math.PI * 2,
           rotSpeed: (Math.random() - 0.5) * 4,
@@ -1589,7 +1594,7 @@ export function createAngelBloom() {
         sparkleField.positions[i * 3] = wpos.x;
         sparkleField.positions[i * 3 + 1] = wpos.y;
         sparkleField.positions[i * 3 + 2] = wpos.z;
-        const pulse = 0.95 + 1.0 * Math.abs(Math.sin(time * 3.4 + s.phase));
+        const pulse = 0.78 + 0.72 * Math.abs(Math.sin(time * 3.4 + s.phase));
         sparkleField.colors[i * 3] = pulse;
         sparkleField.colors[i * 3 + 1] = pulse;
         sparkleField.colors[i * 3 + 2] = pulse;
@@ -1606,8 +1611,8 @@ export function createAngelBloom() {
         fallField.positions[i * 3] = wpos.x;
         fallField.positions[i * 3 + 1] = wpos.y;
         fallField.positions[i * 3 + 2] = wpos.z;
-        const twinkle = 0.75 + 0.45 * Math.abs(Math.sin(time * 5 + (p.twinkle || 0)));
-        const glow = (p.glow || 2.7) * (0.7 + p.opacity * 0.65) * twinkle;
+        const twinkle = 0.65 + 0.32 * Math.abs(Math.sin(time * 5 + (p.twinkle || 0)));
+        const glow = (p.glow || 2.2) * (0.58 + p.opacity * 0.52) * twinkle;
         fallField.colors[i * 3] = glow;
         fallField.colors[i * 3 + 1] = glow;
         fallField.colors[i * 3 + 2] = glow;
@@ -1673,8 +1678,8 @@ export function createAngelBloom() {
       fallField = makePoints(700, 26);
       sparkleField.mat.blending = THREE.AdditiveBlending;
       fallField.mat.blending = THREE.AdditiveBlending;
-      sparkleField.mat.opacity = 0.72;
-      fallField.mat.opacity = 0.72;
+      sparkleField.mat.opacity = 0.58;
+      fallField.mat.opacity = 0.58;
       sparkleField.mat.toneMapped = false;
       fallField.mat.toneMapped = false;
       layer.add(sparkleField.points, fallField.points);

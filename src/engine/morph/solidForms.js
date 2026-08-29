@@ -1,6 +1,12 @@
 import * as THREE from 'three';
 import { getPaletteColors } from '../palettes.js';
 import { disposeObject } from '../space3d.js';
+import {
+  buildButterflyWingGeometry,
+  buildButterflyPatternGeometry,
+  buildButterflyBodyGeometry,
+  buildButterflyAntennaGeometry,
+} from '../presets/butterflyBloom.js';
 
 /**
  * かわいい立体イラスト
@@ -11,9 +17,10 @@ import { disposeObject } from '../space3d.js';
 const FORM_HUE = {
   letter: 1,     // 電光青
   jellyfish: 12, // 水色寄り青
-  clock: 2,      // シアン寄りネオン
+  clock: 2,      // シアン寄りネオン（互換）
+  butterfly: 6,  // 暖色・模様
   tadpole: 2,    // ミント
-  music: 1,      // 電光青（文字・花びら系）
+  music: 1,      // 電光青（letter と同系）
   brain: 0,      // 旧: 互換用
   angel: 8,      // 暖色（髪・光輪）／体は薄い同系
 };
@@ -601,6 +608,100 @@ export function createClock(palette = 'rainbow') {
         out[i * 3] = Math.cos(a) * r;
         out[i * 3 + 1] = Math.sin(a) * r;
         out[i * 3 + 2] = (Math.random() - 0.5) * 12;
+      }
+      return out;
+    },
+    dispose() { disposeObject(group); },
+  };
+}
+
+
+export function createButterfly(palette = 'rainbow') {
+  const group = new THREE.Group();
+  group.scale.setScalar(58);
+  softLights(group);
+  const { wing, pattern: patternHex } = (() => {
+    const w = getPaletteColors('rainbow');
+    const wingHex = w[Math.floor(Math.random() * w.length)];
+    let pat = w[Math.floor(Math.random() * w.length)];
+    if (pat === wingHex) pat = w[(w.indexOf(wingHex) + 3) % w.length];
+    return { wing: wingHex, pattern: pat };
+  })();
+  const wingMat = petalMat(tint(wing, 0.12), { opacity: 0.68, roughness: 0.48, ei: 0.72, em: 0.32 });
+  const patMat = petalMat(tint(patternHex, -0.2), { opacity: 0.88, roughness: 0.52, ei: 0.68, em: 0.38 });
+  const bodyMat = petalMat(tint(wing, -0.12), { opacity: 0.82, roughness: 0.6, ei: 0.52, em: 0.22 });
+
+  const wingHoldL = new THREE.Group();
+  const wingHoldR = new THREE.Group();
+  wingHoldL.position.set(0.02, 0.02, -0.01);
+  wingHoldR.position.set(0.02, 0.02, -0.01);
+
+  const wingL = new THREE.Mesh(buildButterflyWingGeometry(), wingMat);
+  const wingR = new THREE.Mesh(buildButterflyWingGeometry(), wingMat.clone());
+  wingL.scale.set(-1, 1, 1);
+  const patL = new THREE.Mesh(buildButterflyPatternGeometry(), patMat);
+  const patR = new THREE.Mesh(buildButterflyPatternGeometry(), patMat.clone());
+  wingL.add(patL);
+  wingR.add(patR);
+  wingHoldL.add(wingL);
+  wingHoldR.add(wingR);
+
+  const body = new THREE.Mesh(buildButterflyBodyGeometry(), bodyMat);
+  const antenna = new THREE.Mesh(
+    buildButterflyAntennaGeometry(),
+    petalMat(tint(wing, 0.42), { opacity: 0.9, roughness: 0.45, ei: 0.85, em: 0.35 }),
+  );
+
+  group.add(wingHoldL, wingHoldR, body, antenna);
+  outlineOf(wingL, tint(wing, 0.45), 1.015);
+  outlineOf(wingR, tint(wing, 0.45), 1.015);
+  outlineOf(body, tint(wing, -0.25), 1.02);
+
+  return {
+    group,
+    update(_dt, time) {
+      const flap = Math.sin(time * 9.2) * 0.62;
+      wingHoldL.rotation.set(0.1 + flap * 0.14, 0.68 + flap, 0.08 + flap * 0.12);
+      wingHoldR.rotation.set(0.1 + flap * 0.14, -0.68 - flap, -0.08 - flap * 0.12);
+      group.position.y = Math.sin(time * 1.15) * 14;
+      group.rotation.x = Math.sin(time * 0.62) * 0.55 + Math.cos(time * 0.41) * 0.35;
+      group.rotation.y = time * 0.48 + Math.sin(time * 0.32) * 0.35;
+      group.rotation.z = Math.sin(time * 0.55) * 0.42 + Math.cos(time * 0.73) * 0.28;
+      group.position.x = Math.sin(time * 0.38) * 28;
+      group.position.z = Math.cos(time * 0.51) * 22;
+    },
+    setPalette(_p) {
+      const w = getPaletteColors('rainbow');
+      const wingHex = w[Math.floor(Math.random() * w.length)];
+      let pat = w[Math.floor(Math.random() * w.length)];
+      if (pat === wingHex) pat = w[(w.indexOf(wingHex) + 3) % w.length];
+      setMatHex(wingL.material, tint(wingHex, 0.12));
+      setMatHex(wingR.material, tint(wingHex, 0.12));
+      setMatHex(patL.material, tint(pat, -0.2));
+      setMatHex(patR.material, tint(pat, -0.2));
+      setMatHex(body.material, tint(wingHex, -0.12));
+      setMatHex(antenna.material, tint(wingHex, 0.42));
+    },
+    samplePoints(count) {
+      const s = 58;
+      const out = new Float32Array(count * 3);
+      for (let i = 0; i < count; i++) {
+        const side = Math.random() < 0.5 ? -1 : 1;
+        if (i < count * 0.72) {
+          const u = Math.random();
+          const v = Math.random();
+          out[i * 3] = side * (0.12 + u * 0.76) * s;
+          out[i * 3 + 1] = (v * 0.52 - 0.18) * s;
+          out[i * 3 + 2] = (Math.random() - 0.5) * 10;
+        } else if (i < count * 0.9) {
+          out[i * 3] = (Math.random() - 0.5) * 14;
+          out[i * 3 + 1] = (Math.random() - 0.5) * 10;
+          out[i * 3 + 2] = (Math.random() - 0.5) * 8;
+        } else {
+          out[i * 3] = 0.1 * s + (Math.random() - 0.5) * 5;
+          out[i * 3 + 1] = 0.04 * s + (Math.random() - 0.5) * 4;
+          out[i * 3 + 2] = side * 0.05 * s;
+        }
       }
       return out;
     },
@@ -1222,7 +1323,7 @@ function sampleMusicNotePoints(count) {
 }
 
 function createMusicNote(palette) {
-  const main = formHex(palette, 'music');
+  const main = formHex(palette, 'letter');
   const group = new THREE.Group();
   const head = new THREE.Mesh(
     new THREE.SphereGeometry(5, 10, 8),
@@ -1242,7 +1343,7 @@ function createMusicNote(palette) {
       group.rotation.z = Math.sin(time * 0.5) * 0.08;
     },
     setPalette(p) {
-      const m = formHex(p, 'music');
+      const m = formHex(p, 'letter');
       setMatHex(head.material, m);
       setMatHex(stem.material, tint(m, 0.2));
     },
@@ -1255,7 +1356,8 @@ export function createSolidForm(id, palette) {
   switch (id) {
     case 'letter': return createLetterX(palette);
     case 'jellyfish': return createJellyfish(palette);
-    case 'clock': return createClock(palette);
+    case 'butterfly': return createButterfly(palette);
+    case 'clock': return createButterfly(palette);
     case 'hourglass': return createClock(palette);
     case 'tadpole': return createTadpole(palette);
     case 'music': return createMusicNote(palette);
