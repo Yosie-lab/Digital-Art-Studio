@@ -23,34 +23,23 @@ function coolToneRgb(rgb) {
     const isBlueDominant = rgb.b > rgb.r && rgb.b > rgb.g;
     if (isBlueDominant) {
       return {
-        r: Math.min(255, Math.round(rgb.r * 0.95)),
-        g: Math.min(255, Math.round(rgb.g * 0.72)),
-        b: Math.min(255, Math.round(rgb.b * 1.08 + 8)),
+        r: Math.min(255, Math.round(rgb.r * 0.92)),
+        g: Math.min(255, Math.round(rgb.g * 0.78)),
+        b: Math.min(255, Math.round(rgb.b * 1.12 + 10)),
       };
     }
-    return saturateRgb(rgb, -0.12);
+    return saturateRgb(rgb, 0.04);
   }
-  const b = Math.min(255, Math.round(rgb.b * 1.08 + 16));
-  return {
-    r: Math.min(Math.round(rgb.r * 0.7), Math.round(b * 0.55)),
-    g: Math.min(Math.round(rgb.g * 0.55), Math.round(b * 0.4)),
-    b,
-  };
+  return saturateRgb(rgb, 0.06);
 }
 
 function vividPetalRgb(rgb) {
-  const cool = coolToneRgb(rgb);
-  // 少し落とす（前回より彩度をやや戻す）
-  const muted = saturateRgb(cool, -0.28);
-  return {
-    r: Math.min(255, Math.round(muted.r * 0.9 + 10)),
-    g: Math.min(255, Math.round(muted.g * 0.9 + 10)),
-    b: Math.min(255, Math.round(muted.b * 0.9 + 14)),
-  };
+  const toned = coolToneRgb(rgb);
+  return saturateRgb(toned, 0.14);
 }
 
 function brightenRgb(rgb) {
-  const base = coolToneRgb(rgb);
+  const base = vividPetalRgb(rgb);
   return {
     r: Math.min(255, base.r + 18),
     g: Math.min(255, base.g + 14),
@@ -67,11 +56,11 @@ function petalParticleRgb(rgb, lift = 1.15) {
 }
 
 function displayColor(rgb, scale = 1) {
-  const cool = saturateRgb(coolToneRgb(rgb), -0.18);
+  const vivid = saturateRgb(rgb, 0.08);
   return {
-    r: Math.min(1, (cool.r / 255) * scale),
-    g: Math.min(1, (cool.g / 255) * scale),
-    b: Math.min(1, (cool.b / 255) * scale),
+    r: Math.min(1, (vivid.r / 255) * scale),
+    g: Math.min(1, (vivid.g / 255) * scale),
+    b: Math.min(1, (vivid.b / 255) * scale),
   };
 }
 
@@ -371,12 +360,12 @@ export function createLetterXBloom() {
         }
         placeMark(mark, 1);
         set.mesh.setMatrixAt(i, dummy.matrix);
-        const c = displayColor(mark.rgb, 0.5 + mark.opacity * 0.22);
+        const c = displayColor(mark.rgb, 0.82 + mark.opacity * 0.28);
         set.mesh.setColorAt(i, _color.setRGB(c.r, c.g, c.b));
 
         placeMark(mark, 1.03);
         set.outline.setMatrixAt(i, dummy.matrix);
-        const outline = displayColor(mark.rgb, 0.2);
+        const outline = displayColor(mark.rgb, 0.34);
         set.outline.setColorAt(i, _color.setRGB(outline.r * 0.55, outline.g * 0.5, outline.b * 0.75));
       }
       set.mesh.instanceMatrix.needsUpdate = true;

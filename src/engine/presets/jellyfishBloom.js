@@ -355,7 +355,7 @@ export function createJellyfishBloom() {
   }
   const dummy = new THREE.Object3D();
   const _color = new THREE.Color();
-  const MAX = 40;
+  const MAX = 72;
 
   class Mark {
     constructor(x, y, palette) {
@@ -388,13 +388,15 @@ export function createJellyfishBloom() {
         b: Math.min(255, this.rgb.b + 50),
       };
       this.lifetime = 0;
-      this.maxLifetime = 9 + Math.random() * 6;
+      this.maxLifetime = 20 + Math.random() * 25;
       this.phase = 'growing';
       this.opacity = 1;
       this.pulse = 0;
       this.sway = 0;
       this.bob = 0;
       this.spin = 0;
+      this._deathBursted = false;
+      this._finalBursted = false;
     }
 
     update(dt, t) {
@@ -426,13 +428,26 @@ export function createJellyfishBloom() {
           break;
         }
         case 'bloomed':
-          if (Math.random() < dt * 7) this._neonSpark();
-          if (this.lifetime > this.maxLifetime * 0.72) this.phase = 'wilting';
+          if (Math.random() < dt * 10) this._neonSpark();
+          if (this.lifetime > this.maxLifetime * 0.72) {
+            if (this.phase === 'bloomed') {
+              this.phase = 'wilting';
+              for (let i = 0; i < 24; i++) this._neonSpark();
+            }
+          }
           break;
         case 'wilting':
           this.opacity -= dt * 0.18;
-          if (Math.random() < dt * 5) this._neonSpark();
-          if (Math.random() < dt * 3) this._shedDust();
+          if (Math.random() < dt * 18) this._neonSpark();
+          if (Math.random() < dt * 16) this._shedDust();
+          if (!this._deathBursted && this.opacity < 0.42) {
+            this._deathBursted = true;
+            for (let i = 0; i < 22; i++) this._neonSpark();
+          }
+          if (!this._finalBursted && this.lifetime >= this.maxLifetime * 0.96) {
+            this._finalBursted = true;
+            for (let i = 0; i < 16; i++) this._neonSpark();
+          }
           break;
       }
       return this.opacity > 0.01 && this.lifetime < this.maxLifetime;
@@ -449,7 +464,7 @@ export function createJellyfishBloom() {
           Math.round(particle.g * 0.7 + body.g * 0.2),
           Math.round(Math.max(particle.r, particle.b, body.b) * 0.2),
         ),
-        b: Math.min(255, Math.round(particle.b * 0.8 + body.b * 0.2 + 20)),
+        b: Math.min(255, Math.round(particle.b * 0.75 + body.b * 0.18 + 10)),
       };
       const side = Math.random() < 0.5 ? -1 : 1;
       shards.push({
@@ -459,19 +474,19 @@ export function createJellyfishBloom() {
         vx: side * (8 + Math.random() * 28) + (Math.random() - 0.5) * 12,
         vy: -12 - Math.random() * 28,
         vz: (Math.random() - 0.5) * 24,
-        size: 2 + Math.random() * 5,
+        size: 3 + Math.random() * 7,
         rot: Math.random() * Math.PI * 2,
         rotSpeed: (Math.random() - 0.5) * 5,
         rgb,
         opacity: 1,
-        glow: 2.4 + Math.random() * 1.4,
+        glow: 1.55 + Math.random() * 0.85,
         kind: 'neon',
         twinkle: Math.random() * Math.PI * 2,
       });
     }
 
     _shedDust() {
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 28; i++) {
         this._neonSpark();
       }
     }
@@ -533,14 +548,13 @@ export function createJellyfishBloom() {
       }
       poseRoot(mark);
       // 傘: 半透明ネオン青 / 縁・網・触手: 強発光 / コア: 暖白
-      const fill = cyberShowColor(mark.fillRgb, 0.85 + mark.opacity * 0.35);
-      const neon = cyberShowColor(mark.rgb, 1.65 + mark.opacity * 0.4);
-      const neonPulse = cyberShowColor(mark.innerRgb, 1.85 + 0.4 * Math.abs(mark.pulse));
-      // コアは暖色ではなくクールな白シアン
+      const fill = cyberShowColor(mark.fillRgb, 0.54 + mark.opacity * 0.18);
+      const neon = cyberShowColor(mark.rgb, 1.05 + mark.opacity * 0.22);
+      const neonPulse = cyberShowColor(mark.innerRgb, 1.15 + 0.22 * Math.abs(mark.pulse));
       const coreWarm = {
-        r: Math.min(1, 0.55 + 0.15 * Math.abs(mark.pulse)),
-        g: Math.min(1, 0.75 + 0.1 * Math.abs(mark.pulse)),
-        b: Math.min(1, 1.15 + 0.25 * Math.abs(mark.pulse)),
+        r: Math.min(1, 0.38 + 0.08 * Math.abs(mark.pulse)),
+        g: Math.min(1, 0.52 + 0.05 * Math.abs(mark.pulse)),
+        b: Math.min(1, 0.72 + 0.1 * Math.abs(mark.pulse)),
       };
 
       dummy.matrix.copy(bellHold.matrixWorld);
@@ -550,9 +564,9 @@ export function createJellyfishBloom() {
       dummy.matrix.copy(root.matrixWorld);
       rimMesh.setMatrixAt(i, dummy.matrix);
       rimMesh.setColorAt(i, _color.setRGB(
-        Math.min(1, neonPulse.r * 1.15),
-        Math.min(1, neonPulse.g * 1.2),
-        Math.min(1, neonPulse.b * 1.1),
+        Math.min(1, neonPulse.r * 0.92),
+        Math.min(1, neonPulse.g * 0.94),
+        Math.min(1, neonPulse.b * 0.9),
       ));
 
       dummy.matrix.copy(root.matrixWorld);
@@ -567,21 +581,21 @@ export function createJellyfishBloom() {
       gonadMesh.setMatrixAt(i, dummy.matrix);
       gonadMesh.setColorAt(i, _color.setRGB(neon.r, neon.g, neon.b));
 
-      const accent = cyberShowColor(mark.accentRgb, 1.5 + 0.35 * Math.abs(mark.pulse));
+      const accent = cyberShowColor(mark.accentRgb, 0.92 + 0.18 * Math.abs(mark.pulse));
       dummy.matrix.copy(fringeHold.matrixWorld);
       fringeMesh.setMatrixAt(i, dummy.matrix);
       // 細い足は半透明ネオン（先端寄りにアクセント）
       fringeMesh.setColorAt(i, _color.setRGB(
-        neonPulse.r * 0.75 + accent.r * 0.25,
-        neonPulse.g * 0.8 + accent.g * 0.2,
-        neonPulse.b * 0.75 + accent.b * 0.25,
+        neonPulse.r * 0.68 + accent.r * 0.2,
+        neonPulse.g * 0.72 + accent.g * 0.16,
+        neonPulse.b * 0.68 + accent.b * 0.2,
       ));
 
       for (let a = 0; a < 4; a++) {
         dummy.matrix.copy(armHolds[a].matrixWorld);
         armMeshes[a].setMatrixAt(i, dummy.matrix);
         const mix = a % 2 === 0 ? neon : accent;
-        armMeshes[a].setColorAt(i, _color.setRGB(mix.r * 0.95, mix.g * 0.9, mix.b));
+        armMeshes[a].setColorAt(i, _color.setRGB(mix.r * 0.82, mix.g * 0.78, mix.b * 0.86));
       }
     }
 
@@ -598,7 +612,7 @@ export function createJellyfishBloom() {
         sparkleField.positions[i * 3 + 1] = wpos.y;
         sparkleField.positions[i * 3 + 2] = wpos.z;
         const pulse = 0.7 + 0.55 * Math.abs(Math.sin(time * 2.6 + s.phase));
-        const c = cyberShowColor(s.rgb, pulse * 1.55);
+        const c = cyberShowColor(s.rgb, pulse * 1.25);
         sparkleField.colors[i * 3] = c.r;
         sparkleField.colors[i * 3 + 1] = c.g;
         sparkleField.colors[i * 3 + 2] = c.b;
@@ -609,15 +623,15 @@ export function createJellyfishBloom() {
     }
 
     if (fallField) {
-      const n = Math.min(shards.length, 700);
+      const n = Math.min(shards.length, 900);
       for (let i = 0; i < n; i++) {
         const p = shards[i];
         const wpos = toWorld(p.x, p.y, p.z, width, height);
         fallField.positions[i * 3] = wpos.x;
         fallField.positions[i * 3 + 1] = wpos.y;
         fallField.positions[i * 3 + 2] = wpos.z;
-        const twinkle = 0.7 + 0.4 * Math.abs(Math.sin(time * 6 + (p.twinkle || 0)));
-        const boost = (p.glow || 2.2) * (0.7 + p.opacity * 0.7) * twinkle;
+        const twinkle = 0.68 + 0.35 * Math.abs(Math.sin(time * 6 + (p.twinkle || 0)));
+        const boost = (p.glow || 1.7) * (0.44 + p.opacity * 0.44) * twinkle;
         const c = cyberShowColor(p.rgb, boost);
         fallField.colors[i * 3] = c.r;
         fallField.colors[i * 3 + 1] = c.g;
@@ -626,6 +640,22 @@ export function createJellyfishBloom() {
       fallField.geo.setDrawRange(0, n);
       fallField.geo.attributes.position.needsUpdate = true;
       fallField.geo.attributes.color.needsUpdate = true;
+    }
+  }
+
+  function trimMarks(max) {
+    while (marks.length > max) {
+      const dying = marks.findIndex((m) => m.phase === 'wilting' && m.opacity < 0.35);
+      if (dying >= 0) {
+        marks.splice(dying, 1);
+        continue;
+      }
+      const expired = marks.findIndex((m) => m.lifetime >= m.maxLifetime * 0.92);
+      if (expired >= 0) {
+        marks.splice(expired, 1);
+        continue;
+      }
+      marks.splice(0, 1);
     }
   }
 
@@ -665,13 +695,13 @@ export function createJellyfishBloom() {
       armGeo = buildMoonOralArmGeometry();
 
       // 傘: 見える半透明ネオン青 / 縁・網・触手: 加算発光 / コア: 暖白
-      bellMesh = new THREE.InstancedMesh(bellGeo, makeMat(0.42, true), MAX);
-      rimMesh = new THREE.InstancedMesh(rimGeo, makeMat(1, true), MAX);
-      netMesh = new THREE.InstancedMesh(netGeo, makeMat(0.85, true), MAX);
-      coreMesh = new THREE.InstancedMesh(coreGeo, makeMat(0.9, true), MAX);
-      gonadMesh = new THREE.InstancedMesh(gonadGeo, makeMat(0.7, true), MAX);
-      fringeMesh = new THREE.InstancedMesh(fringeGeo, makeMat(0.38, true), MAX);
-      armMeshes = [0, 1, 2, 3].map(() => new THREE.InstancedMesh(armGeo, makeMat(0.32, true), MAX));
+      bellMesh = new THREE.InstancedMesh(bellGeo, makeMat(0.3, true), MAX);
+      rimMesh = new THREE.InstancedMesh(rimGeo, makeMat(0.68, true), MAX);
+      netMesh = new THREE.InstancedMesh(netGeo, makeMat(0.6, true), MAX);
+      coreMesh = new THREE.InstancedMesh(coreGeo, makeMat(0.62, true), MAX);
+      gonadMesh = new THREE.InstancedMesh(gonadGeo, makeMat(0.48, true), MAX);
+      fringeMesh = new THREE.InstancedMesh(fringeGeo, makeMat(0.26, true), MAX);
+      armMeshes = [0, 1, 2, 3].map(() => new THREE.InstancedMesh(armGeo, makeMat(0.24, true), MAX));
 
       for (const m of [bellMesh, rimMesh, netMesh, coreMesh, gonadMesh, fringeMesh, ...armMeshes]) {
         m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3);
@@ -679,12 +709,12 @@ export function createJellyfishBloom() {
         layer.add(m);
       }
 
-      sparkleField = makePoints(120, 7);
-      fallField = makePoints(900, 16);
+      sparkleField = makePoints(160, 5);
+      fallField = makePoints(1100, 12);
       sparkleField.mat.blending = THREE.AdditiveBlending;
       fallField.mat.blending = THREE.AdditiveBlending;
-      sparkleField.mat.opacity = 0.85;
-      fallField.mat.opacity = 0.9;
+      sparkleField.mat.opacity = 0.5;
+      fallField.mat.opacity = 0.55;
       sparkleField.mat.toneMapped = false;
       fallField.mat.toneMapped = false;
       layer.add(sparkleField.points, fallField.points);
@@ -694,7 +724,7 @@ export function createJellyfishBloom() {
       }
       primeGrowingMarks(marks);
       syncMeshes();
-      for (let i = 0; i < 90; i++) {
+      for (let i = 0; i < 130; i++) {
         sparkles.push({
           x: Math.random() * w,
           y: Math.random() * h,
@@ -743,10 +773,10 @@ export function createJellyfishBloom() {
         p.z += p.vz * dt;
         p.vx *= 0.985;
         p.vy += (p.kind === 'neon' ? 6 : 10) * dt;
-        p.opacity -= dt * (p.kind === 'neon' ? 0.09 : 0.12);
+        p.opacity -= dt * (p.kind === 'neon' ? 0.05 : 0.085);
         return p.opacity > 0.02 && p.y < height + 80 && p.y > -100;
       });
-      if (shards.length > 900) shards.splice(0, shards.length - 900);
+      if (shards.length > 1100) shards.splice(0, shards.length - 1100);
 
       sparkles.forEach((s) => {
         s.y += s.speedY * (params.speed || 1) * 50 * dt;
@@ -765,9 +795,9 @@ export function createJellyfishBloom() {
         }
       });
 
-      const maxMarks = Math.min(MAX, Math.max(12, Math.floor((params.particleCount || 1030) / 5)));
-      if (marks.length > maxMarks) marks.splice(0, marks.length - maxMarks);
-      if (shards.length > 700) shards.splice(0, shards.length - 700);
+      const maxMarks = Math.min(MAX, Math.max(20, Math.floor((params.particleCount || 1030) / 4)));
+      trimMarks(maxMarks);
+      if (shards.length > 1100) shards.splice(0, shards.length - 1100);
     },
 
     render() {
