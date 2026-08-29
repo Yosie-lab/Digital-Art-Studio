@@ -6,12 +6,12 @@ import { createFlowerBloom } from './flowerBloom.js';
 import { createLetterXBloom } from './letterXBloom.js';
 import { createJellyfishBloom } from './jellyfishBloom.js';
 import { createMusicNoteBloom } from './musicNoteBloom.js';
+import { createTadpoleBloom } from './tadpoleBloom.js';
+import { createAngelBloom } from './angelBloom.js';
 import {
-  createTadpoleBloom,
-  createAngelBloom,
   neonRainbowUnitColors,
   neonAngelUnitColors,
-} from './formBloom.js';
+} from '../bloom/morphColors.js';
 import { createButterflyBloom } from './butterflyBloom.js';
 import { samplePetalCloud } from '../morph/sampleShapes.js';
 import { createSolidForm } from '../morph/solidForms.js';
