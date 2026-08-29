@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { getPaletteColors, hexToRgb, colorAtIndex } from '../palettes.js';
+import { getPaletteColors, hexToRgb } from '../palettes.js';
 import {
   toWorld,
   makePoints,
@@ -11,40 +11,81 @@ import {
   spreadScreenCloud,
 } from '../space3d.js';
 
-/** 全色相を均等に割り当て（黄ばみ防止） */
-const BUTTERFLY_SPECTRUM = [
-  ...getPaletteColors('clockRainbow'),
-  ...getPaletteColors('rainbow'),
-];
-let spectrumCursor = 0;
+/** レインボー + 青系ウェイト */
+const BUTTERFLY_RAINBOW = getPaletteColors('clockRainbow');
 
-function nextSpectrumHex() {
-  const hex = BUTTERFLY_SPECTRUM[spectrumCursor % BUTTERFLY_SPECTRUM.length];
-  spectrumCursor += 1;
-  return hex;
+function isRainbowBlueHex(hex) {
+  const { r, g, b } = hexToRgb(hex);
+  const isCyan = b > 170 && g > 90 && r < 120;
+  const isBlue = b > 150 && b >= r * 0.82 && b > g;
+  const isViolet = b > 130 && r > 40 && g < r;
+  return isCyan || isBlue || isViolet;
+}
+
+function buildButterflyRainbowPool() {
+  const seen = new Set();
+  const weighted = [];
+  for (const hex of [...BUTTERFLY_RAINBOW, ...getPaletteColors('rainbow')]) {
+    if (seen.has(hex)) continue;
+    seen.add(hex);
+    const { r, g, b } = hexToRgb(hex);
+    const isDeepBlue = b > 200 && b > r * 1.1 && g < b * 0.8;
+    const copies = isDeepBlue ? 7 : isRainbowBlueHex(hex) ? 5 : 1;
+    for (let i = 0; i < copies; i++) weighted.push(hex);
+  }
+  return weighted.length ? weighted : BUTTERFLY_RAINBOW;
+}
+
+const BUTTERFLY_RAINBOW_POOL = buildButterflyRainbowPool();
+const BUTTERFLY_RAINBOW_BLUE = BUTTERFLY_RAINBOW_POOL.filter((hex) => isRainbowBlueHex(hex));
+
+function pickRainbowHex(index) {
+  return BUTTERFLY_RAINBOW_POOL[Math.abs(index) % BUTTERFLY_RAINBOW_POOL.length];
+}
+
+function pickRainbowBlueHex(index) {
+  const pool = BUTTERFLY_RAINBOW_BLUE.length ? BUTTERFLY_RAINBOW_BLUE : BUTTERFLY_RAINBOW;
+  return pool[Math.abs(index) % pool.length];
 }
 
 function pickRainbowPair(index) {
-  const wing = colorAtIndex('rainbow', index * 2);
-  const pattern = colorAtIndex('rainbow', index * 2 + 5);
-  return { wing, pattern };
+  const wing = index % 3 !== 2
+    ? pickRainbowBlueHex(index * 2)
+    : pickRainbowHex(index * 2);
+  return {
+    wing,
+    pattern: pickRainbowHex(index * 2 + 3),
+  };
 }
 
-function vividRgb(hex) {
-  const { r, g, b } = hexToRgb(hex);
+function saturateRgb(rgb, amount = 1.14) {
+  const gray = (rgb.r + rgb.g + rgb.b) / 3;
   return {
-    r: Math.min(255, Math.round(r * 1.08 + 8)),
-    g: Math.min(255, Math.round(g * 1.06 + 6)),
-    b: Math.min(255, Math.round(b * 1.1 + 10)),
+    r: Math.min(255, Math.max(0, Math.round(gray + (rgb.r - gray) * amount))),
+    g: Math.min(255, Math.max(0, Math.round(gray + (rgb.g - gray) * amount))),
+    b: Math.min(255, Math.max(0, Math.round(gray + (rgb.b - gray) * amount))),
   };
+}
+
+function paletteRgb(hex) {
+  let rgb = hexToRgb(hex);
+  if (isRainbowBlueHex(hex)) {
+    rgb = {
+      r: Math.min(255, Math.round(rgb.r * 1.02 + 2)),
+      g: Math.min(255, Math.round(rgb.g * 1.04 + 4)),
+      b: Math.min(255, Math.round(rgb.b * 1.1 + 10)),
+    };
+  }
+  return saturateRgb(rgb, 1.15);
 }
 
 function darkerRgb(rgb, amount = 0.55) {
-  return {
-    r: Math.min(255, Math.round(rgb.r * amount + 20)),
-    g: Math.min(255, Math.round(rgb.g * amount + 14)),
-    b: Math.min(255, Math.round(rgb.b * amount + 24)),
+  const dark = {
+    r: Math.min(255, Math.round(rgb.r * amount + 12)),
+    g: Math.min(255, Math.round(rgb.g * amount + 12)),
+    b: Math.min(255, Math.round(rgb.b * amount + 12)),
   };
+  return saturateRgb(dark, 1.1);
 }
 
 function unitRgb(rgb, scale = 1) {
@@ -53,6 +94,63 @@ function unitRgb(rgb, scale = 1) {
     g: Math.min(1, (rgb.g / 255) * scale),
     b: Math.min(1, (rgb.b / 255) * scale),
   };
+}
+
+/** ヒラヒラ羽ばたき: 滑らかなストローク */
+function flutteryFlapKinematics(phase, flapSpeed, wingMul) {
+  const s = Math.sin(phase);
+  const c = Math.cos(phase);
+  const s2 = Math.sin(phase * 2 + 0.35);
+  const wf = wingMul * BUTTERFLY_WING_AMP;
+  const wing = s * 0.78 * wf + s2 * 0.03 * wf;
+  const down = Math.max(0, -s);
+  const stroke = down * (0.38 + 0.62 * Math.max(0, -c));
+  const thrust = stroke * 14 * wf * 0.9;
+  const lift = stroke * 10 * wf * 0.9;
+  const flapVel = c * flapSpeed * 0.54 * wf;
+  const sway = s * 0.15 * wf + s2 * 0.02 * wf;
+  return { wing, stroke, thrust, lift, flapVel, sway };
+}
+
+const BUTTERFLY_MAX_TILT = 0.17;
+const BUTTERFLY_MAX_TILT_DOWN = 0.1;
+const BUTTERFLY_GRAVITY = 1.6;
+const BUTTERFLY_DRAG = 0.32;
+const BUTTERFLY_VEL_SMOOTH = 2.4;
+const BUTTERFLY_VEL_SMOOTH_DEPART = 7.8;
+const BUTTERFLY_FLUTTER_SMOOTH = 3.6;
+const BUTTERFLY_FLAP_VIS_SMOOTH = 8.2;
+const BUTTERFLY_FLAP_SLOW = [2.0, 4.2];
+const BUTTERFLY_FLAP_FAST = [5.0, 9.5];
+const BUTTERFLY_WING_AMP = 1.58;
+const BUTTERFLY_WING_MUL_MIN = 0.44;
+const BUTTERFLY_MOVE_REF = [3, 24];
+const BUTTERFLY_MOVE_REF_DEPART = [12, 58];
+
+function clamp(v, lo, hi) {
+  return Math.max(lo, Math.min(hi, v));
+}
+
+function lerpAngle(current, target, t) {
+  let d = target - current;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return current + d * t;
+}
+
+function expSmooth(current, target, dt, rate) {
+  return current + (target - current) * (1 - Math.exp(-rate * dt));
+}
+
+function flapTempo01(flapSpeed) {
+  const lo = BUTTERFLY_FLAP_SLOW[0];
+  const hi = BUTTERFLY_FLAP_FAST[1];
+  return clamp((flapSpeed - lo) / (hi - lo), 0, 1);
+}
+
+function moveTempo01(speed, departing = false) {
+  const [lo, hi] = departing ? BUTTERFLY_MOVE_REF_DEPART : BUTTERFLY_MOVE_REF;
+  return clamp((speed - lo) / (hi - lo), 0, 1);
 }
 
 function pickMarkSize() {
@@ -170,7 +268,7 @@ export function buildButterflyAntennaGeometry() {
 }
 
 /**
- * 立体蝶: 360°3D飛行 + レインボー羽
+ * 立体蝶: 自然物理フライト + レインボー羽
  */
 export function createButterflyBloom() {
   let marks = [];
@@ -219,189 +317,400 @@ export function createButterflyBloom() {
       this.growth = 0;
       this.growthRate = 0.34 + Math.random() * 0.38;
       this.flapPhase = Math.random() * Math.PI * 2;
-      this.flapSpeed = 5.2 + Math.random() * 2.8;
+      this.flapTempoTrait = Math.random();
+      this.flapSpeed = BUTTERFLY_FLAP_SLOW[0]
+        + this.flapTempoTrait * (BUTTERFLY_FLAP_FAST[1] - BUTTERFLY_FLAP_SLOW[0]) * 0.55;
+      this.flapSpeedTarget = this.flapSpeed;
+      this.flapRhythmTarget = this.flapSpeed;
+      this.wingRhythmMul = 0.38 + this.flapTempoTrait * 0.26;
+      this.flapRhythm = this.flapTempoTrait > 0.52 ? 'fast' : 'slow';
+      this.flapRhythmTimer = 0.5 + Math.random() * 1.4;
       this.bobPhase = Math.random() * Math.PI * 2;
-      this.bobSpeed = 0.48 + Math.random() * 0.35;
+      this.bobSpeed = 0.18 + Math.random() * 0.16;
       this.windPhase = Math.random() * Math.PI * 2;
       this.driftPhase = Math.random() * Math.PI * 2;
       this.glidePhase = Math.random() * Math.PI * 2;
+      this.floatPhase = Math.random() * Math.PI * 2;
+      this.floatSpeed = 0.28 + Math.random() * 0.38;
+      this.driftRadius = 0.4 + this.flapTempoTrait * 1.2;
       this.flowAngle = Math.random() * Math.PI * 2;
-      this.flowTurn = 0.22 + Math.random() * 0.48;
+      this.pitchAngle = (Math.random() - 0.5) * 0.6;
+      this.flowTurn = (Math.random() < 0.5 ? -1 : 1) * (0.06 + Math.random() * 0.16);
       this.style = pickFlightStyle();
-      this.flutterAmp = 0.78 + Math.random() * 0.62;
-      this.glideAmp = 0.65 + Math.random() * 0.75;
-      this.wingFlapMul = 0.72 + Math.random() * 0.5;
-      this.smoothRate = 1.1 + Math.random() * 1.4;
-      this.orbitR = 0.55 + Math.random() * 1.15;
+      this.flutterAmp = 0.62 + Math.random() * 0.48;
+      this.glideAmp = 0.88 + Math.random() * 0.62;
+      this.wingFlapMul = this.wingRhythmMul;
+      this.smoothRate = 0.72 + Math.random() * 0.55;
+      this.orbitR = 0.45 + Math.random() * 0.75;
       this.orbitPhase = Math.random() * Math.PI * 2;
-      this.maxSpeed = 28 + Math.random() * 14;
-      this.minSpeed = 4 + Math.random() * 4;
-      this.tiltAmp = 0.08 + Math.random() * 0.14;
-      this.rollAmp = 0.08 + Math.random() * 0.16;
-
-      const dir = randomUnitVector3();
-      dir.y *= 0.45;
-      dir.normalize();
-      const flySpeed = 10 + Math.random() * 14;
-      this.vx = dir.x * flySpeed;
-      this.vy = dir.y * flySpeed - 4;
-      this.vz = dir.z * flySpeed * 0.7;
-      this.targetVx = this.vx;
-      this.targetVy = this.vy;
-      this.targetVz = this.vz;
-
-      this.rotX = Math.random() * Math.PI * 2;
-      this.rotY = Math.random() * Math.PI * 2;
-      this.rotZ = Math.random() * Math.PI * 2;
+      this.maxSpeed = 16 + Math.random() * 9;
+      this.tiltAmp = 0.03 + Math.random() * 0.04;
+      this.rollAmp = 0.03 + Math.random() * 0.05;
 
       const idx = markSerial++;
+      this.flowAngle = Math.random() * Math.PI * 2;
+      this.pitchAngle = (Math.random() - 0.5) * 0.75;
+      this.targetFlowAngle = this.flowAngle;
+      this.targetPitchAngle = this.pitchAngle;
+      this.heading = this.flowAngle;
+
+      const flySpeed = 3.5 + this.flapTempoTrait * 10;
+      this.vx = Math.sin(this.heading) * Math.cos(this.pitchAngle) * flySpeed;
+      this.vy = -Math.cos(this.heading) * Math.cos(this.pitchAngle) * flySpeed;
+      this.vz = Math.sin(this.pitchAngle) * flySpeed * 0.85;
+      this.smoothMoveSpeed = flySpeed;
+
+      this.rotX = 0;
+      this.rotY = Math.atan2(this.vx, -this.vy + 0.001);
+      this.rotZ = 0;
+
       const { wing, pattern } = pickRainbowPair(idx);
       this.color = wing;
-      this.rgb = vividRgb(wing);
-      this.pattern = darkerRgb(vividRgb(pattern), 0.62);
-      this.outline = darkerRgb(this.rgb, 0.35);
-      this.accent = vividRgb(nextSpectrumHex());
+      this.rgb = paletteRgb(wing);
+      this.pattern = darkerRgb(paletteRgb(pattern), 0.62);
+      this.outline = darkerRgb(this.rgb, 0.44);
+      this.accent = paletteRgb(
+        idx % 2 === 0 ? pickRainbowBlueHex(idx + 7) : pickRainbowHex(idx + 7),
+      );
 
       this.lifetime = 0;
       this.maxLifetime = 14 + Math.random() * 10;
       this.phase = 'growing';
       this.opacity = 1;
       this.flap = 0;
+      this.flapVel = 0;
+      this.smoothFlap = 0;
+      this.smoothFlapVel = 0;
+      this.sway = 0;
+      this.departing = false;
+      this.departTimer = 0.2 + (1 - this.flapTempoTrait) * 0.85;
+      this.departDuration = 0;
+      this.departScale = 1;
+      this.departSpeed = 0;
+      this.departTempo = 0;
+      this.departDir = randomUnitVector3();
+      this.departDir.y *= 0.72;
+      this.departDir.normalize();
       this.bob = 0;
       this.flutterX = 0;
       this.flutterY = 0;
       this.flutterZ = 0;
+      this.smoothFlutterX = 0;
+      this.smoothFlutterY = 0;
+      this.smoothFlutterZ = 0;
+      this.smoothSway = 0;
+      this.roamTimer = 0.6 + Math.random() * 1.4;
       this.bankX = 0;
       this.bankY = 0;
     }
 
-    _updateTargets(dt, t) {
-      const g = (9 + Math.sin(t * 0.38 + this.glidePhase) * 5) * this.glideAmp;
+    _flapTempo() {
+      return flapTempo01(this.flapSpeed);
+    }
+
+    _beginDepart() {
+      this.departing = true;
+      this.departDuration = 0;
+      this.departScale = 1;
+      this.departTempo = Math.max(
+        moveTempo01(this.smoothMoveSpeed, true),
+        this._flapTempo() * 0.45 + this.flapTempoTrait * 0.35,
+      );
+
+      const dir = randomUnitVector3();
+      dir.y *= 0.55 + Math.random() * 0.35;
+      dir.normalize();
+      this.departDir = dir;
+      this.departSpeed = 28 + this.departTempo * 38;
+      this.maxSpeed = Math.max(this.maxSpeed, this.departSpeed + 14);
+      this.targetFlowAngle = Math.atan2(dir.x, -dir.y);
+      this.targetPitchAngle = clamp(Math.asin(dir.z), -0.78, 0.78);
+      this.flowAngle = lerpAngle(this.flowAngle, this.targetFlowAngle, 0.62);
+      this.pitchAngle = expSmooth(this.pitchAngle, this.targetPitchAngle, 0.05, 5.5);
+      this.heading = this.flowAngle;
+
+      const dash = this.departSpeed * (0.88 + this.departTempo * 0.1);
+      const dashK = 6 + this.departTempo * 5;
+      this.vx = expSmooth(this.vx, dir.x * dash, 0.05, dashK);
+      this.vy = expSmooth(this.vy, dir.y * dash, 0.05, dashK);
+      this.vz = expSmooth(this.vz, dir.z * dash, 0.05, dashK);
+    }
+
+    _updateDepart(dt) {
+      this.departDuration += dt;
+      const tempo = this.departTempo;
+      const fade = 0.2 + tempo * 0.16;
+      const shrink = 0.14 + tempo * 0.1;
+      this.departScale = Math.max(0.05, 1 - this.departDuration * shrink);
+      this.opacity = Math.max(0, 1 - this.departDuration * fade);
+
+      const steerK = 2.8 + tempo * 2.4;
+      this.flowAngle = lerpAngle(this.flowAngle, Math.atan2(this.departDir.x, -this.departDir.y), 1 - Math.exp(-steerK * dt));
+      this.pitchAngle = expSmooth(this.pitchAngle, clamp(Math.asin(this.departDir.z), -0.78, 0.78), dt, 2.8 + tempo * 1.6);
+      this.heading = lerpAngle(this.heading, this.flowAngle, 1 - Math.exp(-(3.2 + tempo * 2) * dt));
+
+      const offScreen = this.x < -60 || this.x > width + 60
+        || this.y < -60 || this.y > height + 60;
+      const minDepart = 0.32 + (1 - tempo) * 0.38;
+      if (this.opacity < 0.04 || this.z < -520 || this.departDuration > 7) return false;
+      if (offScreen && this.departDuration > minDepart) return false;
+      return true;
+    }
+
+    _pickRoamIntent() {
+      this.targetFlowAngle = this.flowAngle + (Math.random() - 0.5) * Math.PI * 1.35;
+      this.targetPitchAngle = clamp(this.pitchAngle + (Math.random() - 0.5) * 0.72, -0.72, 0.72);
+      this.flowTurn = (Math.random() < 0.5 ? -1 : 1) * (0.12 + Math.random() * 0.22);
+      this.roamTimer = 0.55 + Math.random() * 1.35;
+    }
+
+    _updateFlapRhythm(dt) {
+      this.flapRhythmTimer -= dt;
+      if (this.flapRhythmTimer <= 0) {
+        const fastBias = 0.28 + this.flapTempoTrait * 0.42;
+        if (this.flapRhythm === 'slow') {
+          this.flapRhythm = Math.random() < fastBias ? 'fast' : 'slow';
+        } else {
+          this.flapRhythm = Math.random() < 0.38 ? 'slow' : 'fast';
+        }
+        this.flapRhythmTimer = this.flapRhythm === 'slow'
+          ? 0.75 + Math.random() * 1.8
+          : 0.35 + Math.random() * 0.95;
+
+        if (this.flapRhythm === 'slow') {
+          const span = BUTTERFLY_FLAP_SLOW[1] - BUTTERFLY_FLAP_SLOW[0];
+          this.flapRhythmTarget = BUTTERFLY_FLAP_SLOW[0]
+            + this.flapTempoTrait * span * 0.55
+            + Math.random() * span * 0.35;
+          this.wingRhythmMul = 0.4 + this.flapTempoTrait * 0.16;
+        } else {
+          const span = BUTTERFLY_FLAP_FAST[1] - BUTTERFLY_FLAP_FAST[0];
+          this.flapRhythmTarget = BUTTERFLY_FLAP_FAST[0]
+            + this.flapTempoTrait * span * 0.75
+            + Math.random() * span * 0.35;
+          this.wingRhythmMul = 0.58 + this.flapTempoTrait * 0.28;
+        }
+      }
+    }
+
+    _syncFlapToMotion(dt) {
+      const moveT = moveTempo01(this.smoothMoveSpeed, this.departing);
+      const moveK = moveT * moveT;
+      const span = BUTTERFLY_FLAP_FAST[1] - BUTTERFLY_FLAP_SLOW[0];
+      const motionBoost = this.departing ? 1.18 : 1;
+      const motionFlap = BUTTERFLY_FLAP_SLOW[0] + moveK * span * motionBoost;
+      const blend = 0.15 + moveK * 0.85;
+      this.flapSpeedTarget = this.flapRhythmTarget * (1 - blend) + motionFlap * blend;
+      this.wingFlapMul = this.wingRhythmMul * (1 - blend * 0.55)
+        + (0.4 + moveK * 0.54) * (blend * 0.55 + 0.45);
+      this.wingFlapMul = Math.max(this.wingFlapMul, BUTTERFLY_WING_MUL_MIN);
+      this.flapSpeed = expSmooth(this.flapSpeed, this.flapSpeedTarget, dt, 3 + moveK * 3.2);
+    }
+
+    _smoothFlapVisual(dt) {
+      this.smoothFlap = expSmooth(this.smoothFlap, this.flap, dt, BUTTERFLY_FLAP_VIS_SMOOTH);
+      this.smoothFlapVel = expSmooth(this.smoothFlapVel, this.flapVel, dt, BUTTERFLY_FLAP_VIS_SMOOTH * 0.85);
+    }
+
+    _cruiseVelocity() {
+      if (this.departing) {
+        const tempo = this.departTempo;
+        const speed = this.departSpeed + Math.min(this.departDuration * (8 + tempo * 10), 16);
+        return {
+          vx: this.departDir.x * speed,
+          vy: this.departDir.y * speed,
+          vz: this.departDir.z * speed,
+        };
+      }
+      const cp = Math.cos(this.pitchAngle);
+      const sp = Math.sin(this.pitchAngle);
+      const speed = 8.5 + this.driftRadius * 2.2;
+      return {
+        vx: Math.sin(this.heading) * cp * speed,
+        vy: -Math.cos(this.heading) * cp * speed,
+        vz: sp * speed * 0.88,
+      };
+    }
+
+    _steerIntent(dt, t) {
+      if (this.departing) return;
+      this.roamTimer -= dt;
+      if (this.roamTimer <= 0) this._pickRoamIntent();
+
+      const wander = Math.sin(t * 0.16 + this.glidePhase) * 0.22
+        + Math.sin(t * 0.08 + this.driftPhase * 1.7) * 0.14;
+      const vWander = Math.sin(t * 0.12 + this.bobPhase * 1.3) * 0.18;
+      const angleK = 1 - Math.exp(-0.28 * dt);
+      const pitchK = 1 - Math.exp(-0.32 * dt);
+
       switch (this.style) {
         case 'spiral': {
-          this.orbitPhase += dt * (0.35 + this.orbitR * 0.25);
-          this.flowAngle += this.flowTurn * dt * 0.45;
-          const loop = 11 + Math.sin(t * 0.28 + this.bobPhase) * 5;
-          this.targetVx = Math.cos(this.flowAngle) * loop
-            + Math.cos(this.orbitPhase) * 15 * this.orbitR;
-          this.targetVy = Math.sin(this.flowAngle) * loop * 0.35
-            + Math.sin(t * 0.22 + this.bobPhase) * 9 - 2;
-          this.targetVz = Math.sin(this.orbitPhase) * 17 * this.orbitR
-            + Math.cos(t * 0.36 + this.windPhase) * 6;
+          this.orbitPhase += dt * (0.1 + this.orbitR * 0.08);
+          this.targetFlowAngle += (this.flowTurn + wander * 0.08) * dt * 0.14;
+          this.targetPitchAngle = clamp(this.targetPitchAngle + Math.sin(this.orbitPhase) * 0.1 * dt, -0.65, 0.65);
           break;
         }
         case 'waltz': {
-          this.flowAngle += this.flowTurn * dt * 0.18;
-          this.targetVx = Math.sin(t * 0.4 + this.flapPhase) * 17 * this.glideAmp
-            + Math.sin(t * 0.8 + this.driftPhase) * 9;
-          this.targetVy = Math.sin(t * 0.2 + this.bobPhase) * 13 * this.glideAmp
-            + Math.cos(t * 0.45 + this.glidePhase) * 5 - 1.5;
-          this.targetVz = Math.cos(t * 0.4 + this.windPhase) * 15 * this.glideAmp
-            + Math.sin(this.flowAngle) * 6;
+          this.targetFlowAngle += (this.flowTurn + wander * 0.1) * dt * 0.12;
+          this.targetPitchAngle = clamp(this.targetPitchAngle + vWander * 0.08 * dt, -0.65, 0.65);
           break;
         }
         case 'drift': {
-          this.flowAngle += this.flowTurn * dt * 0.22;
-          this.targetVx = Math.cos(this.flowAngle) * g;
-          this.targetVy = Math.sin(t * 0.16 + this.bobPhase) * 11 - 2.5;
-          this.targetVz = Math.sin(this.flowAngle) * g * 0.38
-            + Math.sin(t * 0.3 + this.windPhase) * 5;
+          this.targetFlowAngle += (this.flowTurn + wander * 0.06) * dt * 0.09;
+          this.targetPitchAngle = clamp(this.targetPitchAngle + vWander * 0.06 * dt, -0.65, 0.65);
           break;
         }
         case 'dance': {
-          this.flowAngle += this.flowTurn * dt * (0.85 + Math.sin(t * 0.55 + this.driftPhase) * 0.55);
-          const pulse = Math.sin(t * 0.52 + this.flapPhase);
-          this.targetVx = Math.cos(this.flowAngle) * (13 + pulse * 9)
-            + Math.sin(t * 1.05 + this.driftPhase) * 10;
-          this.targetVy = Math.sin(this.flowAngle) * (10 + pulse * 6) * 0.5
-            + Math.cos(t * 0.62 + this.bobPhase) * 7 - 2;
-          this.targetVz = Math.sin(t * 0.48 + this.windPhase) * (12 + pulse * 5)
-            + Math.cos(this.flowAngle * 1.6) * 8;
+          this.targetFlowAngle += (this.flowTurn + wander * 0.1) * dt * (0.16 + Math.sin(t * 0.22 + this.driftPhase) * 0.08);
+          this.targetPitchAngle = clamp(this.targetPitchAngle + Math.sin(t * 0.24 + this.flapPhase) * 0.1 * dt, -0.65, 0.65);
           break;
         }
         default: {
-          this.flowAngle += this.flowTurn * dt * (0.6 + 0.35 * Math.sin(t * 0.25 + this.driftPhase));
-          this.targetVx = Math.cos(this.flowAngle) * g
-            + Math.sin(t * 0.44 + this.flapPhase) * 10
-            + Math.sin(t * 0.2 + this.driftPhase) * 6;
-          this.targetVy = Math.sin(this.flowAngle) * g * 0.52
-            + Math.cos(t * 0.34 + this.bobPhase) * 8 - 2;
-          this.targetVz = Math.sin(t * 0.3 + this.windPhase) * g * 0.42
-            + Math.cos(this.flowAngle * 1.35 + this.glidePhase) * 7;
+          this.targetFlowAngle += (this.flowTurn + wander * 0.07) * dt * (0.14 + 0.08 * Math.sin(t * 0.12 + this.driftPhase));
+          this.targetPitchAngle = clamp(this.targetPitchAngle + vWander * 0.07 * dt, -0.65, 0.65);
         }
       }
+
+      this.flowAngle = lerpAngle(this.flowAngle, this.targetFlowAngle, angleK);
+      this.pitchAngle = expSmooth(this.pitchAngle, this.targetPitchAngle, dt, 2.2);
+      this.pitchAngle = clamp(this.pitchAngle, -0.65, 0.65);
+      this.heading = lerpAngle(this.heading, this.flowAngle, 1 - Math.exp(-0.32 * dt));
+    }
+
+    _applyFloatDrift(dt, t) {
+      const r = this.driftRadius * (this.departing ? 0.28 : 0.62);
+      const fs = this.floatSpeed * (this.departing ? 1.1 : 0.82);
+      const fp = this.floatPhase;
+      const cruise = this._cruiseVelocity();
+      const velK = this.departing
+        ? BUTTERFLY_VEL_SMOOTH_DEPART + this.departTempo * 3.5
+        : BUTTERFLY_VEL_SMOOTH;
+      this.vx = expSmooth(this.vx, cruise.vx + Math.sin(t * fs + fp) * 0.65 * r, dt, velK);
+      this.vy = expSmooth(this.vy, cruise.vy + Math.cos(t * fs * 0.78 + fp * 1.4) * 0.55 * r, dt, velK);
+      this.vz = expSmooth(this.vz, cruise.vz + Math.sin(t * fs * 0.58 + fp * 0.85) * 0.48 * r, dt, velK);
     }
 
     _updateFlutter(t) {
       const a = this.flutterAmp;
+      const s = 0.42;
       switch (this.style) {
         case 'spiral':
-          this.flutterX = Math.cos(t * 0.58 + this.orbitPhase) * 30 * a
-            + Math.sin(t * 1.15 + this.flapPhase) * 12 * a;
-          this.flutterY = Math.sin(t * 0.48 + this.bobPhase) * 24 * a;
-          this.flutterZ = Math.sin(t * 0.52 + this.orbitPhase) * 26 * a;
+          this.flutterX = Math.cos(t * 0.26 + this.orbitPhase) * 22 * a * s
+            + Math.sin(t * 0.52 + this.flapPhase) * 8 * a * s;
+          this.flutterY = Math.sin(t * 0.22 + this.bobPhase) * 18 * a * s;
+          this.flutterZ = Math.sin(t * 0.24 + this.orbitPhase) * 16 * a * s;
           break;
         case 'waltz':
-          this.flutterX = Math.sin(t * 0.52 + this.flapPhase) * 36 * a
-            + Math.cos(t * 1.04 + this.driftPhase) * 14 * a;
-          this.flutterY = Math.sin(t * 0.26 + this.bobPhase) * 30 * a;
-          this.flutterZ = Math.cos(t * 0.52 + this.windPhase) * 20 * a;
+          this.flutterX = Math.sin(t * 0.24 + this.flapPhase) * 24 * a * s
+            + Math.cos(t * 0.48 + this.driftPhase) * 9 * a * s;
+          this.flutterY = Math.sin(t * 0.14 + this.bobPhase) * 20 * a * s;
+          this.flutterZ = Math.cos(t * 0.26 + this.windPhase) * 14 * a * s;
           break;
         case 'drift':
-          this.flutterX = Math.sin(t * 0.42 + this.flapPhase) * 22 * a;
-          this.flutterY = Math.cos(t * 0.34 + this.bobPhase) * 28 * a;
-          this.flutterZ = Math.sin(t * 0.28 + this.windPhase) * 14 * a;
+          this.flutterX = Math.sin(t * 0.2 + this.flapPhase) * 16 * a * s;
+          this.flutterY = Math.cos(t * 0.17 + this.bobPhase) * 19 * a * s;
+          this.flutterZ = Math.sin(t * 0.15 + this.windPhase) * 11 * a * s;
           break;
         case 'dance':
-          this.flutterX = Math.sin(t * 0.75 + this.flapPhase) * 34 * a
-            + Math.sin(t * 1.45 + this.driftPhase) * 16 * a;
-          this.flutterY = Math.cos(t * 0.58 + this.bobPhase) * 22 * a
-            + Math.sin(t * 1.2 + this.flapPhase) * 10 * a;
-          this.flutterZ = Math.sin(t * 0.65 + this.windPhase) * 24 * a;
+          this.flutterX = Math.sin(t * 0.32 + this.flapPhase) * 22 * a * s
+            + Math.sin(t * 0.62 + this.driftPhase) * 10 * a * s;
+          this.flutterY = Math.cos(t * 0.26 + this.bobPhase) * 17 * a * s
+            + Math.sin(t * 0.52 + this.flapPhase) * 7 * a * s;
+          this.flutterZ = Math.sin(t * 0.3 + this.windPhase) * 15 * a * s;
           break;
         default:
-          this.flutterX = Math.sin(t * 0.65 + this.flapPhase) * 32 * a
-            + Math.sin(t * 1.22 + this.driftPhase) * 14 * a;
-          this.flutterY = Math.cos(t * 0.5 + this.bobPhase) * 26 * a
-            + Math.sin(t * 1.0 + this.flapPhase) * 11 * a;
-          this.flutterZ = Math.sin(t * 0.42 + this.windPhase) * 22 * a
-            + Math.cos(t * 0.85 + this.driftPhase) * 10 * a;
+          this.flutterX = Math.sin(t * 0.28 + this.flapPhase) * 20 * a * s
+            + Math.sin(t * 0.55 + this.driftPhase) * 9 * a * s;
+          this.flutterY = Math.cos(t * 0.24 + this.bobPhase) * 18 * a * s
+            + Math.sin(t * 0.46 + this.flapPhase) * 7 * a * s;
+          this.flutterZ = Math.sin(t * 0.2 + this.windPhase) * 14 * a * s
+            + Math.cos(t * 0.38 + this.driftPhase) * 6 * a * s;
       }
-      this.bob = Math.sin(t * this.bobSpeed + this.bobPhase) * (26 + this.flutterAmp * 8);
+      this.bob = Math.sin(t * this.bobSpeed + this.bobPhase) * (12 + this.flutterAmp * 5);
+      if (this.departing) {
+        this.bob += Math.sin(t * 0.28 + this.flapPhase) * 6;
+      }
+    }
+
+    _smoothFlutter(dt) {
+      const k = 1 - Math.exp(-BUTTERFLY_FLUTTER_SMOOTH * dt);
+      this.smoothFlutterX += (this.flutterX - this.smoothFlutterX) * k;
+      this.smoothFlutterY += (this.flutterY - this.smoothFlutterY) * k;
+      this.smoothFlutterZ += (this.flutterZ - this.smoothFlutterZ) * k;
+      this.smoothSway = expSmooth(this.smoothSway, this.sway, dt, 5.5);
     }
 
     update(dt, t) {
       this.lifetime += dt;
-      this._updateTargets(dt, t);
+      this._updateFlapRhythm(dt);
+      this._syncFlapToMotion(dt);
+      this._steerIntent(dt, t);
 
-      const smooth = 1 - Math.exp(-this.smoothRate * dt);
-      this.vx += (this.targetVx - this.vx) * smooth;
-      this.vy += (this.targetVy - this.vy) * smooth;
-      this.vz += (this.targetVz - this.vz) * smooth;
+      this.flapPhase += this.flapSpeed * dt;
+      const flap = flutteryFlapKinematics(this.flapPhase, this.flapSpeed, this.wingFlapMul);
+      this.flap = flap.wing;
+      this.flapVel = flap.flapVel;
+      this.sway = flap.sway;
+      this._smoothFlapVisual(dt);
+
+      const cp = Math.cos(this.pitchAngle);
+      const sp = Math.sin(this.pitchAngle);
+      const tx = Math.sin(this.heading) * cp;
+      const ty = -Math.cos(this.heading) * cp;
+      const tz = sp * 0.88;
+      this.vx += tx * flap.thrust * dt;
+      this.vy += ty * flap.thrust * dt;
+      this.vz += tz * flap.thrust * dt;
+      this.vy -= flap.lift * cp * dt * 0.85;
+      this.vy += BUTTERFLY_GRAVITY * dt;
+
+      const drag = Math.exp(-(this.departing ? BUTTERFLY_DRAG * 0.55 : BUTTERFLY_DRAG) * dt);
+      this.vx *= drag;
+      this.vy *= drag;
+      this.vz *= drag;
+      this._applyFloatDrift(dt, t);
 
       _vel.set(this.vx, this.vy, this.vz);
       const speed = _vel.length();
-      if (speed > this.maxSpeed) _vel.multiplyScalar(this.maxSpeed / speed);
-      if (speed < this.minSpeed && speed > 0.01) _vel.multiplyScalar(this.minSpeed / speed);
-      this.vx = _vel.x;
-      this.vy = _vel.y;
-      this.vz = _vel.z;
+      if (speed > this.maxSpeed) {
+        _vel.multiplyScalar(this.maxSpeed / speed);
+        this.vx = _vel.x;
+        this.vy = _vel.y;
+        this.vz = _vel.z;
+      }
+      this.smoothMoveSpeed = expSmooth(this.smoothMoveSpeed, speed, dt, 5.5);
 
-      const flapBase = this.style === 'dance' ? 0.58 : this.style === 'drift' ? 0.42 : 0.5;
-      this.flap = Math.sin(t * this.flapSpeed + this.flapPhase) * flapBase * this.wingFlapMul
-        + Math.sin(t * this.flapSpeed * 2.05 + this.flapPhase * 1.3) * 0.09 * this.wingFlapMul;
       this._updateFlutter(t);
+      this._smoothFlutter(dt);
 
-      const flutterMix = this.style === 'waltz' ? 0.68 : this.style === 'drift' ? 0.52 : 0.62;
-      this.x += this.vx * dt + this.flutterX * dt * flutterMix;
-      this.y += this.vy * dt + this.flutterY * dt * flutterMix;
-      this.z += this.vz * dt + this.flutterZ * dt * (flutterMix * 0.82);
+      const turb = 0.18;
+      this.x += this.vx * dt + this.smoothFlutterX * dt * turb;
+      this.y += this.vy * dt + this.smoothFlutterY * dt * turb;
+      this.z += this.vz * dt + this.smoothFlutterZ * dt * turb * 0.75;
 
-      this.bankY = Math.atan2(this.vx + this.flutterX * 0.45, this.vy + this.flutterY * 0.45 + 0.001) * this.rollAmp;
-      this.bankX = Math.atan2(this.vz + this.flutterZ * 0.35, Math.hypot(this.vx, this.vy) + 0.001) * this.tiltAmp;
-      this.rotX += Math.sin(t * 0.68 + this.flapPhase) * dt * (0.1 + this.tiltAmp);
-      this.rotY += Math.sin(t * 0.44 + this.bobPhase) * dt * (0.08 + this.rollAmp);
-      this.rotZ += this.flap * dt * (0.18 + this.wingFlapMul * 0.08);
+      const smooth = 1 - Math.exp(-this.smoothRate * dt);
+      const mvx = this.vx + this.smoothFlutterX * turb;
+      const mvy = this.vy + this.smoothFlutterY * turb;
+      const mvz = this.vz + this.smoothFlutterZ * turb * 0.75;
+      const hPlanar = Math.hypot(mvx, mvy);
+      const mSpeed = Math.hypot(mvx, mvy, mvz);
+
+      if (mSpeed > 0.8) {
+        this.rotY = lerpAngle(this.rotY, Math.atan2(mvx, -mvy + 0.001) + this.smoothSway * 0.1, smooth * 0.52);
+      }
+
+      const pitchRaw = Math.atan2(-mvz, hPlanar + 12) * 0.1 + this.smoothFlapVel * 0.007 + this.smoothSway * 0.03;
+      const pitchTarget = clamp(pitchRaw, -BUTTERFLY_MAX_TILT_DOWN, BUTTERFLY_MAX_TILT);
+      this.rotX += (pitchTarget - this.rotX) * smooth * 0.55;
+
+      const rollRaw = hPlanar > 1.2
+        ? Math.atan2(mvx, Math.abs(mvy) + 28) * this.rollAmp * 0.18
+        : 0;
+      const rollTarget = clamp(rollRaw + this.smoothSway * 0.08, -BUTTERFLY_MAX_TILT, BUTTERFLY_MAX_TILT);
+      this.rotZ += (rollTarget - this.rotZ) * smooth * 0.5;
+
+      this.rotX = clamp(this.rotX, -BUTTERFLY_MAX_TILT_DOWN, BUTTERFLY_MAX_TILT);
+      this.rotZ = clamp(this.rotZ, -BUTTERFLY_MAX_TILT, BUTTERFLY_MAX_TILT);
 
       this._softBounds(dt);
 
@@ -417,10 +726,18 @@ export function createButterflyBloom() {
         }
         case 'bloomed':
           if (Math.random() < dt * 4) this._dust();
-          if (this.lifetime > this.maxLifetime * 0.7) this.phase = 'wilting';
+          this.departTimer -= dt;
+          if (this.departTimer <= 0 || this.roamTimer <= 0) {
+            this._beginDepart();
+            this.phase = 'departing';
+          }
+          break;
+        case 'departing':
+          if (this._updateDepart(dt) === false) return false;
+          if (Math.random() < dt * 7) this._dust();
           break;
         case 'wilting':
-          this.opacity -= dt * 0.18;
+          this.opacity -= dt * 0.14;
           if (Math.random() < dt * 5) this._dust();
           break;
       }
@@ -428,32 +745,18 @@ export function createButterflyBloom() {
     }
 
     _softBounds(dt) {
-      const margin = 70;
-      const steer = 28 * dt;
-      if (this.x < margin) {
-        this.vx += steer;
-        this.flowAngle += dt * 0.4;
-      }
-      if (this.x > width - margin) {
-        this.vx -= steer;
-        this.flowAngle -= dt * 0.4;
-      }
-      if (this.y < margin) {
-        this.vy += steer;
-      }
-      if (this.y > height - margin) {
-        this.vy -= steer * 0.6;
-      }
-      if (this.z < -300) this.vz += steer;
-      if (this.z > 300) this.vz -= steer;
+      if (this.departing) return;
 
-      const pad = 100;
-      if (this.x < -pad) this.x = width + pad * 0.5;
-      if (this.x > width + pad) this.x = -pad * 0.5;
-      if (this.y < -pad) this.y = height + pad * 0.5;
-      if (this.y > height + pad) this.y = -pad * 0.5;
-      if (this.z < -360) this.z = 320;
-      if (this.z > 360) this.z = -320;
+      const pad = 120;
+      if (this.x < -pad || this.x > width + pad
+        || this.y < -pad || this.y > height + pad) {
+        if (this.phase === 'bloomed') {
+          this._beginDepart();
+          this.phase = 'departing';
+        }
+      }
+      if (this.z < -380) this.z = 340;
+      if (this.z > 380) this.z = -340;
     }
 
     _dust() {
@@ -483,29 +786,38 @@ export function createButterflyBloom() {
 
   function poseRoot(mark) {
     const pos = toWorld(
-      mark.x + mark.flutterX * 0.42,
-      mark.y + mark.flutterY * 0.38,
-      mark.z + mark.bob + mark.flutterZ * 0.52,
+      mark.x + mark.smoothFlutterX * 0.38,
+      mark.y + mark.smoothFlutterY * 0.34 + mark.bob * 0.28,
+      mark.z + mark.bob * 0.5 + mark.smoothFlutterZ * 0.35,
       width,
       height,
     );
     root.position.copy(pos);
 
-    const bankY = (mark.bankY ?? 0);
-    const bankX = (mark.bankX ?? 0);
+    const flap = mark.smoothFlap ?? mark.flap;
+    const flapVel = mark.smoothFlapVel ?? mark.flapVel;
+    const sway = mark.smoothSway ?? 0;
+    const wf = mark.wingFlapMul ?? 1;
+    const wingRoll = Math.sin(mark.flapPhase * 2 + 0.4) * 0.045 * wf;
     root.rotation.set(
-      mark.rotX + bankX + mark.flap * (0.22 + mark.wingFlapMul * 0.08),
-      mark.rotY + bankY,
-      mark.rotZ + mark.flap * (0.2 + mark.wingFlapMul * 0.06),
+      clamp(mark.rotX + flapVel * 0.013 + sway * 0.05, -BUTTERFLY_MAX_TILT_DOWN, BUTTERFLY_MAX_TILT),
+      mark.rotY + sway * 0.14,
+      clamp(mark.rotZ + flap * 0.048 + sway * 0.22, -BUTTERFLY_MAX_TILT, BUTTERFLY_MAX_TILT),
     );
 
-    const s = mark.size;
+    const s = mark.size * (mark.departScale ?? 1);
     root.scale.set(s, s, s);
 
-    const flap = mark.flap;
-    const wf = mark.wingFlapMul ?? 1;
-    wingHoldL.rotation.set(0.08 + flap * 0.14, 0.56 + flap * 0.78 * wf, 0.06 + flap * 0.12);
-    wingHoldR.rotation.set(0.08 + flap * 0.14, -0.56 - flap * 0.78 * wf, -0.06 - flap * 0.12);
+    wingHoldL.rotation.set(
+      0.08 + flap * 0.22 + sway * 0.09,
+      0.56 + flap * 1.14 * wf,
+      0.06 + flap * 0.2 + wingRoll,
+    );
+    wingHoldR.rotation.set(
+      0.08 + flap * 0.22 + sway * 0.09,
+      -0.56 - flap * 1.14 * wf,
+      -0.06 - flap * 0.2 - wingRoll,
+    );
     wingHoldL.scale.set(-1, 1, 1);
     wingHoldR.scale.set(1, 1, 1);
     root.updateMatrixWorld(true);
@@ -523,11 +835,11 @@ export function createButterflyBloom() {
         continue;
       }
       poseRoot(mark);
-      const wingC = unitRgb(mark.rgb, 0.95 + mark.opacity * 0.25);
-      const patC = unitRgb(mark.pattern, 1.05 + mark.opacity * 0.2);
-      const outC = unitRgb(mark.outline, 0.75 + mark.opacity * 0.15);
-      const bodyC = unitRgb(mark.rgb, 0.7 + mark.opacity * 0.2);
-      const accC = unitRgb(mark.accent, 1.0 + mark.opacity * 0.15);
+      const wingC = unitRgb(mark.rgb, 0.98 + mark.opacity * 0.27);
+      const patC = unitRgb(mark.pattern, 1.08 + mark.opacity * 0.22);
+      const outC = unitRgb(mark.outline, 0.78 + mark.opacity * 0.16);
+      const bodyC = unitRgb(mark.rgb, 0.72 + mark.opacity * 0.22);
+      const accC = unitRgb(mark.accent, 1.03 + mark.opacity * 0.17);
 
       dummy.matrix.copy(root.matrixWorld);
       bodyMesh.setMatrixAt(i, dummy.matrix);
@@ -596,8 +908,16 @@ export function createButterflyBloom() {
     }
   }
 
+  function spawnAtLarge(x, y) {
+    const m = new Mark(x, y);
+    m.x = x + (Math.random() - 0.5) * width * 0.55;
+    m.y = y + (Math.random() - 0.5) * height * 0.45;
+    m.z = (Math.random() - 0.5) * 340;
+    marks.push(m);
+  }
+
   function spawn(x, y) {
-    marks.push(new Mark(x, y));
+    spawnAtLarge(x, y);
   }
 
   function makeMat(opacity, outline = false) {
@@ -671,7 +991,9 @@ export function createButterflyBloom() {
           speedY: (Math.random() - 0.5) * 0.2,
           speedZ: (Math.random() - 0.5) * 0.15,
           phase: Math.random() * Math.PI * 2,
-          rgb: vividRgb(colorAtIndex('rainbow', i)),
+          rgb: paletteRgb(
+            i % 3 !== 2 ? pickRainbowBlueHex(i) : pickRainbowHex(i),
+          ),
         });
       }
     },

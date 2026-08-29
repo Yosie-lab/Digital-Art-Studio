@@ -120,6 +120,80 @@ function randomTadpoleCyberHex() {
   return TADPOLE_CYBER_NEON[Math.floor(Math.random() * TADPOLE_CYBER_NEON.length)];
 }
 
+/** 天使: 黄なし極薄レインボー（シアン→青→紫→マゼンタ） */
+const ANGEL_THIN_RAINBOW = [
+  '#00e8ff', '#00cfff', '#00afff', '#0088ff', '#0066ff',
+  '#3355ff', '#5544ff', '#7744ff', '#9944ee', '#aa44ee',
+  '#bb44dd', '#cc55ee', '#dd66ff', '#ee77ff',
+];
+
+function randomAngelRainbowHex() {
+  return ANGEL_THIN_RAINBOW[Math.floor(Math.random() * ANGEL_THIN_RAINBOW.length)];
+}
+
+/** 黄化防止しつつ彩度を上げる */
+function angelSaturateRgb(rgb, amount = 1.22) {
+  const gray = (rgb.r + rgb.g + rgb.b) / 3;
+  return {
+    r: Math.min(255, Math.max(0, Math.round(gray + (rgb.r - gray) * amount))),
+    g: Math.min(255, Math.max(0, Math.round(gray + (rgb.g - gray) * amount))),
+    b: Math.min(255, Math.max(0, Math.round(gray + (rgb.b - gray) * amount))),
+  };
+}
+
+/** 黄・橙排除: G を抑えつつレインボー色相を残す */
+function angelThinRainbowRgb(hex) {
+  const rgb = hexToRgb(hex);
+  const peak = Math.max(rgb.r, rgb.b, 1);
+  const toned = {
+    r: Math.min(255, Math.round(rgb.r * 1.02)),
+    g: Math.min(rgb.g, Math.round(peak * 0.4)),
+    b: Math.min(255, Math.round(rgb.b * 1.04)),
+  };
+  return angelSaturateRgb(toned, 1.24);
+}
+
+function angelWhiteRim() {
+  return { r: 1, g: 1, b: 1 };
+}
+
+/** パレット直結のネオン RGB（黄なし・高彩度） */
+function angelFillColor(hex, scale = 0.9) {
+  const rgb = angelThinRainbowRgb(hex);
+  return {
+    r: Math.min(1, (rgb.r / 255) * scale + 0.045),
+    g: Math.min(1, (rgb.g / 255) * scale + 0.022),
+    b: Math.min(1, (rgb.b / 255) * scale + 0.055),
+  };
+}
+
+function angelColorAt(hueIndex) {
+  const n = ANGEL_THIN_RAINBOW.length;
+  const idx = ((Math.floor(hueIndex) % n) + n) % n;
+  return ANGEL_THIN_RAINBOW[idx];
+}
+
+function angelShardRgb(hex) {
+  const c = angelFillColor(hex, 0.85);
+  return {
+    r: Math.round(c.r * 255),
+    g: Math.round(c.g * 255),
+    b: Math.round(c.b * 255),
+  };
+}
+
+/** morph 粒子用: 可視レインボー */
+export function neonAngelUnitColors(count) {
+  const out = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const c = angelFillColor(ANGEL_THIN_RAINBOW[i % ANGEL_THIN_RAINBOW.length], 0.94);
+    out[i * 3] = c.r;
+    out[i * 3 + 1] = c.g;
+    out[i * 3 + 2] = c.b;
+  }
+  return out;
+}
+
 /** 青/紫/マゼンタを優先してネオン化し、緑チャンネルを抑えて黄ばみ防止 */
 function cyberHexToRgb(hex) {
   const rgb = hexToRgb(hex);
@@ -138,6 +212,17 @@ function cyberShowColor(rgb, boost = 1.4) {
   let b = Math.min(1, (rgb.b / 255) * boost);
   g = Math.min(g, Math.max(r, b) * 0.4);
   return { r, g, b };
+}
+
+/** 天使: ネオン色を白にブレンド */
+function angelWhiteGlow(rgb, boost = 1, whiteMix = 0.82) {
+  const c = cyberShowColor(rgb, boost);
+  const w = Math.min(1, Math.max(0, whiteMix));
+  return {
+    r: c.r * (1 - w) + w,
+    g: c.g * (1 - w) + w,
+    b: c.b * (1 - w) + w,
+  };
 }
 
 /** morph 粒子用: サイバーネオンのみ */
@@ -405,33 +490,43 @@ export function buildAngelBodyGeometry() {
 }
 
 
-/** かわいい顔 — 参照どおり閉じた弧の目＋小さな口（頭表面に密着） */
-export function buildAngelFaceGeometry() {
-  const parts = [];
-  // 頭: center (0,0.42,0.06) r=0.18 — 表面より少し内側＋Z扁平で密着
+/** 頭表面の座標（目・口配置用） */
+function angelHeadFacePoint(lx, ly, zBump = 0.008) {
   const headC = { x: 0, y: 0.42, z: 0.06 };
   const faceR = 0.168;
-  function onFace(lx, ly) {
-    const xy = Math.hypot(lx, ly);
-    const zRel = Math.sqrt(Math.max(0.0001, faceR * faceR - xy * xy));
-    return [headC.x + lx, headC.y + ly, headC.z + zRel];
-  }
-  // 細い下向き弧の目（⌒ ⌒）
+  const xy = Math.hypot(lx, ly);
+  const zRel = Math.sqrt(Math.max(0.0001, faceR * faceR - xy * xy));
+  return [headC.x + lx, headC.y + ly, headC.z + zRel + zBump];
+}
+
+/** 目（弧）— 独立メッシュ用 */
+export function buildAngelEyesGeometry() {
+  const parts = [];
   for (const sx of [-1, 1]) {
-    const eye = new THREE.TorusGeometry(0.046, 0.0075, 6, 18, Math.PI * 0.95);
-    eye.scale(1, 1, 0.28);
-    const [ex, ey, ez] = onFace(sx * 0.072, 0.022);
+    const eye = new THREE.TorusGeometry(0.054, 0.013, 8, 22, Math.PI * 0.92);
+    eye.scale(1, 1, 0.34);
+    const [ex, ey, ez] = angelHeadFacePoint(sx * 0.072, 0.022, 0.012);
     eye.translate(ex, ey, ez);
     parts.push(eye);
   }
-  // ごく小さな笑顔
-  const mouth = new THREE.TorusGeometry(0.026, 0.006, 5, 12, Math.PI * 0.7);
-  mouth.rotateZ(Math.PI);
-  mouth.scale(1, 1, 0.28);
-  const [mx, my, mz] = onFace(0, -0.055);
-  mouth.translate(mx, my, mz);
-  parts.push(mouth);
   return mergeTadpoleParts(parts);
+}
+
+/** 口（弧）— 独立メッシュ用 */
+export function buildAngelMouthGeometry() {
+  const mouth = new THREE.TorusGeometry(0.036, 0.011, 6, 16, Math.PI * 0.72);
+  mouth.rotateZ(Math.PI);
+  mouth.scale(1, 1, 0.34);
+  const [mx, my, mz] = angelHeadFacePoint(0, -0.055, 0.012);
+  mouth.translate(mx, my, mz);
+  return prepareTadpoleGeo(mouth);
+}
+
+/** かわいい顔 — 目＋口（互換・サンプル用） */
+export function buildAngelFaceGeometry() {
+  const eyes = buildAngelEyesGeometry();
+  const mouth = buildAngelMouthGeometry();
+  return mergeTadpoleParts([eyes, mouth]);
 }
 
 /** ハイライトなし（弧目スタイル）— 空ジオメトリ相当 */
@@ -463,7 +558,7 @@ export function buildAngelWingGeometry() {
     bevelSegments: 2,
     curveSegments: 18,
   });
-  wing.scale(0.88, 0.92, 1);
+  wing.scale(0.98, 1.02, 1.08);
   wing.translate(0, 0, -0.05);
   const lines = [];
   for (let i = 0; i < 3; i++) {
@@ -1344,7 +1439,7 @@ export function createBrainBloom() {
 }
 
 /**
- * 天使専用: 羽ばたき + 浮上 + 立体配置
+ * 天使専用: ゼリー透明 + サイバーネオン（オタマ同系）
  */
 export function createAngelBloom() {
   let marks = [];
@@ -1357,16 +1452,20 @@ export function createAngelBloom() {
   let layer = null;
   let bodyMesh = null;
   let bodyOutline = null;
-  let faceMesh = null;
+  let angelEyeMesh = null;
+  let angelMouthMesh = null;
   let faceHiMesh = null;
   let blushMesh = null;
   let wingLMesh = null;
   let wingRMesh = null;
+  let wingOutlineLMesh = null;
+  let wingOutlineRMesh = null;
   let haloMesh = null;
   let sparkleField = null;
   let fallField = null;
   let bodyGeo = null;
-  let faceGeo = null;
+  let angelEyeGeo = null;
+  let angelMouthGeo = null;
   let faceHiGeo = null;
   let blushGeo = null;
   let wingGeo = null;
@@ -1404,9 +1503,10 @@ export function createAngelBloom() {
       this.bobSpeed = 1.1 + Math.random() * 0.7;
       this.spinY = 0.25 + Math.random() * 0.2;
       this.phaseY = Math.random() * Math.PI * 2;
-      this.color = randomFlowerPetalColor(palette);
-      this.rgb = vividPetalRgb(hexToRgb(this.color));
-      this.innerRgb = brightenRgb(this.rgb);
+      this.hueIndex = Math.floor(Math.random() * ANGEL_THIN_RAINBOW.length);
+      this.color = ANGEL_THIN_RAINBOW[this.hueIndex];
+      this.rgb = angelThinRainbowRgb(this.color);
+      this.innerRgb = { ...this.rgb };
       this.lifetime = 0;
       this.maxLifetime = 7 + Math.random() * 5;
       this.phase = 'growing';
@@ -1457,7 +1557,6 @@ export function createAngelBloom() {
     }
 
     _sparkTrail() {
-      // 顔（上部）を避け、胴〜羽まわりに放出
       const side = Math.random() < 0.5 ? -1 : 1;
       shards.push({
         x: this.x + side * this.size * (0.35 + Math.random() * 0.55),
@@ -1466,9 +1565,9 @@ export function createAngelBloom() {
         vx: side * (15 + Math.random() * 25) + (Math.random() - 0.5) * 20,
         vy: 10 + Math.random() * 30,
         vz: (Math.random() - 0.5) * 25,
-        rgb: { r: 255, g: 255, b: 255 },
+        rgb: angelShardRgb(this.color),
         opacity: 1,
-        glow: 2.15 + Math.random() * 0.95,
+        glow: 1.65 + Math.random() * 0.7,
         kind: 'dust',
         twinkle: Math.random() * Math.PI * 2,
       });
@@ -1477,6 +1576,7 @@ export function createAngelBloom() {
     _shed() {
       for (let i = 0; i < 5; i++) {
         const side = Math.random() < 0.5 ? -1 : 1;
+        const hex = randomAngelRainbowHex();
         shards.push({
           x: this.x + side * this.size * (0.2 + Math.random() * 0.6),
           y: this.y + this.size * (0.25 + Math.random() * 0.5),
@@ -1484,9 +1584,9 @@ export function createAngelBloom() {
           vx: (Math.random() - 0.5) * 55,
           vy: -45 - Math.random() * 45,
           vz: (Math.random() - 0.5) * 45,
-          rgb: { r: 255, g: 255, b: 255 },
+          rgb: angelShardRgb(hex),
           opacity: 1,
-          glow: 2.35 + Math.random() * 0.95,
+          glow: 1.55 + Math.random() * 0.65,
           kind: 'shard',
           rot: Math.random() * Math.PI * 2,
           rotSpeed: (Math.random() - 0.5) * 4,
@@ -1519,71 +1619,84 @@ export function createAngelBloom() {
     const flap = mark.flap;
     wingHoldL.rotation.set(0.12 + flap * 0.15, 0.55 + flap, 0.1 + flap * 0.08);
     wingHoldR.rotation.set(0.12 + flap * 0.15, -0.55 - flap, -0.1 - flap * 0.08);
-    wingHoldL.scale.set(-1, 1, 1);
-    wingHoldR.scale.set(1, 1, 1);
+    wingHoldL.scale.set(-1.14, 1.14, 1.14);
+    wingHoldR.scale.set(1.14, 1.14, 1.14);
     haloHold.rotation.z = time * 0.8 + mark.flapPhase;
     root.updateMatrixWorld(true);
   }
 
   function syncMeshes() {
-    if (!bodyMesh || !faceMesh || !wingLMesh || !wingRMesh || !haloMesh) return;
+    if (!bodyMesh || !angelEyeMesh || !angelMouthMesh || !wingLMesh || !wingRMesh || !haloMesh) return;
     const shown = Math.min(marks.length, MAX);
     for (let i = 0; i < MAX; i++) {
       const mark = i < shown ? marks[i] : null;
       if (!mark || mark.size < 0.5) {
         hide(bodyMesh, i);
         hide(bodyOutline, i);
-        hide(faceMesh, i);
+        hide(angelEyeMesh, i);
+        hide(angelMouthMesh, i);
         hide(faceHiMesh, i);
         hide(blushMesh, i);
         hide(wingLMesh, i);
         hide(wingRMesh, i);
+        hide(wingOutlineLMesh, i);
+        hide(wingOutlineRMesh, i);
         hide(haloMesh, i);
         continue;
       }
       poseRoot(mark);
-      const c = displayColor(mark.rgb, 0.85 + mark.opacity * 0.2);
-      const bright = displayColor(mark.innerRgb, 1.05 + mark.opacity * 0.15);
+      const n = ANGEL_THIN_RAINBOW.length;
+      const idx = (mark.hueIndex + Math.floor(time * 0.35)) % n;
+      const bodyHex = angelColorAt(idx);
+      const wingHex = angelColorAt(idx + 1);
+      const haloHex = angelColorAt(idx + 2);
+      const tint = angelFillColor(bodyHex, 0.96);
+      const wingTint = angelFillColor(wingHex, 0.92);
+      const haloTint = angelFillColor(haloHex, 0.68);
+      const rim = angelWhiteRim();
 
       dummy.matrix.copy(root.matrixWorld);
       bodyMesh.setMatrixAt(i, dummy.matrix);
-      bodyMesh.setColorAt(i, _color.setRGB(c.r, c.g, c.b));
+      bodyMesh.setColorAt(i, _color.setRGB(tint.r, tint.g, tint.b));
 
       const sx = root.scale.x;
       const sy = root.scale.y;
       const sz = root.scale.z;
-      root.scale.set(sx * 1.035, sy * 1.035, sz * 1.035);
+      root.scale.set(sx * 1.04, sy * 1.04, sz * 1.04);
       root.updateMatrixWorld(true);
       dummy.matrix.copy(root.matrixWorld);
       bodyOutline.setMatrixAt(i, dummy.matrix);
-      bodyOutline.setColorAt(i, _color.setRGB(c.r * 0.25, c.g * 0.28, c.b * 0.4));
+      bodyOutline.setColorAt(i, _color.setRGB(rim.r, rim.g, rim.b));
       root.scale.set(sx, sy, sz);
       root.updateMatrixWorld(true);
 
       dummy.matrix.copy(wingHoldL.matrixWorld);
       wingLMesh.setMatrixAt(i, dummy.matrix);
-      wingLMesh.setColorAt(i, _color.setRGB(bright.r, bright.g, bright.b));
+      wingLMesh.setColorAt(i, _color.setRGB(wingTint.r, wingTint.g, wingTint.b));
+      wingOutlineLMesh.setMatrixAt(i, dummy.matrix);
+      wingOutlineLMesh.setColorAt(i, _color.setRGB(rim.r, rim.g, rim.b));
 
       dummy.matrix.copy(wingHoldR.matrixWorld);
       wingRMesh.setMatrixAt(i, dummy.matrix);
-      wingRMesh.setColorAt(i, _color.setRGB(bright.r, bright.g, bright.b));
+      wingRMesh.setColorAt(i, _color.setRGB(wingTint.r, wingTint.g, wingTint.b));
+      wingOutlineRMesh.setMatrixAt(i, dummy.matrix);
+      wingOutlineRMesh.setColorAt(i, _color.setRGB(rim.r, rim.g, rim.b));
 
       dummy.matrix.copy(root.matrixWorld);
       haloMesh.setMatrixAt(i, dummy.matrix);
-      haloMesh.setColorAt(i, _color.setRGB(
-        Math.min(1, bright.r * 1.15),
-        Math.min(1, bright.g * 1.1),
-        Math.min(1, bright.b * 0.9),
-      ));
+      haloMesh.setColorAt(i, _color.setRGB(haloTint.r, haloTint.g, haloTint.b));
 
-      // 顔は体色と独立（弧の目・口のみ。ほほ紅は出さない）
       dummy.matrix.copy(root.matrixWorld);
-      faceMesh.setMatrixAt(i, dummy.matrix);
-      faceMesh.setColorAt(i, _color.setRGB(0.12, 0.1, 0.14));
+      angelEyeMesh.setMatrixAt(i, dummy.matrix);
+      angelEyeMesh.setColorAt(i, _color.setRGB(0.06, 0.08, 0.2));
+
+      dummy.matrix.copy(root.matrixWorld);
+      angelMouthMesh.setMatrixAt(i, dummy.matrix);
+      angelMouthMesh.setColorAt(i, _color.setRGB(0.12, 0.08, 0.18));
       hide(faceHiMesh, i);
       hide(blushMesh, i);
     }
-    for (const m of [bodyMesh, bodyOutline, faceMesh, faceHiMesh, blushMesh, wingLMesh, wingRMesh, haloMesh]) {
+    for (const m of [bodyMesh, bodyOutline, angelEyeMesh, angelMouthMesh, faceHiMesh, blushMesh, wingLMesh, wingRMesh, wingOutlineLMesh, wingOutlineRMesh, haloMesh]) {
       m.instanceMatrix.needsUpdate = true;
       if (m.instanceColor) m.instanceColor.needsUpdate = true;
     }
@@ -1594,10 +1707,11 @@ export function createAngelBloom() {
         sparkleField.positions[i * 3] = wpos.x;
         sparkleField.positions[i * 3 + 1] = wpos.y;
         sparkleField.positions[i * 3 + 2] = wpos.z;
-        const pulse = 0.78 + 0.72 * Math.abs(Math.sin(time * 3.4 + s.phase));
-        sparkleField.colors[i * 3] = pulse;
-        sparkleField.colors[i * 3 + 1] = pulse;
-        sparkleField.colors[i * 3 + 2] = pulse;
+        const pulse = 0.55 + 0.35 * Math.abs(Math.sin(time * 3.4 + s.phase));
+        const sc = angelFillColor(angelColorAt(s.phase * 3 + i * 0.1), 0.86);
+        sparkleField.colors[i * 3] = sc.r * pulse;
+        sparkleField.colors[i * 3 + 1] = sc.g * pulse;
+        sparkleField.colors[i * 3 + 2] = sc.b * pulse;
       });
       sparkleField.geo.setDrawRange(0, sparkles.length);
       sparkleField.geo.attributes.position.needsUpdate = true;
@@ -1611,11 +1725,12 @@ export function createAngelBloom() {
         fallField.positions[i * 3] = wpos.x;
         fallField.positions[i * 3 + 1] = wpos.y;
         fallField.positions[i * 3 + 2] = wpos.z;
-        const twinkle = 0.65 + 0.32 * Math.abs(Math.sin(time * 5 + (p.twinkle || 0)));
-        const glow = (p.glow || 2.2) * (0.58 + p.opacity * 0.52) * twinkle;
-        fallField.colors[i * 3] = glow;
-        fallField.colors[i * 3 + 1] = glow;
-        fallField.colors[i * 3 + 2] = glow;
+        const [r0, g0, b0] = rgbToUnit(p.rgb);
+        const twinkle = 0.7 + 0.3 * Math.abs(Math.sin(time * 9 + (p.twinkle || 0)));
+        const glow = (p.glow || 1.6) * (0.55 + p.opacity * 0.45) * twinkle;
+        fallField.colors[i * 3] = Math.min(1, r0 * glow);
+        fallField.colors[i * 3 + 1] = Math.min(1, g0 * glow);
+        fallField.colors[i * 3 + 2] = Math.min(1, b0 * glow);
       }
       fallField.geo.setDrawRange(0, n);
       fallField.geo.attributes.position.needsUpdate = true;
@@ -1627,14 +1742,15 @@ export function createAngelBloom() {
     marks.push(new Mark(x, y, currentPalette));
   }
 
-  function makeMat(opacity, back = false) {
+  function makeMat(opacity, opts = {}) {
+    const { back = false, additive = false } = opts;
     return new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
       opacity,
       side: back ? THREE.BackSide : THREE.DoubleSide,
       depthWrite: false,
-      blending: THREE.NormalBlending,
+      blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
       toneMapped: false,
     });
   }
@@ -1651,24 +1767,34 @@ export function createAngelBloom() {
       layer = group;
 
       bodyGeo = buildAngelBodyGeometry();
-      faceGeo = buildAngelFaceGeometry();
+      angelEyeGeo = buildAngelEyesGeometry();
+      angelMouthGeo = buildAngelMouthGeometry();
       faceHiGeo = buildAngelFaceHiGeometry();
       blushGeo = buildAngelBlushGeometry();
       wingGeo = buildAngelWingGeometry();
       haloGeo = buildAngelHaloGeometry();
-      bodyMesh = new THREE.InstancedMesh(bodyGeo, makeMat(0.55), MAX);
-      bodyOutline = new THREE.InstancedMesh(bodyGeo, makeMat(0.18, true), MAX);
-      const faceMat = makeMat(0.82);
-      faceMat.polygonOffset = true;
-      faceMat.polygonOffsetFactor = -2;
-      faceMat.polygonOffsetUnits = -2;
-      faceMesh = new THREE.InstancedMesh(faceGeo, faceMat, MAX);
-      faceHiMesh = new THREE.InstancedMesh(faceHiGeo, makeMat(0.7), MAX);
-      blushMesh = new THREE.InstancedMesh(blushGeo, makeMat(0.35), MAX);
-      wingLMesh = new THREE.InstancedMesh(wingGeo, makeMat(0.42), MAX);
-      wingRMesh = new THREE.InstancedMesh(wingGeo, makeMat(0.42), MAX);
-      haloMesh = new THREE.InstancedMesh(haloGeo, makeMat(0.7), MAX);
-      for (const m of [bodyMesh, bodyOutline, faceMesh, faceHiMesh, blushMesh, wingLMesh, wingRMesh, haloMesh]) {
+      bodyMesh = new THREE.InstancedMesh(bodyGeo, makeMat(0.26, { additive: true }), MAX);
+      bodyOutline = new THREE.InstancedMesh(bodyGeo, makeMat(0.62, { back: true, additive: false }), MAX);
+      const eyeMat = makeMat(0.92, { additive: false });
+      eyeMat.polygonOffset = true;
+      eyeMat.polygonOffsetFactor = -4;
+      eyeMat.polygonOffsetUnits = -4;
+      angelEyeMesh = new THREE.InstancedMesh(angelEyeGeo, eyeMat, MAX);
+      angelEyeMesh.renderOrder = 12;
+      const mouthMat = makeMat(0.88, { additive: false });
+      mouthMat.polygonOffset = true;
+      mouthMat.polygonOffsetFactor = -3;
+      mouthMat.polygonOffsetUnits = -3;
+      angelMouthMesh = new THREE.InstancedMesh(angelMouthGeo, mouthMat, MAX);
+      angelMouthMesh.renderOrder = 11;
+      faceHiMesh = new THREE.InstancedMesh(faceHiGeo, makeMat(0.18, { additive: false }), MAX);
+      blushMesh = new THREE.InstancedMesh(blushGeo, makeMat(0.14, { additive: false }), MAX);
+      wingLMesh = new THREE.InstancedMesh(wingGeo, makeMat(0.22, { additive: true }), MAX);
+      wingRMesh = new THREE.InstancedMesh(wingGeo, makeMat(0.22, { additive: true }), MAX);
+      wingOutlineLMesh = new THREE.InstancedMesh(wingGeo, makeMat(0.52, { back: true, additive: false }), MAX);
+      wingOutlineRMesh = new THREE.InstancedMesh(wingGeo, makeMat(0.52, { back: true, additive: false }), MAX);
+      haloMesh = new THREE.InstancedMesh(haloGeo, makeMat(0.34, { additive: true }), MAX);
+      for (const m of [bodyMesh, bodyOutline, angelEyeMesh, angelMouthMesh, faceHiMesh, blushMesh, wingLMesh, wingRMesh, wingOutlineLMesh, wingOutlineRMesh, haloMesh]) {
         m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3);
         m.frustumCulled = false;
         layer.add(m);
@@ -1678,8 +1804,8 @@ export function createAngelBloom() {
       fallField = makePoints(700, 26);
       sparkleField.mat.blending = THREE.AdditiveBlending;
       fallField.mat.blending = THREE.AdditiveBlending;
-      sparkleField.mat.opacity = 0.58;
-      fallField.mat.opacity = 0.58;
+      sparkleField.mat.opacity = 0.72;
+      fallField.mat.opacity = 0.65;
       sparkleField.mat.toneMapped = false;
       fallField.mat.toneMapped = false;
       layer.add(sparkleField.points, fallField.points);
@@ -1694,7 +1820,7 @@ export function createAngelBloom() {
           z: (Math.random() - 0.5) * 220,
           speedY: -(0.12 + Math.random() * 0.32),
           phase: Math.random() * Math.PI * 2,
-          rgb: { r: 255, g: 255, b: 255 },
+          rgb: angelShardRgb(randomAngelRainbowHex()),
         });
       }
     },
@@ -1767,18 +1893,22 @@ export function createAngelBloom() {
       shards = [];
       sparkles = [];
       bodyGeo?.dispose();
-      faceGeo?.dispose();
+      angelEyeGeo?.dispose();
+      angelMouthGeo?.dispose();
       faceHiGeo?.dispose();
       blushGeo?.dispose();
       wingGeo?.dispose();
       haloGeo?.dispose();
       bodyMesh = null;
       bodyOutline = null;
-      faceMesh = null;
+      angelEyeMesh = null;
+      angelMouthMesh = null;
       faceHiMesh = null;
       blushMesh = null;
       wingLMesh = null;
       wingRMesh = null;
+      wingOutlineLMesh = null;
+      wingOutlineRMesh = null;
       haloMesh = null;
       sparkleField = null;
       fallField = null;
