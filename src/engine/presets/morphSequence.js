@@ -274,6 +274,15 @@ export function createMorphSequence() {
       let g = colorA[i3 + 1] * (1 - mix) + colorB[i3 + 1] * mix;
       let b = colorA[i3 + 2] * (1 - mix) + colorB[i3 + 2] * mix;
       if (angelMix) {
+        const w = 0.3;
+        r = r * (1 - w) + w;
+        g = g * (1 - w) + w;
+        b = b * (1 - w) + w;
+        const gray = (r + g + b) / 3;
+        const sat = 1.28;
+        r = Math.min(1, gray + (r - gray) * sat);
+        g = Math.min(1, gray + (g - gray) * sat);
+        b = Math.min(1, gray + (b - gray) * sat);
         g = Math.min(g, b * 0.992);
         r = Math.min(r, g * 0.998);
       }
