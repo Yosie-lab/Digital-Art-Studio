@@ -269,22 +269,19 @@ export function createMorphSequence() {
     const angelMix = stepId === 'angel' || nextId === 'angel';
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
-      const pulse = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(time * 2.5 + i * 0.02));
+      const pulse = (stepId === 'angel' || nextId === 'angel')
+        ? 0.72 + 0.44 * (0.5 + 0.5 * Math.sin(time * 2.5 + i * 0.02))
+        : 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(time * 2.5 + i * 0.02));
       let r = colorA[i3] * (1 - mix) + colorB[i3] * mix;
       let g = colorA[i3 + 1] * (1 - mix) + colorB[i3 + 1] * mix;
       let b = colorA[i3 + 2] * (1 - mix) + colorB[i3 + 2] * mix;
       if (angelMix) {
-        const w = 0.3;
+        const w = 0.36;
         r = r * (1 - w) + w;
         g = g * (1 - w) + w;
         b = b * (1 - w) + w;
-        const gray = (r + g + b) / 3;
-        const sat = 1.28;
-        r = Math.min(1, gray + (r - gray) * sat);
-        g = Math.min(1, gray + (g - gray) * sat);
-        b = Math.min(1, gray + (b - gray) * sat);
-        g = Math.min(g, b * 0.992);
-        r = Math.min(r, g * 0.998);
+        g = Math.min(g, Math.max(r, b) * 0.48);
+        r = Math.min(r, Math.max(g, b) * 1.02);
       }
       field.colors[i3] = r * pulse;
       field.colors[i3 + 1] = g * pulse;
@@ -306,7 +303,10 @@ export function createMorphSequence() {
     field.geo.setDrawRange(0, count);
     field.geo.attributes.position.needsUpdate = true;
     field.geo.attributes.color.needsUpdate = true;
-    field.mat.size = Math.max(4, Math.min(14, (params.particleSize || 15) * 0.55));
+    const nextId = SEQUENCE[(stageIndex + 1) % SEQUENCE.length]?.id;
+    const angelMorph = step.id === 'angel' || nextId === 'angel';
+    const sizeMul = angelMorph ? 0.36 : 0.55;
+    field.mat.size = Math.max(4, Math.min(14, (params.particleSize || 15) * sizeMul));
 
     if (progress >= 1) {
       stageIndex = (stageIndex + 1) % SEQUENCE.length;

@@ -108,6 +108,10 @@ function pickNote() {
   return pickNoteSymbol();
 }
 
+const MUSIC_NOTE_OPACITY = 0.36;
+const MUSIC_NOTE_OUTLINE_OPACITY = 0.12;
+const MUSIC_PARTICLE_GLOW = 1.2;
+
 /**
  * 楽譜として読めるシルエット表示 + Flower Bloom 出現ロジック
  */
@@ -282,9 +286,9 @@ export function createMusicNoteBloom() {
           size: this.size * 0.12 + Math.random() * 6,
           rot: Math.random() * Math.PI * 2,
           rotSpeed: (Math.random() - 0.5) * 6,
-          rgb: petalParticleRgb(this.rgb, 1.2),
+          rgb: petalParticleRgb(this.rgb, 1.42),
           opacity: 1,
-          glow: 1.4 + Math.random() * 0.3,
+          glow: (1.78 + Math.random() * 0.4) * MUSIC_PARTICLE_GLOW,
           kind: 'shard',
         });
       }
@@ -302,9 +306,9 @@ export function createMusicNoteBloom() {
           size: 2 + Math.random() * 5,
           rot: Math.random() * Math.PI * 2,
           rotSpeed: (Math.random() - 0.5) * 8,
-          rgb: petalParticleRgb(this.innerRgb, 1.25),
+          rgb: petalParticleRgb(this.innerRgb, 1.48),
           opacity: 1,
-          glow: 1.5 + Math.random() * 0.3,
+          glow: (1.88 + Math.random() * 0.4) * MUSIC_PARTICLE_GLOW,
           kind: 'dust',
         });
       }
@@ -369,11 +373,11 @@ export function createMusicNoteBloom() {
         }
         placeMark(mark, 1);
         set.mesh.setMatrixAt(i, dummy.matrix);
-        const c = displayColor(mark.rgb, 0.82 + mark.opacity * 0.28);
+        const c = displayColor(mark.rgb, 0.92 + mark.opacity * 0.32);
         set.mesh.setColorAt(i, _color.setRGB(c.r, c.g, c.b));
         placeMark(mark, 1.03);
         set.outline.setMatrixAt(i, dummy.matrix);
-        const outline = displayColor(mark.rgb, 0.34);
+        const outline = displayColor(mark.rgb, 0.38);
         set.outline.setColorAt(i, _color.setRGB(outline.r * 0.55, outline.g * 0.5, outline.b * 0.75));
       }
       set.mesh.instanceMatrix.needsUpdate = true;
@@ -388,11 +392,11 @@ export function createMusicNoteBloom() {
         sparkleField.positions[i * 3] = wpos.x;
         sparkleField.positions[i * 3 + 1] = wpos.y;
         sparkleField.positions[i * 3 + 2] = wpos.z;
-        const pulse = 0.14 + 0.16 * Math.abs(Math.sin(time * 2.8 + s.phase));
-        const c = displayColor(s.rgb, pulse);
-        sparkleField.colors[i * 3] = c.r;
-        sparkleField.colors[i * 3 + 1] = c.g;
-        sparkleField.colors[i * 3 + 2] = c.b;
+        const pulse = 0.26 + 0.28 * Math.abs(Math.sin(time * 2.8 + s.phase));
+        const c = displayColor(s.rgb, pulse * 1.28 * MUSIC_PARTICLE_GLOW);
+        sparkleField.colors[i * 3] = Math.min(1, c.r);
+        sparkleField.colors[i * 3 + 1] = Math.min(1, c.g);
+        sparkleField.colors[i * 3 + 2] = Math.min(1, c.b);
       });
       sparkleField.geo.setDrawRange(0, sparkles.length);
       sparkleField.geo.attributes.position.needsUpdate = true;
@@ -408,10 +412,10 @@ export function createMusicNoteBloom() {
         fallField.positions[i * 3 + 1] = wpos.y;
         fallField.positions[i * 3 + 2] = wpos.z;
         const [r, g, b] = rgbToUnit(p.rgb);
-        const glow = (p.glow || 1.4) * (0.5 + p.opacity * 0.55);
+        const glow = (p.glow || 1.68) * (0.62 + p.opacity * 0.66) * MUSIC_PARTICLE_GLOW;
         const twinkle = p.kind === 'dust'
-          ? 0.9 + 0.1 * Math.sin(time * 8 + p.rot * 3)
-          : 1;
+          ? 0.96 + 0.14 * Math.sin(time * 8 + p.rot * 3)
+          : 1.08;
         fallField.colors[i * 3] = Math.min(1, r * glow * twinkle);
         fallField.colors[i * 3 + 1] = Math.min(1, g * glow * twinkle);
         fallField.colors[i * 3 + 2] = Math.min(1, b * glow * twinkle);
@@ -458,7 +462,11 @@ export function createMusicNoteBloom() {
         }
         const mesh = new THREE.InstancedMesh(
           geo,
-          new THREE.MeshBasicMaterial({ ...matOpts, opacity: 0.72 }),
+          new THREE.MeshBasicMaterial({
+            ...matOpts,
+            opacity: MUSIC_NOTE_OPACITY,
+            blending: THREE.AdditiveBlending,
+          }),
           MAX_PER,
         );
         mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_PER * 3), 3);
@@ -469,7 +477,7 @@ export function createMusicNoteBloom() {
           new THREE.MeshBasicMaterial({
             ...matOpts,
             side: THREE.BackSide,
-            opacity: 0.16,
+            opacity: MUSIC_NOTE_OUTLINE_OPACITY,
             depthWrite: false,
           }),
           MAX_PER,
@@ -482,7 +490,10 @@ export function createMusicNoteBloom() {
 
       sparkleField = makePoints(80, 5);
       fallField = makePoints(700, 14);
-      fallField.mat.opacity = 0.55;
+      sparkleField.mat.opacity = 0.76;
+      fallField.mat.opacity = 0.7;
+      sparkleField.mat.blending = THREE.AdditiveBlending;
+      fallField.mat.blending = THREE.AdditiveBlending;
       layer.add(sparkleField.points, fallField.points);
 
       for (const [x, y] of stratifiedSpawnPoints(20, w, h)) {

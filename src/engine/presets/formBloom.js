@@ -120,100 +120,13 @@ function randomTadpoleCyberHex() {
   return TADPOLE_CYBER_NEON[Math.floor(Math.random() * TADPOLE_CYBER_NEON.length)];
 }
 
-/** 天使: 黄なし極薄レインボー（シアン→青→紫→マゼンタ） */
-const ANGEL_THIN_RAINBOW = [
-  '#00e8ff', '#00cfff', '#00afff', '#0088ff', '#0066ff',
-  '#3355ff', '#5544ff', '#7744ff', '#9944ee', '#aa44ee',
-  '#bb44dd', '#cc55ee', '#dd66ff', '#ee77ff',
-];
-
-function randomAngelRainbowHex() {
-  return ANGEL_THIN_RAINBOW[Math.floor(Math.random() * ANGEL_THIN_RAINBOW.length)];
-}
-
-/** 黄化防止しつつ彩度を上げる */
-function angelSaturateRgb(rgb, amount = 1.38) {
-  const gray = (rgb.r + rgb.g + rgb.b) / 3;
-  return {
-    r: Math.min(255, Math.max(0, Math.round(gray + (rgb.r - gray) * amount))),
-    g: Math.min(255, Math.max(0, Math.round(gray + (rgb.g - gray) * amount))),
-    b: Math.min(255, Math.max(0, Math.round(gray + (rgb.b - gray) * amount))),
-  };
-}
-
-/** 黄・橙排除: G を抑えつつレインボー色相を残す */
-function angelThinRainbowRgb(hex) {
-  const rgb = hexToRgb(hex);
-  const peak = Math.max(rgb.r, rgb.b, 1);
-  const toned = {
-    r: Math.min(255, Math.round(rgb.r * 1.06)),
-    g: Math.min(rgb.g, Math.round(peak * 0.36)),
-    b: Math.min(255, Math.round(rgb.b * 1.08)),
-  };
-  return angelSaturateRgb(toned, 1.36);
-}
-
-function angelWhiteRim() {
-  return { r: 1, g: 1, b: 1 };
-}
-
-/** パーティクル用: 高彩度レインボー + 白ブレンド */
-function angelParticleFill(hex, scale = 0.9, whiteMix = 0.5) {
-  const fill = angelFillColor(hex, scale);
-  const w = Math.min(1, Math.max(0, whiteMix));
-  return {
-    r: fill.r * (1 - w) + w,
-    g: fill.g * (1 - w) + w,
-    b: fill.b * (1 - w) + w,
-  };
-}
-
-/** パレット直結のネオン RGB（黄なし・高彩度） */
-function angelFillColor(hex, scale = 0.9) {
-  const rgb = angelThinRainbowRgb(hex);
-  const sat = angelSaturateRgb(rgb, 1.1);
-  return {
-    r: Math.min(1, (sat.r / 255) * scale + 0.028),
-    g: Math.min(1, (sat.g / 255) * scale + 0.012),
-    b: Math.min(1, (sat.b / 255) * scale + 0.038),
-  };
-}
-
-function angelColorAt(hueIndex) {
-  const n = ANGEL_THIN_RAINBOW.length;
-  const idx = ((Math.floor(hueIndex) % n) + n) % n;
-  return ANGEL_THIN_RAINBOW[idx];
-}
-
-function angelShardRgb(hex) {
-  const c = angelParticleFill(hex, 0.96, 0.52);
-  return {
-    r: Math.round(c.r * 255),
-    g: Math.round(c.g * 255),
-    b: Math.round(c.b * 255),
-  };
-}
-
-/** morph 粒子用: 可視レインボー（白寄り） */
-export function neonAngelUnitColors(count) {
-  const out = new Float32Array(count * 3);
-  for (let i = 0; i < count; i++) {
-    const c = angelParticleFill(ANGEL_THIN_RAINBOW[i % ANGEL_THIN_RAINBOW.length], 1.02, 0.5);
-    out[i * 3] = c.r;
-    out[i * 3 + 1] = c.g;
-    out[i * 3 + 2] = c.b;
-  }
-  return out;
-}
-
-/** 青/紫/マゼンタを優先してネオン化し、緑チャンネルを抑えて黄ばみ防止 */
+/** 青/紫/マゼンタ優先のサイバーネオン化（黄・緑抑制） */
 function cyberHexToRgb(hex) {
   const rgb = hexToRgb(hex);
   const max = Math.max(rgb.r, rgb.g, rgb.b, 1);
   let r = Math.round((rgb.r / max) * 255);
   let g = Math.round((rgb.g / max) * 255);
   let b = Math.round((rgb.b / max) * 255);
-  // R+G が高いと黄に見えるので G を抑える
   g = Math.min(g, Math.round(Math.max(r, b) * 0.35));
   return { r, g, b };
 }
@@ -224,6 +137,73 @@ function cyberShowColor(rgb, boost = 1.4) {
   let b = Math.min(1, (rgb.b / 255) * boost);
   g = Math.min(g, Math.max(r, b) * 0.4);
   return { r, g, b };
+}
+
+/** 天使: サイバーネオン（シアン→青→紫→マゼンタ） */
+const ANGEL_CYBER_NEON = [
+  ...TADPOLE_CYBER_NEON,
+  '#00e5ff', '#18ffff', '#536dfe', '#651fff', '#ea80fc', '#f50057',
+];
+const ANGEL_PARTICLE_SIZE_SPARKLE = 6;
+const ANGEL_PARTICLE_SIZE_FALL = 14;
+const ANGEL_PARTICLE_GLOW = 1.44;
+const ANGEL_SPARKLE_COUNT = 180;
+const ANGEL_FALL_MAX = 1100;
+
+function randomAngelCyberHex() {
+  return ANGEL_CYBER_NEON[Math.floor(Math.random() * ANGEL_CYBER_NEON.length)];
+}
+
+function angelWhiteRim() {
+  return { r: 1, g: 1, b: 1 };
+}
+
+/** 天使メッシュ・粒子のベースネオン */
+function angelFillColor(hex, scale = 0.9) {
+  return cyberShowColor(cyberHexToRgb(hex), 1.46 * scale);
+}
+
+/** パーティクル用: サイバーネオン + 白く光るブレンド */
+function angelParticleFill(hex, scale = 0.9, whiteMix = 0.42) {
+  const fill = angelFillColor(hex, scale);
+  const w = Math.min(1, Math.max(0, whiteMix));
+  const r = fill.r * (1 - w) + w;
+  const g = fill.g * (1 - w) + w;
+  const b = fill.b * (1 - w) + w;
+  const shine = 0.14;
+  return {
+    r: Math.min(1, r * (1 - shine) + shine),
+    g: Math.min(1, g * (1 - shine) + shine),
+    b: Math.min(1, b * (1 - shine) + shine),
+  };
+}
+
+function angelColorAt(hueIndex) {
+  const n = ANGEL_CYBER_NEON.length;
+  const idx = ((Math.floor(hueIndex) % n) + n) % n;
+  return ANGEL_CYBER_NEON[idx];
+}
+
+function angelShardRgb(hex) {
+  const c = angelParticleFill(hex, 1.14, 0.4);
+  return {
+    r: Math.round(c.r * 255),
+    g: Math.round(c.g * 255),
+    b: Math.round(c.b * 255),
+  };
+}
+
+/** morph 粒子用: サイバーネオン */
+export function neonAngelUnitColors(count) {
+  const out = new Float32Array(count * 3);
+  const n = ANGEL_CYBER_NEON.length;
+  for (let i = 0; i < count; i++) {
+    const c = angelParticleFill(ANGEL_CYBER_NEON[i % n], 1.12, 0.38);
+    out[i * 3] = c.r;
+    out[i * 3 + 1] = c.g;
+    out[i * 3 + 2] = c.b;
+  }
+  return out;
 }
 
 /** 天使: ネオン色を白にブレンド */
@@ -1515,9 +1495,9 @@ export function createAngelBloom() {
       this.bobSpeed = 1.1 + Math.random() * 0.7;
       this.spinY = 0.25 + Math.random() * 0.2;
       this.phaseY = Math.random() * Math.PI * 2;
-      this.hueIndex = Math.floor(Math.random() * ANGEL_THIN_RAINBOW.length);
-      this.color = ANGEL_THIN_RAINBOW[this.hueIndex];
-      this.rgb = angelThinRainbowRgb(this.color);
+      this.hueIndex = Math.floor(Math.random() * ANGEL_CYBER_NEON.length);
+      this.color = ANGEL_CYBER_NEON[this.hueIndex];
+      this.rgb = cyberHexToRgb(this.color);
       this.innerRgb = { ...this.rgb };
       this.lifetime = 0;
       this.maxLifetime = 7 + Math.random() * 5;
@@ -1556,39 +1536,42 @@ export function createAngelBloom() {
           break;
         }
         case 'bloomed':
-          if (Math.random() < dt * 5.5) this._sparkTrail();
+          if (Math.random() < dt * 9.5) this._sparkTrail();
           if (this.lifetime > this.maxLifetime * 0.65) this.phase = 'wilting';
           break;
         case 'wilting':
           this.opacity -= dt * 0.22;
-          if (Math.random() < dt * 6) this._shed();
-          if (Math.random() < dt * 4) this._sparkTrail();
+          if (Math.random() < dt * 9) this._shed();
+          if (Math.random() < dt * 7.5) this._sparkTrail();
           break;
       }
       return this.opacity > 0.01 && this.lifetime < this.maxLifetime;
     }
 
     _sparkTrail() {
-      const side = Math.random() < 0.5 ? -1 : 1;
-      shards.push({
-        x: this.x + side * this.size * (0.35 + Math.random() * 0.55),
-        y: this.y + this.size * (0.2 + Math.random() * 0.55),
-        z: this.z - 30 - Math.random() * 40,
-        vx: side * (15 + Math.random() * 25) + (Math.random() - 0.5) * 20,
-        vy: 10 + Math.random() * 30,
-        vz: (Math.random() - 0.5) * 25,
-        rgb: angelShardRgb(this.color),
-        opacity: 1,
-        glow: 1.65 + Math.random() * 0.7,
-        kind: 'dust',
-        twinkle: Math.random() * Math.PI * 2,
-      });
+      const bursts = 1 + (Math.random() < 0.62 ? 1 : 0);
+      for (let b = 0; b < bursts; b++) {
+        const side = Math.random() < 0.5 ? -1 : 1;
+        shards.push({
+          x: this.x + side * this.size * (0.35 + Math.random() * 0.55),
+          y: this.y + this.size * (0.2 + Math.random() * 0.55),
+          z: this.z - 30 - Math.random() * 40,
+          vx: side * (15 + Math.random() * 25) + (Math.random() - 0.5) * 20,
+          vy: 10 + Math.random() * 30,
+          vz: (Math.random() - 0.5) * 25,
+          rgb: angelShardRgb(this.color),
+          opacity: 1,
+          glow: (2.12 + Math.random() * 0.88) * ANGEL_PARTICLE_GLOW,
+          kind: 'dust',
+          twinkle: Math.random() * Math.PI * 2,
+        });
+      }
     }
 
     _shed() {
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 7; i++) {
         const side = Math.random() < 0.5 ? -1 : 1;
-        const hex = randomAngelRainbowHex();
+        const hex = randomAngelCyberHex();
         shards.push({
           x: this.x + side * this.size * (0.2 + Math.random() * 0.6),
           y: this.y + this.size * (0.25 + Math.random() * 0.5),
@@ -1598,7 +1581,7 @@ export function createAngelBloom() {
           vz: (Math.random() - 0.5) * 45,
           rgb: angelShardRgb(hex),
           opacity: 1,
-          glow: 1.55 + Math.random() * 0.65,
+          glow: (2.02 + Math.random() * 0.82) * ANGEL_PARTICLE_GLOW,
           kind: 'shard',
           rot: Math.random() * Math.PI * 2,
           rotSpeed: (Math.random() - 0.5) * 4,
@@ -1657,7 +1640,7 @@ export function createAngelBloom() {
         continue;
       }
       poseRoot(mark);
-      const n = ANGEL_THIN_RAINBOW.length;
+      const n = ANGEL_CYBER_NEON.length;
       const idx = (mark.hueIndex + Math.floor(time * 0.35)) % n;
       const bodyHex = angelColorAt(idx);
       const wingHex = angelColorAt(idx + 1);
@@ -1719,18 +1702,19 @@ export function createAngelBloom() {
         sparkleField.positions[i * 3] = wpos.x;
         sparkleField.positions[i * 3 + 1] = wpos.y;
         sparkleField.positions[i * 3 + 2] = wpos.z;
-        const pulse = 0.55 + 0.35 * Math.abs(Math.sin(time * 3.4 + s.phase));
-        const sc = angelParticleFill(angelColorAt(s.phase * 3 + i * 0.1), 0.98, 0.48);
-        sparkleField.colors[i * 3] = sc.r * pulse;
-        sparkleField.colors[i * 3 + 1] = sc.g * pulse;
-        sparkleField.colors[i * 3 + 2] = sc.b * pulse;
+        const pulse = 0.72 + 0.42 * Math.abs(Math.sin(time * 3.4 + s.phase));
+        const sc = angelParticleFill(angelColorAt(s.phase * 3 + i * 0.1), 1.08, 0.38);
+        const glow = pulse * ANGEL_PARTICLE_GLOW;
+        sparkleField.colors[i * 3] = Math.min(1, sc.r * glow);
+        sparkleField.colors[i * 3 + 1] = Math.min(1, sc.g * glow);
+        sparkleField.colors[i * 3 + 2] = Math.min(1, sc.b * glow);
       });
       sparkleField.geo.setDrawRange(0, sparkles.length);
       sparkleField.geo.attributes.position.needsUpdate = true;
       sparkleField.geo.attributes.color.needsUpdate = true;
     }
     if (fallField) {
-      const n = Math.min(shards.length, 700);
+      const n = Math.min(shards.length, ANGEL_FALL_MAX);
       for (let i = 0; i < n; i++) {
         const p = shards[i];
         const wpos = toWorld(p.x, p.y, p.z, width, height);
@@ -1738,9 +1722,9 @@ export function createAngelBloom() {
         fallField.positions[i * 3 + 1] = wpos.y;
         fallField.positions[i * 3 + 2] = wpos.z;
         const [r0, g0, b0] = rgbToUnit(p.rgb);
-        const twinkle = 0.7 + 0.3 * Math.abs(Math.sin(time * 9 + (p.twinkle || 0)));
-        const glow = (p.glow || 1.6) * (0.55 + p.opacity * 0.45) * twinkle;
-        const w = 0.22;
+        const twinkle = 0.84 + 0.38 * Math.abs(Math.sin(time * 9 + (p.twinkle || 0)));
+        const glow = (p.glow || 1.92) * (0.66 + p.opacity * 0.56) * twinkle * ANGEL_PARTICLE_GLOW;
+        const w = 0.38;
         fallField.colors[i * 3] = Math.min(1, r0 * glow * (1 - w) + w);
         fallField.colors[i * 3 + 1] = Math.min(1, g0 * glow * (1 - w) + w);
         fallField.colors[i * 3 + 2] = Math.min(1, b0 * glow * (1 - w) + w);
@@ -1813,12 +1797,12 @@ export function createAngelBloom() {
         layer.add(m);
       }
 
-      sparkleField = makePoints(120, 12);
-      fallField = makePoints(700, 26);
+      sparkleField = makePoints(ANGEL_SPARKLE_COUNT, ANGEL_PARTICLE_SIZE_SPARKLE);
+      fallField = makePoints(ANGEL_FALL_MAX, ANGEL_PARTICLE_SIZE_FALL);
       sparkleField.mat.blending = THREE.AdditiveBlending;
       fallField.mat.blending = THREE.AdditiveBlending;
-      sparkleField.mat.opacity = 0.48;
-      fallField.mat.opacity = 0.42;
+      sparkleField.mat.opacity = 0.74;
+      fallField.mat.opacity = 0.68;
       sparkleField.mat.toneMapped = false;
       fallField.mat.toneMapped = false;
       layer.add(sparkleField.points, fallField.points);
@@ -1826,14 +1810,14 @@ export function createAngelBloom() {
       for (const [x, y] of stratifiedSpawnPoints(20, w, h, 0.06, [h * 0.25, h * 0.95])) spawn(x, y);
       primeGrowingMarks(marks);
       syncMeshes();
-      for (let i = 0; i < 100; i++) {
+      for (let i = 0; i < ANGEL_SPARKLE_COUNT; i++) {
         sparkles.push({
           x: Math.random() * w,
           y: Math.random() * h,
           z: (Math.random() - 0.5) * 220,
           speedY: -(0.12 + Math.random() * 0.32),
           phase: Math.random() * Math.PI * 2,
-          rgb: angelShardRgb(randomAngelRainbowHex()),
+          rgb: angelShardRgb(randomAngelCyberHex()),
         });
       }
     },

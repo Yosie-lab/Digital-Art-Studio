@@ -126,6 +126,7 @@ const BUTTERFLY_WING_AMP = 1.58;
 const BUTTERFLY_WING_MUL_MIN = 0.44;
 const BUTTERFLY_MOVE_REF = [3, 24];
 const BUTTERFLY_MOVE_REF_DEPART = [12, 58];
+const BUTTERFLY_PARTICLE_GLOW = 1.42;
 
 function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v));
@@ -767,9 +768,9 @@ export function createButterflyBloom() {
         vx: (Math.random() - 0.5) * 50,
         vy: (Math.random() - 0.5) * 50,
         vz: (Math.random() - 0.5) * 50,
-        rgb: this.accent,
+        rgb: saturateRgb(this.accent, 1.22),
         opacity: 1,
-        glow: 1.4 + Math.random() * 0.6,
+        glow: (1.85 + Math.random() * 0.85) * BUTTERFLY_PARTICLE_GLOW,
         twinkle: Math.random() * Math.PI * 2,
       });
     }
@@ -877,11 +878,11 @@ export function createButterflyBloom() {
         sparkleField.positions[i * 3] = wpos.x;
         sparkleField.positions[i * 3 + 1] = wpos.y;
         sparkleField.positions[i * 3 + 2] = wpos.z;
-        const pulse = 0.6 + 0.4 * Math.abs(Math.sin(time * 2.8 + s.phase));
-        const c = unitRgb(s.rgb, pulse);
-        sparkleField.colors[i * 3] = c.r;
-        sparkleField.colors[i * 3 + 1] = c.g;
-        sparkleField.colors[i * 3 + 2] = c.b;
+        const pulse = 0.76 + 0.48 * Math.abs(Math.sin(time * 2.8 + s.phase));
+        const c = unitRgb(s.rgb, pulse * BUTTERFLY_PARTICLE_GLOW * 1.08);
+        sparkleField.colors[i * 3] = Math.min(1, c.r);
+        sparkleField.colors[i * 3 + 1] = Math.min(1, c.g);
+        sparkleField.colors[i * 3 + 2] = Math.min(1, c.b);
       });
       sparkleField.geo.setDrawRange(0, sparkles.length);
       sparkleField.geo.attributes.position.needsUpdate = true;
@@ -897,10 +898,12 @@ export function createButterflyBloom() {
         fallField.positions[i * 3 + 1] = wpos.y;
         fallField.positions[i * 3 + 2] = wpos.z;
         const [r, g, b] = rgbToUnit(p.rgb);
-        const glow = (p.glow || 1.4) * (0.5 + p.opacity * 0.5);
-        fallField.colors[i * 3] = Math.min(1, r * glow);
-        fallField.colors[i * 3 + 1] = Math.min(1, g * glow);
-        fallField.colors[i * 3 + 2] = Math.min(1, b * glow);
+        const twinkle = 0.82 + 0.34 * Math.abs(Math.sin(time * 8.5 + (p.twinkle || 0)));
+        const glow = (p.glow || 1.72) * (0.64 + p.opacity * 0.66) * twinkle * BUTTERFLY_PARTICLE_GLOW;
+        const w = 0.12;
+        fallField.colors[i * 3] = Math.min(1, r * glow * (1 - w) + w);
+        fallField.colors[i * 3 + 1] = Math.min(1, g * glow * (1 - w) + w);
+        fallField.colors[i * 3 + 2] = Math.min(1, b * glow * (1 - w) + w);
       }
       fallField.geo.setDrawRange(0, n);
       fallField.geo.attributes.position.needsUpdate = true;
@@ -972,8 +975,8 @@ export function createButterflyBloom() {
       fallField = makePoints(600, 8);
       sparkleField.mat.blending = THREE.AdditiveBlending;
       fallField.mat.blending = THREE.AdditiveBlending;
-      sparkleField.mat.opacity = 0.55;
-      fallField.mat.opacity = 0.5;
+      sparkleField.mat.opacity = 0.78;
+      fallField.mat.opacity = 0.72;
       layer.add(sparkleField.points, fallField.points);
 
       for (const [x, y] of stratifiedSpawnPoints(30, w, h, 0.06, [h * 0.1, h * 0.95])) {
