@@ -8,17 +8,18 @@ export const TADPOLE_CYBER_NEON = [
   '#ff00e5', '#ff2bd6', '#e040fb', '#c026d3',
 ];
 
-/** 天使専用: ピンク / 金 / ラベンダー + シアン / エレクトリックブルー / バイオレットブルー（青系やや多め） */
+/** 天使専用: ピンク / 金 / ラベンダー / 紫 + シアン / エレクトリックブルー / バイオレットブルー（青系やや多め） */
 export const ANGEL_CYBER_NEON = [
   '#ff1ac6', '#ff2ea8', '#ff00aa', '#ff4dd2',
   '#00ffff', '#00e5ff', '#00b8ff', '#2979ff',
   '#18d4ff', '#40c4ff', '#448aff', '#651fff',
+  '#536dfe', '#7c4dff', '#9c27b0', '#7b1fa2',
+  '#b388ff', '#ce93d8', '#ab47bc', '#5e35b1',
   '#ffd000', '#ffbf00', '#ffe135', '#fff36a',
-  '#c44dff', '#b44dff', '#7c4dff', '#536dfe',
-  '#e040fb', '#d946ef',
+  '#c44dff', '#b44dff', '#e040fb', '#d946ef',
 ];
 
-export const ANGEL_SATURATION = 1.25;
+export const ANGEL_SATURATION = 1.00;
 
 /** クラゲ向けサイバーネオン */
 export const JELLY_CYBER_NEON = [

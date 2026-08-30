@@ -35,7 +35,7 @@ const SEQUENCE = [
 
 const MANUAL_HINT = 'じっくり操作可 · 次へはダブルクリックのみ';
 const MORPH_VIEWPORT_MIN = 200;
-const DOUBLE_TAP_MS = 450;
+const DOUBLE_TAP_MS = 520;
 
 const BLOOM_FACTORIES = {
   letter: createLetterXBloom,
@@ -291,10 +291,47 @@ export function createMorphSequence() {
     return ensureSpreadCloud(fb(count, w, h), w, h, fb);
   }
 
-  function applyMorphStartSpreads(cw, ch, fallback = null) {
+  function applyMorphStartSpreads(cw, ch, fallback = null, nextIndex = null) {
     fromCloud = morphStartSpreadCloud(cw, ch, fallback);
-    toCloud = morphStartSpreadCloud(cw, ch, fallback);
+    if (nextIndex != null) {
+      toCloud = ensureSpreadCloud(sampleStageCloudNeutral(nextIndex), cw, ch, fallback);
+    } else {
+      toCloud = morphStartSpreadCloud(cw, ch, fallback);
+    }
     guaranteeMorphClouds(cw, ch, fallback);
+  }
+
+  /** live bloom / pointer 汚染なし — solid form のみ */
+  function sampleStageCloudNeutral(stepIndex) {
+    const step = SEQUENCE[stepIndex];
+    const { w, h } = sampleDims();
+
+    if (step.id === 'petal') {
+      const model = samplePetalCloud(count, 95);
+      return spreadModelCloudToWorld(model, count, w, h, 0.12);
+    }
+
+    if (step.id === 'angel') {
+      return ensureSpreadCloud(angelMorphFallback(count, w, h), w, h);
+    }
+
+    const tempId = step.id === 'letter' ? 'letter' : step.id;
+    const temp = createSolidForm(tempId, currentPalette);
+    if (!temp) return spreadScreenCloud(count, w, h);
+    const model = temp.samplePoints(count);
+    temp.dispose?.();
+    return spreadModelCloudToWorld(model, count, w, h, 0.14);
+  }
+
+  /** hold 中 bloom へ pointer 速度・タップ座標を渡さない */
+  function neutralHoldPointer(pointer) {
+    if (!pointer) return pointer;
+    return {
+      ...pointer,
+      velocity: 0,
+      prevX: pointer.x,
+      prevY: pointer.y,
+    };
   }
 
   function syncBloomViewports() {
@@ -395,7 +432,7 @@ export function createMorphSequence() {
       bloomSlots.angel?.bloom?.resize?.(cw, ch);
     }
 
-    applyMorphStartSpreads(cw, ch, angelMorph ? angelMorphFallback : null);
+    applyMorphStartSpreads(cw, ch, angelMorph ? angelMorphFallback : null, nextIndex);
 
     phase = 'morph';
     phaseT = 0;
@@ -446,7 +483,7 @@ export function createMorphSequence() {
 
   function tryCompleteMorph() {
     if (!morphCompletePending || phase !== 'morph') return;
-    if (!viewportIsReady()) return;
+    if (!viewportIsReady() && !viewportReady(stableWidth, stableHeight)) return;
     const nextIndex = (stageIndex + 1) % SEQUENCE.length;
     if (enterHoldStage(nextIndex)) {
       stageIndex = nextIndex;
@@ -499,12 +536,13 @@ export function createMorphSequence() {
     const nextId = SEQUENCE[(stageIndex + 1) % SEQUENCE.length]?.id;
     const angelMorph = step.id === 'angel' || nextId === 'angel';
     const morphFallback = angelMorph ? angelMorphFallback : null;
+    const nextIndex = (stageIndex + 1) % SEQUENCE.length;
     if (!fromCloud || !toCloud
       || fromCloud.length !== field.positions.length
       || toCloud.length !== field.positions.length
       || !cloudValid(fromCloud, cw, ch)
       || !cloudValid(toCloud, cw, ch)) {
-      applyMorphStartSpreads(cw, ch, morphFallback);
+      applyMorphStartSpreads(cw, ch, morphFallback, nextIndex);
       if (fromCloud) field.positions.set(fromCloud);
     }
     const progress = Math.min(1, phaseT / step.morph);
@@ -632,11 +670,11 @@ export function createMorphSequence() {
       }
 
       if (isPetalHold() && flowerBloom) {
-        flowerBloom.update(dt, pointer, audioData, params);
+        flowerBloom.update(dt, neutralHoldPointer(pointer), audioData, params);
       }
       const bloom = activeBloom();
       if (isFormBloomHold() && bloom) {
-        bloom.update(dt, pointer, audioData, params);
+        bloom.update(dt, neutralHoldPointer(pointer), audioData, params);
       }
 
       const boost = pointer?.velocity > 8 && phase === 'morph' ? 1.35 : 1;
@@ -649,28 +687,16 @@ export function createMorphSequence() {
       if (isFormBloomHold() && bloom) bloom.render();
     },
 
-    onPointerDown(x, y, pointer) {
-      if (isPetalHold()) {
-        flowerBloom?.onPointerDown?.(x, y, pointer);
-        return;
-      }
-
-      if (isFormBloomHold()) {
-        activeBloom()?.onPointerDown?.(x, y, pointer);
-      }
+    onPointerDown() {
+      // hold 中はダブルタップ進行のみ — タップ地点への bloom スポーンを抑止
     },
 
-    onPointerMove(x, y, pointer) {
-      if (isPetalHold()) flowerBloom?.onPointerMove?.(x, y, pointer);
-      if (isFormBloomHold()) activeBloom()?.onPointerMove?.(x, y, pointer);
-    },
+    onPointerMove() {},
 
-    onPointerUp(pointer) {
+    onPointerUp() {
       if (phase === 'hold' && (isPetalHold() || isFormBloomHold())) {
-        if (tryAdvanceByDoubleTap()) return;
+        tryAdvanceByDoubleTap();
       }
-      if (isPetalHold()) flowerBloom?.onPointerUp?.(pointer);
-      if (isFormBloomHold()) activeBloom()?.onPointerUp?.(pointer);
     },
 
     setParams(p) {

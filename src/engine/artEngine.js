@@ -104,6 +104,12 @@ export class ArtEngine {
     }
     this._lastGoodWidth = w;
     this._lastGoodHeight = h;
+    if (this.pointer.x === 0 && this.pointer.y === 0) {
+      this.pointer.x = w * 0.5;
+      this.pointer.y = h * 0.5;
+      this.pointer.prevX = this.pointer.x;
+      this.pointer.prevY = this.pointer.y;
+    }
     return { w, h, applied: true };
   }
 
@@ -145,7 +151,15 @@ export class ArtEngine {
     window.addEventListener('orientationchange', scheduleResize);
     window.visualViewport?.addEventListener('resize', scheduleResize);
 
-    const updatePointer = (x, y) => {
+    const updatePointer = (x, y, resetVelocity = false) => {
+      if (resetVelocity) {
+        this.pointer.prevX = x;
+        this.pointer.prevY = y;
+        this.pointer.x = x;
+        this.pointer.y = y;
+        this.pointer.velocity = 0;
+        return;
+      }
       this.pointer.prevX = this.pointer.x;
       this.pointer.prevY = this.pointer.y;
       this.pointer.x = x;
@@ -162,7 +176,7 @@ export class ArtEngine {
 
     this.canvas.addEventListener('mousedown', (e) => {
       this.pointer.isDown = true;
-      updatePointer(e.clientX, e.clientY);
+      updatePointer(e.clientX, e.clientY, true);
       this.activePreset?.onPointerDown?.(e.clientX, e.clientY, this.pointer);
     });
 
@@ -175,7 +189,7 @@ export class ArtEngine {
       e.preventDefault();
       const t = e.touches[0];
       this.pointer.isDown = true;
-      updatePointer(t.clientX, t.clientY);
+      updatePointer(t.clientX, t.clientY, true);
       this.activePreset?.onPointerDown?.(t.clientX, t.clientY, this.pointer);
     }, { passive: false });
 

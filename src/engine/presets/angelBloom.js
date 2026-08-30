@@ -51,7 +51,7 @@ function angelNeonRim(hex) {
 }
 
 /**
- * 天使専用: ゼリー透明 + 高彩度ネオン（ピンク / 金 / 白金 / ラベンダー / シアン / エレクトリックブルー）
+ * 天使専用: ゼリー透明 + 高彩度ネオン（ピンク / 金 / ラベンダー / 紫 / シアン / エレクトリックブルー）
  */
 export function createAngelBloom() {
   let marks = [];
