@@ -270,18 +270,21 @@ export function createMorphSequence() {
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
       const pulse = (stepId === 'angel' || nextId === 'angel')
-        ? 0.72 + 0.44 * (0.5 + 0.5 * Math.sin(time * 2.5 + i * 0.02))
+        ? 0.86 + 0.42 * (0.5 + 0.5 * Math.sin(time * 2.5 + i * 0.02))
         : 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(time * 2.5 + i * 0.02));
       let r = colorA[i3] * (1 - mix) + colorB[i3] * mix;
       let g = colorA[i3 + 1] * (1 - mix) + colorB[i3 + 1] * mix;
       let b = colorA[i3 + 2] * (1 - mix) + colorB[i3 + 2] * mix;
       if (angelMix) {
-        const w = 0.36;
+        const w = 0.06;
         r = r * (1 - w) + w;
         g = g * (1 - w) + w;
         b = b * (1 - w) + w;
-        g = Math.min(g, Math.max(r, b) * 0.48);
-        r = Math.min(r, Math.max(g, b) * 1.02);
+        const gray = (r + g + b) / 3;
+        const sat = 1.58;
+        r = Math.min(1, Math.max(0, gray + (r - gray) * sat));
+        g = Math.min(1, Math.max(0, gray + (g - gray) * sat));
+        b = Math.min(1, Math.max(0, gray + (b - gray) * sat));
       }
       field.colors[i3] = r * pulse;
       field.colors[i3 + 1] = g * pulse;

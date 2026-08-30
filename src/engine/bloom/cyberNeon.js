@@ -1,6 +1,6 @@
 import { hexToRgb } from '../palettes.js';
 
-/** オタマ / 天使向けサイバーネオン */
+/** オタマ向けサイバーネオン */
 export const TADPOLE_CYBER_NEON = [
   '#00b7ff', '#0090ff', '#0066ff', '#3d5afe',
   '#5b8cff', '#4d7cff', '#2f6bff',
@@ -8,9 +8,13 @@ export const TADPOLE_CYBER_NEON = [
   '#ff00e5', '#ff2bd6', '#e040fb', '#c026d3',
 ];
 
+/** 天使専用: ピンク / 金 / 白金 / ラベンダー + シアン / エレクトリックブルー / バイオレットブルー */
 export const ANGEL_CYBER_NEON = [
-  ...TADPOLE_CYBER_NEON,
-  '#00e5ff', '#18ffff', '#536dfe', '#651fff', '#ea80fc', '#f50057',
+  '#ff1ac6', '#ff2ea8', '#ff00aa', '#ff4dd2',
+  '#00ffff', '#00e5ff', '#00b8ff', '#2979ff',
+  '#ffd000', '#ffbf00', '#ffe135', '#fff36a',
+  '#c44dff', '#b44dff', '#7c4dff', '#536dfe',
+  '#e040fb', '#d946ef',
 ];
 
 /** クラゲ向けサイバーネオン */
@@ -102,17 +106,46 @@ export function angelColorAt(hueIndex) {
   return ANGEL_CYBER_NEON[idx];
 }
 
-export function angelFillColor(hex, scale = 0.9) {
-  return cyberShowColor(cyberHexToRgb(hex), 1.46 * scale);
+function angelHexToRgb(hex) {
+  const rgb = hexToRgb(hex);
+  const max = Math.max(rgb.r, rgb.g, rgb.b, 1);
+  return {
+    r: Math.round((rgb.r / max) * 255),
+    g: Math.round((rgb.g / max) * 255),
+    b: Math.round((rgb.b / max) * 255),
+  };
 }
 
-export function angelParticleFill(hex, scale = 0.9, whiteMix = 0.42) {
+function angelSaturateRgb(rgb, amount = 1.58) {
+  const gray = (rgb.r + rgb.g + rgb.b) / 3;
+  return {
+    r: Math.min(255, Math.max(0, Math.round(gray + (rgb.r - gray) * amount))),
+    g: Math.min(255, Math.max(0, Math.round(gray + (rgb.g - gray) * amount))),
+    b: Math.min(255, Math.max(0, Math.round(gray + (rgb.b - gray) * amount))),
+  };
+}
+
+export function angelFillColor(hex, scale = 1.08) {
+  const sat = angelSaturateRgb(angelHexToRgb(hex), 1.58);
+  let r = (sat.r / 255) * scale;
+  let g = (sat.g / 255) * scale;
+  let b = (sat.b / 255) * scale;
+  const peak = Math.max(r, g, b, 1e-6);
+  if (peak > 1) {
+    r /= peak;
+    g /= peak;
+    b /= peak;
+  }
+  return { r, g, b };
+}
+
+export function angelParticleFill(hex, scale = 1.12, whiteMix = 0.07) {
   const fill = angelFillColor(hex, scale);
   const w = Math.min(1, Math.max(0, whiteMix));
   const r = fill.r * (1 - w) + w;
   const g = fill.g * (1 - w) + w;
   const b = fill.b * (1 - w) + w;
-  const shine = 0.14;
+  const shine = 0.035;
   return {
     r: Math.min(1, r * (1 - shine) + shine),
     g: Math.min(1, g * (1 - shine) + shine),
@@ -121,7 +154,7 @@ export function angelParticleFill(hex, scale = 0.9, whiteMix = 0.42) {
 }
 
 export function angelShardRgb(hex) {
-  const c = angelParticleFill(hex, 1.14, 0.4);
+  const c = angelParticleFill(hex, 1.28, 0.06);
   return {
     r: Math.round(c.r * 255),
     g: Math.round(c.g * 255),

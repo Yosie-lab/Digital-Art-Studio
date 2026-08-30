@@ -22,7 +22,7 @@ import {
 
 const ANGEL_PARTICLE_SIZE_SPARKLE = 6;
 const ANGEL_PARTICLE_SIZE_FALL = 14;
-const ANGEL_PARTICLE_GLOW = 1.44;
+const ANGEL_PARTICLE_GLOW = 1.58;
 const ANGEL_SPARKLE_COUNT = 180;
 const ANGEL_FALL_MAX = 1100;
 
@@ -31,7 +31,7 @@ function angelWhiteRim() {
 }
 
 /**
- * 天使専用: ゼリー透明 + サイバーネオン（オタマ同系）
+ * 天使専用: ゼリー透明 + 高彩度ネオン（ピンク / 金 / 白金 / ラベンダー / シアン / エレクトリックブルー）
  */
 export function createAngelBloom() {
   let marks = [];
@@ -244,9 +244,9 @@ export function createAngelBloom() {
       const bodyHex = angelColorAt(idx);
       const wingHex = angelColorAt(idx + 1);
       const haloHex = angelColorAt(idx + 2);
-      const tint = angelFillColor(bodyHex, 1.02);
-      const wingTint = angelFillColor(wingHex, 0.98);
-      const haloTint = angelFillColor(haloHex, 0.72);
+      const tint = angelFillColor(bodyHex, 1.18);
+      const wingTint = angelFillColor(wingHex, 1.14);
+      const haloTint = angelFillColor(haloHex, 1.08);
       const rim = angelWhiteRim();
 
       dummy.matrix.copy(root.matrixWorld);
@@ -302,7 +302,7 @@ export function createAngelBloom() {
         sparkleField.positions[i * 3 + 1] = wpos.y;
         sparkleField.positions[i * 3 + 2] = wpos.z;
         const pulse = 0.72 + 0.42 * Math.abs(Math.sin(time * 3.4 + s.phase));
-        const sc = angelParticleFill(angelColorAt(s.phase * 3 + i * 0.1), 1.08, 0.38);
+        const sc = angelParticleFill(angelColorAt(s.phase * 3 + i * 0.1), 1.32, 0.06);
         const glow = pulse * ANGEL_PARTICLE_GLOW;
         sparkleField.colors[i * 3] = Math.min(1, sc.r * glow);
         sparkleField.colors[i * 3 + 1] = Math.min(1, sc.g * glow);
@@ -323,7 +323,7 @@ export function createAngelBloom() {
         const [r0, g0, b0] = rgbToUnit(p.rgb);
         const twinkle = 0.84 + 0.38 * Math.abs(Math.sin(time * 9 + (p.twinkle || 0)));
         const glow = (p.glow || 1.92) * (0.66 + p.opacity * 0.56) * twinkle * ANGEL_PARTICLE_GLOW;
-        const w = 0.38;
+        const w = 0.06;
         fallField.colors[i * 3] = Math.min(1, r0 * glow * (1 - w) + w);
         fallField.colors[i * 3 + 1] = Math.min(1, g0 * glow * (1 - w) + w);
         fallField.colors[i * 3 + 2] = Math.min(1, b0 * glow * (1 - w) + w);
@@ -369,7 +369,7 @@ export function createAngelBloom() {
       blushGeo = buildAngelBlushGeometry();
       wingGeo = buildAngelWingGeometry();
       haloGeo = buildAngelHaloGeometry();
-      bodyMesh = new THREE.InstancedMesh(bodyGeo, makeMat(0.15, { additive: true }), MAX);
+      bodyMesh = new THREE.InstancedMesh(bodyGeo, makeMat(0.2, { additive: true }), MAX);
       bodyOutline = new THREE.InstancedMesh(bodyGeo, makeMat(0.34, { back: true, additive: false }), MAX);
       const eyeMat = makeMat(0.92, { additive: false });
       eyeMat.polygonOffset = true;
@@ -385,11 +385,11 @@ export function createAngelBloom() {
       angelMouthMesh.renderOrder = 11;
       faceHiMesh = new THREE.InstancedMesh(faceHiGeo, makeMat(0.11, { additive: false }), MAX);
       blushMesh = new THREE.InstancedMesh(blushGeo, makeMat(0.09, { additive: false }), MAX);
-      wingLMesh = new THREE.InstancedMesh(wingGeo, makeMat(0.13, { additive: true }), MAX);
-      wingRMesh = new THREE.InstancedMesh(wingGeo, makeMat(0.13, { additive: true }), MAX);
+      wingLMesh = new THREE.InstancedMesh(wingGeo, makeMat(0.18, { additive: true }), MAX);
+      wingRMesh = new THREE.InstancedMesh(wingGeo, makeMat(0.18, { additive: true }), MAX);
       wingOutlineLMesh = new THREE.InstancedMesh(wingGeo, makeMat(0.28, { back: true, additive: false }), MAX);
       wingOutlineRMesh = new THREE.InstancedMesh(wingGeo, makeMat(0.28, { back: true, additive: false }), MAX);
-      haloMesh = new THREE.InstancedMesh(haloGeo, makeMat(0.18, { additive: true }), MAX);
+      haloMesh = new THREE.InstancedMesh(haloGeo, makeMat(0.26, { additive: true }), MAX);
       for (const m of [bodyMesh, bodyOutline, angelEyeMesh, angelMouthMesh, faceHiMesh, blushMesh, wingLMesh, wingRMesh, wingOutlineLMesh, wingOutlineRMesh, haloMesh]) {
         m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3);
         m.frustumCulled = false;
@@ -400,8 +400,8 @@ export function createAngelBloom() {
       fallField = makePoints(ANGEL_FALL_MAX, ANGEL_PARTICLE_SIZE_FALL);
       sparkleField.mat.blending = THREE.AdditiveBlending;
       fallField.mat.blending = THREE.AdditiveBlending;
-      sparkleField.mat.opacity = 0.74;
-      fallField.mat.opacity = 0.68;
+      sparkleField.mat.opacity = 0.86;
+      fallField.mat.opacity = 0.8;
       sparkleField.mat.toneMapped = false;
       fallField.mat.toneMapped = false;
       layer.add(sparkleField.points, fallField.points);
