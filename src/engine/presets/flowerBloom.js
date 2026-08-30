@@ -1,5 +1,13 @@
 import * as THREE from 'three';
-import { toWorld, makePoints, rgbToUnit, stratifiedSpawnPoints, primeGrowingMarks } from '../space3d.js';
+import {
+  toWorld,
+  makePoints,
+  rgbToUnit,
+  stratifiedSpawnPoints,
+  primeGrowingMarks,
+  sampleMarksWorld,
+  spreadScreenCloud,
+} from '../space3d.js';
 import {
   boostVividRgb,
   flowerBrightenRgb as brightenRgb,
@@ -365,6 +373,11 @@ export function createFlowerBloom() {
 
     onPointerMove() {},
     onPointerUp() {},
+
+    samplePoints(count) {
+      return sampleMarksWorld(flowers, count, width, height, spreadScreenCloud);
+    },
+
     setParams(p) { currentPalette = p.palette; },
     destroy() {
       flowers = []; petals = []; sparkles = [];

@@ -69,7 +69,9 @@ export function rgbToUnit(rgb) {
 
 /** 画面内に層状（グリッド＋ジッター）でスポーン座標を配る */
 export function stratifiedSpawnPoints(count, w, h, margin = 0.06, yRange = null) {
-  const cols = Math.max(1, Math.ceil(Math.sqrt(count * (w / Math.max(h, 1)))));
+  w = Math.max(w, 1);
+  h = Math.max(h, 1);
+  const cols = Math.max(1, Math.ceil(Math.sqrt(count * (w / h))));
   const rows = Math.max(1, Math.ceil(count / cols));
   const mx = w * margin;
   const my = h * margin;

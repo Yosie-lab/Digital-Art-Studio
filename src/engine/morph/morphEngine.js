@@ -58,6 +58,7 @@ function easeInOutCubic(t) {
  * @param {'swarm'|'trail'|'burst'} style
  */
 export function morphPositions(out, from, to, progress, time, style = 'swarm') {
+  if (!from || !to || from.length !== out.length || to.length !== out.length) return;
   const count = out.length / 3;
   const p = Math.min(1, Math.max(0, progress));
   const e = easeInOutCubic(p);

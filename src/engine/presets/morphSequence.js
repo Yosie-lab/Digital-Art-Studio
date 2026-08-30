@@ -191,11 +191,29 @@ export function createMorphSequence() {
     setLabel(label, MANUAL_HINT);
   }
 
+  function sampleDims() {
+    return {
+      w: Math.max(width, 1),
+      h: Math.max(height, 1),
+    };
+  }
+
+  function cloudValid(cloud) {
+    if (!cloud || cloud.length !== count * 3) return false;
+    for (let i = 0; i < cloud.length; i++) {
+      if (!Number.isFinite(cloud[i])) return false;
+    }
+    return true;
+  }
+
   function sampleStageCloud(stepIndex) {
     const step = SEQUENCE[stepIndex];
+    const { w, h } = sampleDims();
+
     if (step.id === 'petal') {
+      if (flowerBloom?.samplePoints) return flowerBloom.samplePoints(count);
       const model = samplePetalCloud(count, 95);
-      return spreadModelCloudToWorld(model, count, width, height, 0.12);
+      return spreadModelCloudToWorld(model, count, w, h, 0.12);
     }
 
     const live = bloomSlots[step.id]?.bloom;
@@ -203,10 +221,10 @@ export function createMorphSequence() {
 
     const tempId = step.id === 'letter' ? 'letter' : step.id;
     const temp = createSolidForm(tempId, currentPalette);
-    if (!temp) return spreadScreenCloud(count, width, height);
+    if (!temp) return spreadScreenCloud(count, w, h);
     const model = temp.samplePoints(count);
     temp.dispose?.();
-    return spreadModelCloudToWorld(model, count, width, height, 0.14);
+    return spreadModelCloudToWorld(model, count, w, h, 0.14);
   }
 
   function rebuildColors(n) {
@@ -238,6 +256,9 @@ export function createMorphSequence() {
 
     fromCloud = sampleStageCloud(stageIndex);
     toCloud = sampleStageCloud(nextIndex);
+    const { w: cw, h: ch } = sampleDims();
+    if (!cloudValid(fromCloud)) fromCloud = spreadScreenCloud(count, cw, ch);
+    if (!cloudValid(toCloud)) toCloud = spreadScreenCloud(count, cw, ch);
     colorA = colorsForStage(stageIndex);
     colorB = colorsForStage(nextIndex);
 
@@ -366,7 +387,7 @@ export function createMorphSequence() {
       currentPalette = params.palette || currentPalette;
 
       const want = Math.min(1800, Math.max(600, Math.floor((params.particleCount || 1030) * 1.1)));
-      if (want !== count && field) {
+      if (want !== count && field && phase !== 'morph') {
         layer.remove(field.points);
         field.geo.dispose();
         field.mat.map?.dispose();

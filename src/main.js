@@ -17,7 +17,7 @@ const canvas = document.getElementById('artCanvas');
 const engine = new ArtEngine(canvas);
 const audio = new AudioAnalyzer();
 const recorder = new Recorder(canvas);
-let currentPreset = 'flowerBloom';
+let currentPreset = 'morphSequence';
 
 // 初期プリセットをセット & 開始
 engine.setPreset(PRESET_FACTORIES[currentPreset]());
