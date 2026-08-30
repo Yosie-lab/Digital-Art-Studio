@@ -6,6 +6,7 @@ import {
   angelColorAt,
   angelFillColor,
   angelParticleFill,
+  angelRimColor,
   angelShardRgb,
   cyberHexToRgb,
   randomAngelCyberHex,
@@ -22,12 +23,25 @@ import {
 
 const ANGEL_PARTICLE_SIZE_SPARKLE = 6;
 const ANGEL_PARTICLE_SIZE_FALL = 14;
-const ANGEL_PARTICLE_GLOW = 1.58;
+const ANGEL_PARTICLE_GLOW = 1.78;
 const ANGEL_SPARKLE_COUNT = 180;
 const ANGEL_FALL_MAX = 1100;
+const ANGEL_BODY_OPACITY = 0.14;
+const ANGEL_RIM_OPACITY = 0.42;
+const ANGEL_WING_OPACITY = 0.12;
+const ANGEL_WING_RIM_OPACITY = 0.36;
+const ANGEL_HALO_OPACITY = 0.17;
+const ANGEL_EYE_OPACITY = 0.58;
+const ANGEL_MOUTH_OPACITY = 0.52;
+const ANGEL_SPARKLE_OPACITY = 0.74;
+const ANGEL_FALL_OPACITY = 0.68;
+const ANGEL_FILL_BOOST = 1.24;
+const ANGEL_WING_FILL_BOOST = 1.2;
+const ANGEL_HALO_FILL_BOOST = 1.14;
+const ANGEL_RIM_BOOST = 1.4;
 
-function angelWhiteRim() {
-  return { r: 1, g: 1, b: 1 };
+function angelNeonRim(hex) {
+  return angelRimColor(hex, ANGEL_RIM_BOOST);
 }
 
 /**
@@ -244,10 +258,11 @@ export function createAngelBloom() {
       const bodyHex = angelColorAt(idx);
       const wingHex = angelColorAt(idx + 1);
       const haloHex = angelColorAt(idx + 2);
-      const tint = angelFillColor(bodyHex, 1.18);
-      const wingTint = angelFillColor(wingHex, 1.14);
-      const haloTint = angelFillColor(haloHex, 1.08);
-      const rim = angelWhiteRim();
+      const tint = angelFillColor(bodyHex, ANGEL_FILL_BOOST);
+      const wingTint = angelFillColor(wingHex, ANGEL_WING_FILL_BOOST);
+      const haloTint = angelFillColor(haloHex, ANGEL_HALO_FILL_BOOST);
+      const rim = angelNeonRim(bodyHex);
+      const wingRim = angelNeonRim(wingHex);
 
       dummy.matrix.copy(root.matrixWorld);
       bodyMesh.setMatrixAt(i, dummy.matrix);
@@ -268,13 +283,13 @@ export function createAngelBloom() {
       wingLMesh.setMatrixAt(i, dummy.matrix);
       wingLMesh.setColorAt(i, _color.setRGB(wingTint.r, wingTint.g, wingTint.b));
       wingOutlineLMesh.setMatrixAt(i, dummy.matrix);
-      wingOutlineLMesh.setColorAt(i, _color.setRGB(rim.r, rim.g, rim.b));
+      wingOutlineLMesh.setColorAt(i, _color.setRGB(wingRim.r, wingRim.g, wingRim.b));
 
       dummy.matrix.copy(wingHoldR.matrixWorld);
       wingRMesh.setMatrixAt(i, dummy.matrix);
       wingRMesh.setColorAt(i, _color.setRGB(wingTint.r, wingTint.g, wingTint.b));
       wingOutlineRMesh.setMatrixAt(i, dummy.matrix);
-      wingOutlineRMesh.setColorAt(i, _color.setRGB(rim.r, rim.g, rim.b));
+      wingOutlineRMesh.setColorAt(i, _color.setRGB(wingRim.r, wingRim.g, wingRim.b));
 
       dummy.matrix.copy(root.matrixWorld);
       haloMesh.setMatrixAt(i, dummy.matrix);
@@ -301,8 +316,8 @@ export function createAngelBloom() {
         sparkleField.positions[i * 3] = wpos.x;
         sparkleField.positions[i * 3 + 1] = wpos.y;
         sparkleField.positions[i * 3 + 2] = wpos.z;
-        const pulse = 0.72 + 0.42 * Math.abs(Math.sin(time * 3.4 + s.phase));
-        const sc = angelParticleFill(angelColorAt(s.phase * 3 + i * 0.1), 1.32, 0.06);
+        const pulse = 0.82 + 0.65 * Math.abs(Math.sin(time * 2.6 + s.phase));
+        const sc = angelParticleFill(angelColorAt(s.phase * 3 + i * 0.1), 1.62, 0.06);
         const glow = pulse * ANGEL_PARTICLE_GLOW;
         sparkleField.colors[i * 3] = Math.min(1, sc.r * glow);
         sparkleField.colors[i * 3 + 1] = Math.min(1, sc.g * glow);
@@ -369,15 +384,15 @@ export function createAngelBloom() {
       blushGeo = buildAngelBlushGeometry();
       wingGeo = buildAngelWingGeometry();
       haloGeo = buildAngelHaloGeometry();
-      bodyMesh = new THREE.InstancedMesh(bodyGeo, makeMat(0.2, { additive: true }), MAX);
-      bodyOutline = new THREE.InstancedMesh(bodyGeo, makeMat(0.34, { back: true, additive: false }), MAX);
-      const eyeMat = makeMat(0.92, { additive: false });
+      bodyMesh = new THREE.InstancedMesh(bodyGeo, makeMat(ANGEL_BODY_OPACITY, { additive: true }), MAX);
+      bodyOutline = new THREE.InstancedMesh(bodyGeo, makeMat(ANGEL_RIM_OPACITY, { back: true, additive: true }), MAX);
+      const eyeMat = makeMat(ANGEL_EYE_OPACITY, { additive: false });
       eyeMat.polygonOffset = true;
       eyeMat.polygonOffsetFactor = -4;
       eyeMat.polygonOffsetUnits = -4;
       angelEyeMesh = new THREE.InstancedMesh(angelEyeGeo, eyeMat, MAX);
       angelEyeMesh.renderOrder = 12;
-      const mouthMat = makeMat(0.88, { additive: false });
+      const mouthMat = makeMat(ANGEL_MOUTH_OPACITY, { additive: false });
       mouthMat.polygonOffset = true;
       mouthMat.polygonOffsetFactor = -3;
       mouthMat.polygonOffsetUnits = -3;
@@ -385,11 +400,11 @@ export function createAngelBloom() {
       angelMouthMesh.renderOrder = 11;
       faceHiMesh = new THREE.InstancedMesh(faceHiGeo, makeMat(0.11, { additive: false }), MAX);
       blushMesh = new THREE.InstancedMesh(blushGeo, makeMat(0.09, { additive: false }), MAX);
-      wingLMesh = new THREE.InstancedMesh(wingGeo, makeMat(0.18, { additive: true }), MAX);
-      wingRMesh = new THREE.InstancedMesh(wingGeo, makeMat(0.18, { additive: true }), MAX);
-      wingOutlineLMesh = new THREE.InstancedMesh(wingGeo, makeMat(0.28, { back: true, additive: false }), MAX);
-      wingOutlineRMesh = new THREE.InstancedMesh(wingGeo, makeMat(0.28, { back: true, additive: false }), MAX);
-      haloMesh = new THREE.InstancedMesh(haloGeo, makeMat(0.26, { additive: true }), MAX);
+      wingLMesh = new THREE.InstancedMesh(wingGeo, makeMat(ANGEL_WING_OPACITY, { additive: true }), MAX);
+      wingRMesh = new THREE.InstancedMesh(wingGeo, makeMat(ANGEL_WING_OPACITY, { additive: true }), MAX);
+      wingOutlineLMesh = new THREE.InstancedMesh(wingGeo, makeMat(ANGEL_WING_RIM_OPACITY, { back: true, additive: true }), MAX);
+      wingOutlineRMesh = new THREE.InstancedMesh(wingGeo, makeMat(ANGEL_WING_RIM_OPACITY, { back: true, additive: true }), MAX);
+      haloMesh = new THREE.InstancedMesh(haloGeo, makeMat(ANGEL_HALO_OPACITY, { additive: true }), MAX);
       for (const m of [bodyMesh, bodyOutline, angelEyeMesh, angelMouthMesh, faceHiMesh, blushMesh, wingLMesh, wingRMesh, wingOutlineLMesh, wingOutlineRMesh, haloMesh]) {
         m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3);
         m.frustumCulled = false;
@@ -400,8 +415,8 @@ export function createAngelBloom() {
       fallField = makePoints(ANGEL_FALL_MAX, ANGEL_PARTICLE_SIZE_FALL);
       sparkleField.mat.blending = THREE.AdditiveBlending;
       fallField.mat.blending = THREE.AdditiveBlending;
-      sparkleField.mat.opacity = 0.86;
-      fallField.mat.opacity = 0.8;
+      sparkleField.mat.opacity = ANGEL_SPARKLE_OPACITY;
+      fallField.mat.opacity = ANGEL_FALL_OPACITY;
       sparkleField.mat.toneMapped = false;
       fallField.mat.toneMapped = false;
       layer.add(sparkleField.points, fallField.points);

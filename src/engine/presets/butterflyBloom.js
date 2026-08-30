@@ -133,6 +133,7 @@ const BUTTERFLY_SPARKLE_COUNT = 125;
 const BUTTERFLY_FALL_MAX = 780;
 const BUTTERFLY_PARTICLE_SIZE_SPARKLE = 4;
 const BUTTERFLY_PARTICLE_SIZE_FALL = 7;
+const BUTTERFLY_SIZE_SCALE = 1.18;
 
 function flapTempo01(flapSpeed) {
   const lo = BUTTERFLY_FLAP_SLOW[0];
@@ -298,7 +299,7 @@ export function createButterflyBloom() {
       this.x = x;
       this.y = y;
       this.z = (Math.random() - 0.5) * 360;
-      this.maxSize = pickMarkSize() * 0.8;
+      this.maxSize = pickMarkSize() * 0.8 * BUTTERFLY_SIZE_SCALE;
       this.size = 0;
       this.growth = 0;
       this.growthRate = 0.34 + Math.random() * 0.38;

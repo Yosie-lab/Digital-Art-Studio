@@ -270,7 +270,7 @@ export function createMorphSequence() {
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
       const pulse = (stepId === 'angel' || nextId === 'angel')
-        ? 0.86 + 0.42 * (0.5 + 0.5 * Math.sin(time * 2.5 + i * 0.02))
+        ? 1.06 + 0.58 * (0.5 + 0.5 * Math.sin(time * 2.5 + i * 0.02))
         : 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(time * 2.5 + i * 0.02));
       let r = colorA[i3] * (1 - mix) + colorB[i3] * mix;
       let g = colorA[i3 + 1] * (1 - mix) + colorB[i3 + 1] * mix;
@@ -310,6 +310,7 @@ export function createMorphSequence() {
     const angelMorph = step.id === 'angel' || nextId === 'angel';
     const sizeMul = angelMorph ? 0.36 : 0.55;
     field.mat.size = Math.max(4, Math.min(14, (params.particleSize || 15) * sizeMul));
+    field.mat.opacity = angelMorph ? 0.78 : 0.95;
 
     if (progress >= 1) {
       stageIndex = (stageIndex + 1) % SEQUENCE.length;
