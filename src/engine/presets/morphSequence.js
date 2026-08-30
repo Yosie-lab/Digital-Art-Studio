@@ -250,7 +250,8 @@ export function createMorphSequence() {
   }
 
   function viewportIsReady() {
-    return viewportReady(width, height) || viewportReady(stableWidth, stableHeight);
+    const { w, h } = sampleDims();
+    return viewportReady(w, h);
   }
 
   /** morph 開始・完了に必要な実寸（64px フォールバック不可） */
@@ -259,21 +260,28 @@ export function createMorphSequence() {
     return w >= MORPH_VIEWPORT_MIN && h >= MORPH_VIEWPORT_MIN;
   }
 
-  function forceMorphCloud(cloud, w, h, fallback = null) {
-    const min = minCloudSpread(w, h);
-    if (!cloud || cloud.length !== count * 3 || cloudIsDegenerate(cloud, min)) {
-      if (fallback) return ensureSpreadCloud(fallback(count, w, h), count, w, h);
-      return spreadScreenCloud(count, w, h);
-    }
-    return ensureSpreadCloud(cloud, count, w, h, fallback ? (n, cw, ch) => fallback(n, cw, ch) : null);
-  }
-
   function angelMorphFallback(n, w, h) {
     return spreadModelCloudToWorld(sampleAngelCloud(n, 130), n, w, h, 0.14);
   }
 
-  function ensureSpreadCloud(cloud, w, h) {
-    return ensureCloudSpread(cloud, count, w, h, spreadScreenCloud);
+  function ensureSpreadCloud(cloud, w, h, fallback = null) {
+    const fb = fallback || spreadScreenCloud;
+    return ensureCloudSpread(cloud, count, w, h, fb);
+  }
+
+  function forceMorphCloud(cloud, w, h, fallback = null) {
+    const fb = fallback || spreadScreenCloud;
+    const min = minCloudSpread(w, h);
+    if (!cloud || cloud.length !== count * 3 || cloudIsDegenerate(cloud, min)) {
+      return ensureSpreadCloud(fb(count, w, h), w, h, fb);
+    }
+    return ensureSpreadCloud(cloud, w, h, fb);
+  }
+
+  function guaranteeMorphClouds(cw, ch, fallback = null) {
+    const fb = fallback || spreadScreenCloud;
+    if (!cloudValid(fromCloud, cw, ch)) fromCloud = ensureSpreadCloud(fb(count, cw, ch), cw, ch, fb);
+    if (!cloudValid(toCloud, cw, ch)) toCloud = ensureSpreadCloud(fb(count, cw, ch), cw, ch, fb);
   }
 
   function cloudValid(cloud, w, h) {
@@ -376,7 +384,6 @@ export function createMorphSequence() {
     const nextIndex = (stageIndex + 1) % SEQUENCE.length;
     const next = SEQUENCE[nextIndex];
     const { w: cw, h: ch } = sampleDims();
-    const min = minCloudSpread(cw, ch);
 
     syncBloomViewports();
     const angelMorph = step.id === 'angel' || next.id === 'angel';
@@ -386,18 +393,7 @@ export function createMorphSequence() {
 
     fromCloud = forceMorphCloud(sampleStageCloud(stageIndex), cw, ch, angelMorph ? angelMorphFallback : null);
     toCloud = forceMorphCloud(sampleStageCloud(nextIndex), cw, ch, angelMorph ? angelMorphFallback : null);
-    if (!cloudValid(fromCloud, cw, ch)) fromCloud = spreadScreenCloud(count, cw, ch);
-    if (!cloudValid(toCloud, cw, ch)) toCloud = spreadScreenCloud(count, cw, ch);
-
-    if (cloudIsDegenerate(fromCloud, min) || cloudIsDegenerate(toCloud, min)) {
-      morphCompletePending = true;
-      phase = 'morph';
-      phaseT = step.morph;
-      stopEverything();
-      setFieldVisible(false);
-      tryCompleteMorph();
-      return;
-    }
+    guaranteeMorphClouds(cw, ch, angelMorph ? angelMorphFallback : null);
 
     phase = 'morph';
     phaseT = 0;
@@ -448,6 +444,7 @@ export function createMorphSequence() {
 
   function tryCompleteMorph() {
     if (!morphCompletePending || phase !== 'morph') return;
+    if (!viewportIsReady()) return;
     const nextIndex = (stageIndex + 1) % SEQUENCE.length;
     if (enterHoldStage(nextIndex)) {
       stageIndex = nextIndex;
@@ -496,6 +493,18 @@ export function createMorphSequence() {
     }
 
     setFieldVisible(true);
+    const { w: cw, h: ch } = sampleDims();
+    const nextId = SEQUENCE[(stageIndex + 1) % SEQUENCE.length]?.id;
+    const angelMorph = step.id === 'angel' || nextId === 'angel';
+    const morphFallback = angelMorph ? angelMorphFallback : null;
+    if (!fromCloud || !toCloud
+      || fromCloud.length !== field.positions.length
+      || toCloud.length !== field.positions.length
+      || !cloudValid(fromCloud, cw, ch)
+      || !cloudValid(toCloud, cw, ch)) {
+      guaranteeMorphClouds(cw, ch, morphFallback);
+      if (fromCloud) field.positions.set(fromCloud);
+    }
     const progress = Math.min(1, phaseT / step.morph);
     if (fromCloud && toCloud && fromCloud.length === field.positions.length && toCloud.length === field.positions.length) {
       morphPositions(field.positions, fromCloud, toCloud, progress, time, step.style);
@@ -504,8 +513,6 @@ export function createMorphSequence() {
     field.geo.setDrawRange(0, count);
     field.geo.attributes.position.needsUpdate = true;
     field.geo.attributes.color.needsUpdate = true;
-    const nextId = SEQUENCE[(stageIndex + 1) % SEQUENCE.length]?.id;
-    const angelMorph = step.id === 'angel' || nextId === 'angel';
     const sizeMul = angelMorph ? 0.36 : 0.55;
     const baseSize = Math.max(4, Math.min(14, (params.particleSize || 15) * sizeMul));
     field.mat.size = baseSize;

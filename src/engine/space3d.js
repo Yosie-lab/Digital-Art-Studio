@@ -191,7 +191,9 @@ export function ensureCloudSpread(cloud, count, w, h, fallback = null) {
   const { w: vw, h: vh } = safeViewport(w, h);
   const min = minCloudSpread(vw, vh);
   if (cloudWellSpread(cloud, min) && !cloudIsDegenerate(cloud, min)) return cloud;
-  if (fallback) return fallback(count, vw, vh);
+  const fb = fallback || spreadScreenCloud;
+  const next = fb(count, vw, vh);
+  if (cloudWellSpread(next, min) && !cloudIsDegenerate(next, min)) return next;
   return spreadScreenCloud(count, vw, vh);
 }
 
