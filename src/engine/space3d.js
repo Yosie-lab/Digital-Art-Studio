@@ -312,9 +312,6 @@ export function primeGrowingMarks(marks) {
   }
 }
 
-/** @deprecated use primeGrowingMarks */
-export const primeGrowingFlowers = primeGrowingMarks;
-
 /** Bloom mark からモーフ用点群（ワールド座標） */
 export function sampleMarksWorld(marks, count, w, h, fallback = null, spreadMin = 36) {
   const { w: vw, h: vh } = safeViewport(w, h);

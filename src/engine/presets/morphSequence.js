@@ -1,67 +1,39 @@
 import * as THREE from 'three';
-import { getPaletteColors, hexToRgb } from '../palettes.js';
-import { makePoints, clearGroup, spreadModelCloudToWorld, spreadScreenCloud, viewportReady, safeViewport, cloudWellSpread, cloudIsDegenerate, cloudStacked, minCloudSpread, ensureCloudSpread } from '../space3d.js';
-import { ANGEL_SATURATION } from '../bloom/cyberNeon.js';
+import { makePoints, clearGroup } from '../space3d.js';
 import { morphPositions } from '../morph/morphEngine.js';
-import { createFlowerBloom } from './flowerBloom.js';
-import { createLetterXBloom } from './letterXBloom.js';
-import { createJellyfishBloom } from './jellyfishBloom.js';
-import { createMusicNoteBloom } from './musicNoteBloom.js';
-import { createTadpoleBloom } from './tadpoleBloom.js';
-import { createAngelBloom } from './angelBloom.js';
+import { createMorphStageLabel } from '../morph/morphStageLabel.js';
+import { createMorphViewport } from '../morph/morphViewport.js';
 import {
-  neonRainbowUnitColors,
-  neonAngelUnitColors,
-} from '../bloom/morphColors.js';
-import { createButterflyBloom } from './butterflyBloom.js';
-import { samplePetalCloud, sampleAngelCloud } from '../morph/sampleShapes.js';
-import { createSolidForm } from '../morph/solidForms.js';
+  cloudValid,
+  angelMorphFallback,
+  ensureSpreadCloud,
+  morphStartSpreadCloud,
+  guaranteeMorphClouds,
+  sampleStageCloudNeutral,
+} from '../morph/morphCloudSampling.js';
+import {
+  paletteUnitColors,
+  rebuildMorphColors,
+  colorsForStage,
+  paintMorphColors,
+} from '../morph/morphPalette.js';
+import {
+  SEQUENCE,
+  MANUAL_HINT,
+  DOUBLE_TAP_MS,
+  BLOOM_FACTORIES,
+} from '../morph/morphSequenceConfig.js';
+import { neutralHoldPointer } from '../pointer.js';
+import { createFlowerBloom } from './flowerBloom.js';
 
 /**
  * 変容シークエンス
- * 花びら → クラゲ → 文字 → オタマ → 蝶 → 音楽記号 → 天使
  * hold: Infinity = 自動進行なし（ダブルクリックのみ）
- * 花びら以外はすべて同じ出現ロジック（色・サイズ・カーソル追従）
  */
-const SEQUENCE = [
-  { id: 'petal', label: '花びら', hold: Infinity, morph: 2.4, style: 'swarm' },
-  { id: 'jellyfish', label: 'クラゲ', hold: Infinity, morph: 2.4, style: 'trail' },
-  { id: 'letter', label: 'A B C · X Y Z', hold: Infinity, morph: 2.4, style: 'swarm' },
-  { id: 'tadpole', label: 'オタマ', hold: Infinity, morph: 2.4, style: 'trail' },
-  { id: 'butterfly', label: '蝶', hold: Infinity, morph: 2.2, style: 'swarm' },
-  { id: 'music', label: '♪ 音楽記号', hold: Infinity, morph: 2.6, style: 'burst' },
-  { id: 'angel', label: '天使', hold: Infinity, morph: 2.8, style: 'burst' },
-];
-
-const MANUAL_HINT = 'じっくり操作可 · 次へはダブルクリックのみ';
-const MORPH_VIEWPORT_MIN = 200;
-const DOUBLE_TAP_MS = 520;
-
-const BLOOM_FACTORIES = {
-  letter: createLetterXBloom,
-  jellyfish: createJellyfishBloom,
-  butterfly: createButterflyBloom,
-  tadpole: createTadpoleBloom,
-  music: createMusicNoteBloom,
-  angel: createAngelBloom,
-};
-
-function paletteUnitColors(name, count) {
-  const colors = getPaletteColors(name);
-  const out = new Float32Array(count * 3);
-  for (let i = 0; i < count; i++) {
-    const hex = colors[i % colors.length];
-    const { r, g, b } = hexToRgb(hex);
-    out[i * 3] = r / 255;
-    out[i * 3 + 1] = g / 255;
-    out[i * 3 + 2] = b / 255;
-  }
-  return out;
-}
-
 export function createMorphSequence() {
-  let width = 0;
-  let height = 0;
+  const viewport = createMorphViewport();
+  const label = createMorphStageLabel();
+
   let time = 0;
   let layer = null;
   let flowerGroup = null;
@@ -82,10 +54,7 @@ export function createMorphSequence() {
   let toCloud = null;
   let colorA = null;
   let colorB = null;
-  let labelEl = null;
   let lastAdvanceTap = 0;
-  let stableWidth = 0;
-  let stableHeight = 0;
   let pendingMorph = false;
   let holdDeferred = false;
   let morphCompletePending = false;
@@ -114,36 +83,6 @@ export function createMorphSequence() {
     }
     lastAdvanceTap = now;
     return false;
-  }
-
-  function ensureLabel() {
-    if (labelEl) return;
-    labelEl = document.createElement('div');
-    labelEl.id = 'morphStageLabel';
-    labelEl.style.cssText = [
-      'position:fixed',
-      'left:50%',
-      'bottom:92px',
-      'transform:translateX(-50%)',
-      'z-index:20',
-      'pointer-events:none',
-      'font-family:Outfit,Noto Sans JP,sans-serif',
-      'font-size:13px',
-      'letter-spacing:0.12em',
-      'color:rgba(180,200,255,0.75)',
-      'text-shadow:0 0 12px rgba(42,92,255,0.45)',
-      'transition:opacity 0.4s',
-      'text-align:center',
-      'line-height:1.5',
-    ].join(';');
-    document.body.appendChild(labelEl);
-  }
-
-  function setLabel(text, hint = '') {
-    ensureLabel();
-    labelEl.innerHTML = hint
-      ? `${text}<br><span style="font-size:11px;opacity:0.55;letter-spacing:0.06em">${hint}</span>`
-      : text;
   }
 
   function setFieldVisible(visible) {
@@ -208,20 +147,20 @@ export function createMorphSequence() {
 
   function startFlowerBloom(params) {
     stopEverything();
-    if (!flowerGroup || !layer || !viewportIsReady()) return;
-    const { w, h } = sampleDims();
+    if (!flowerGroup || !layer || !viewport.isReady()) return;
+    const { w, h } = viewport.sampleDims();
     flowerBloom = createFlowerBloom();
     flowerBloom.init(w, h, params || latestParams || { palette: currentPalette }, flowerGroup);
     setFieldVisible(false);
-    setLabel('花びら', MANUAL_HINT);
+    label.set('花びら', MANUAL_HINT);
   }
 
-  function startFormBloom(stepId, label) {
+  function startFormBloom(stepId, stepLabel) {
     stopEverything();
     const slot = bloomSlots[stepId];
     const factory = BLOOM_FACTORIES[stepId];
-    if (!slot || !factory || !viewportIsReady()) return;
-    const { w, h } = sampleDims();
+    if (!slot || !factory || !viewport.isReady()) return;
+    const { w, h } = viewport.sampleDims();
     try {
       slot.bloom = factory();
       slot.bloom.init(w, h, latestParams || { palette: currentPalette }, slot.group);
@@ -231,190 +170,39 @@ export function createMorphSequence() {
       return;
     }
     setFieldVisible(false);
-    setLabel(label, MANUAL_HINT);
-  }
-
-  function rememberStableViewport(w, h) {
-    if (viewportReady(w, h)) {
-      stableWidth = w;
-      stableHeight = h;
-      return true;
-    }
-    return false;
-  }
-
-  function sampleDims() {
-    if (viewportReady(width, height)) return { w: width, h: height };
-    if (viewportReady(stableWidth, stableHeight)) return { w: stableWidth, h: stableHeight };
-    return safeViewport(width, height, stableWidth, stableHeight);
-  }
-
-  function viewportIsReady() {
-    const { w, h } = sampleDims();
-    return viewportReady(w, h);
-  }
-
-  /** morph 開始・完了に必要な実寸（64px フォールバック不可） */
-  function morphViewportReady() {
-    const { w, h } = sampleDims();
-    return w >= MORPH_VIEWPORT_MIN && h >= MORPH_VIEWPORT_MIN;
-  }
-
-  function angelMorphFallback(n, w, h) {
-    return spreadModelCloudToWorld(sampleAngelCloud(n, 130), n, w, h, 0.14);
-  }
-
-  function ensureSpreadCloud(cloud, w, h, fallback = null) {
-    const fb = fallback || spreadScreenCloud;
-    return ensureCloudSpread(cloud, count, w, h, fb);
-  }
-
-  function guaranteeMorphClouds(cw, ch, fallback = null) {
-    const fb = fallback || spreadScreenCloud;
-    if (!cloudValid(fromCloud, cw, ch)) fromCloud = ensureSpreadCloud(fb(count, cw, ch), cw, ch, fb);
-    if (!cloudValid(toCloud, cw, ch)) toCloud = ensureSpreadCloud(fb(count, cw, ch), cw, ch, fb);
-  }
-
-  function cloudValid(cloud, w, h) {
-    if (!cloud || cloud.length !== count * 3) return false;
-    for (let i = 0; i < cloud.length; i++) {
-      if (!Number.isFinite(cloud[i])) return false;
-    }
-    const min = minCloudSpread(w, h);
-    const minUnique = Math.min(count, Math.max(48, Math.floor(count * 0.18)));
-    return cloudWellSpread(cloud, min) && !cloudIsDegenerate(cloud, min) && !cloudStacked(cloud, minUnique);
-  }
-
-  /** morph 開始時: 画面全体へ必ず散布（sample は参考、座標は spread 優先） */
-  function morphStartSpreadCloud(w, h, fallback = null) {
-    const fb = fallback || spreadScreenCloud;
-    return ensureSpreadCloud(fb(count, w, h), w, h, fb);
+    label.set(stepLabel, MANUAL_HINT);
   }
 
   function applyMorphStartSpreads(cw, ch, fallback = null, nextIndex = null) {
-    fromCloud = morphStartSpreadCloud(cw, ch, fallback);
+    fromCloud = morphStartSpreadCloud(count, cw, ch, fallback);
     if (nextIndex != null) {
-      toCloud = ensureSpreadCloud(sampleStageCloudNeutral(nextIndex), cw, ch, fallback);
+      toCloud = ensureSpreadCloud(
+        sampleStageCloudNeutral(nextIndex, count, cw, ch, currentPalette),
+        count,
+        cw,
+        ch,
+        fallback,
+      );
     } else {
-      toCloud = morphStartSpreadCloud(cw, ch, fallback);
+      toCloud = morphStartSpreadCloud(count, cw, ch, fallback);
     }
-    guaranteeMorphClouds(cw, ch, fallback);
-  }
-
-  /** live bloom / pointer 汚染なし — solid form のみ */
-  function sampleStageCloudNeutral(stepIndex) {
-    const step = SEQUENCE[stepIndex];
-    const { w, h } = sampleDims();
-
-    if (step.id === 'petal') {
-      const model = samplePetalCloud(count, 95);
-      return spreadModelCloudToWorld(model, count, w, h, 0.12);
-    }
-
-    if (step.id === 'angel') {
-      return ensureSpreadCloud(angelMorphFallback(count, w, h), w, h);
-    }
-
-    const tempId = step.id === 'letter' ? 'letter' : step.id;
-    const temp = createSolidForm(tempId, currentPalette);
-    if (!temp) return spreadScreenCloud(count, w, h);
-    const model = temp.samplePoints(count);
-    temp.dispose?.();
-    return spreadModelCloudToWorld(model, count, w, h, 0.14);
-  }
-
-  /** hold 中 bloom へ pointer 速度・タップ座標を渡さない */
-  function neutralHoldPointer(pointer) {
-    if (!pointer) return pointer;
-    return {
-      ...pointer,
-      velocity: 0,
-      prevX: pointer.x,
-      prevY: pointer.y,
-    };
+    ({ fromCloud, toCloud } = guaranteeMorphClouds(fromCloud, toCloud, count, cw, ch, fallback));
   }
 
   function syncBloomViewports() {
-    if (!viewportIsReady()) return;
-    const { w, h } = sampleDims();
+    if (!viewport.isReady()) return;
+    const { w, h } = viewport.sampleDims();
     flowerBloom?.resize?.(w, h);
     for (const slot of Object.values(bloomSlots)) slot.bloom?.resize?.(w, h);
   }
 
-  function sampleAngelStageCloud(w, h) {
-    const { w: vw, h: vh } = safeViewport(w, h, stableWidth, stableHeight);
-    const fallback = (n, cw, ch) => angelMorphFallback(n, cw, ch);
-
-    const live = bloomSlots.angel?.bloom;
-    if (live?.samplePoints) {
-      live.resize?.(vw, vh);
-      return ensureSpreadCloud(live.samplePoints(count, vw, vh), vw, vh, fallback);
-    }
-
-    const slot = bloomSlots.angel;
-    const factory = BLOOM_FACTORIES.angel;
-    if (factory && slot?.group) {
-      try {
-        const temp = factory();
-        temp.init(vw, vh, latestParams || { palette: currentPalette }, slot.group);
-        const cloud = ensureSpreadCloud(temp.samplePoints(count, vw, vh), vw, vh, fallback);
-        temp.destroy();
-        clearGroup(slot.group);
-        return cloud;
-      } catch (err) {
-        console.error('[MorphSequence] angel prewarm failed:', err);
-        clearGroup(slot.group);
-      }
-    }
-
-    return ensureSpreadCloud(angelMorphFallback(count, vw, vh), vw, vh);
-  }
-
-  function sampleStageCloud(stepIndex) {
-    const step = SEQUENCE[stepIndex];
-    const { w, h } = sampleDims();
-
-    if (step.id === 'petal') {
-      if (flowerBloom?.samplePoints) return ensureSpreadCloud(flowerBloom.samplePoints(count, w, h), w, h);
-      const model = samplePetalCloud(count, 95);
-      return spreadModelCloudToWorld(model, count, w, h, 0.12);
-    }
-
-    if (step.id === 'angel') return sampleAngelStageCloud(w, h);
-
-    const live = bloomSlots[step.id]?.bloom;
-    if (live?.samplePoints) return ensureSpreadCloud(live.samplePoints(count, w, h), w, h);
-
-    const tempId = step.id === 'letter' ? 'letter' : step.id;
-    const temp = createSolidForm(tempId, currentPalette);
-    if (!temp) return spreadScreenCloud(count, w, h);
-    const model = temp.samplePoints(count);
-    temp.dispose?.();
-    return spreadModelCloudToWorld(model, count, w, h, 0.14);
-  }
-
   function rebuildColors(n) {
     count = n;
-    colorA = paletteUnitColors(currentPalette, count);
-    colorB = paletteUnitColors(currentPalette, count);
-    for (let i = 0; i < count; i++) {
-      const j = ((i * 7) + 3) % count;
-      colorB[i * 3] = colorA[j * 3];
-      colorB[i * 3 + 1] = colorA[j * 3 + 1];
-      colorB[i * 3 + 2] = colorA[j * 3 + 2];
-    }
-  }
-
-  function colorsForStage(stepIndex) {
-    const id = SEQUENCE[stepIndex]?.id;
-    if (id === 'tadpole') return neonRainbowUnitColors(currentPalette, count);
-    if (id === 'angel') return neonAngelUnitColors(count);
-    if (id === 'butterfly') return paletteUnitColors('clockRainbow', count);
-    return paletteUnitColors(currentPalette, count);
+    ({ colorA, colorB } = rebuildMorphColors(count, currentPalette));
   }
 
   function runMorph() {
-    if (!morphViewportReady()) {
+    if (!viewport.morphReady()) {
       pendingMorph = true;
       return;
     }
@@ -424,7 +212,7 @@ export function createMorphSequence() {
     const step = SEQUENCE[stageIndex];
     const nextIndex = (stageIndex + 1) % SEQUENCE.length;
     const next = SEQUENCE[nextIndex];
-    const { w: cw, h: ch } = sampleDims();
+    const { w: cw, h: ch } = viewport.sampleDims();
 
     syncBloomViewports();
     const angelMorph = step.id === 'angel' || next.id === 'angel';
@@ -436,8 +224,8 @@ export function createMorphSequence() {
 
     phase = 'morph';
     phaseT = 0;
-    colorA = colorsForStage(stageIndex);
-    colorB = colorsForStage(nextIndex);
+    colorA = colorsForStage(stageIndex, count, currentPalette);
+    colorB = colorsForStage(nextIndex, count, currentPalette);
 
     stopEverything();
     setFieldVisible(true);
@@ -445,12 +233,12 @@ export function createMorphSequence() {
     field.geo.setDrawRange(0, count);
     field.geo.attributes.position.needsUpdate = true;
 
-    setLabel(`${step.label} → ${next.label}`, '変容中');
+    label.set(`${step.label} → ${next.label}`, '変容中');
   }
 
   function beginMorph() {
     if (phase === 'morph') return;
-    if (!morphViewportReady()) {
+    if (!viewport.morphReady()) {
       pendingMorph = true;
       return;
     }
@@ -459,7 +247,7 @@ export function createMorphSequence() {
   }
 
   function enterHoldStage(index = stageIndex) {
-    if (!viewportIsReady()) {
+    if (!viewport.isReady()) {
       holdDeferred = true;
       return false;
     }
@@ -483,39 +271,10 @@ export function createMorphSequence() {
 
   function tryCompleteMorph() {
     if (!morphCompletePending || phase !== 'morph') return;
-    if (!viewportIsReady() && !viewportReady(stableWidth, stableHeight)) return;
+    if (!viewport.isReady()) return;
     const nextIndex = (stageIndex + 1) % SEQUENCE.length;
     if (enterHoldStage(nextIndex)) {
       stageIndex = nextIndex;
-    }
-  }
-
-  function paintColors(mix) {
-    const stepId = SEQUENCE[stageIndex]?.id;
-    const nextId = SEQUENCE[(stageIndex + 1) % SEQUENCE.length]?.id;
-    const angelMix = stepId === 'angel' || nextId === 'angel';
-    for (let i = 0; i < count; i++) {
-      const i3 = i * 3;
-      const pulse = (stepId === 'angel' || nextId === 'angel')
-        ? 0.92 + 0.48 * (0.5 + 0.5 * Math.sin(time * 2.5 + i * 0.02))
-        : 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(time * 2.5 + i * 0.02));
-      let r = colorA[i3] * (1 - mix) + colorB[i3] * mix;
-      let g = colorA[i3 + 1] * (1 - mix) + colorB[i3 + 1] * mix;
-      let b = colorA[i3 + 2] * (1 - mix) + colorB[i3 + 2] * mix;
-      if (angelMix) {
-        const w = 0.06;
-        r = r * (1 - w) + w;
-        g = g * (1 - w) + w;
-        b = b * (1 - w) + w;
-        const gray = (r + g + b) / 3;
-        const sat = ANGEL_SATURATION;
-        r = Math.min(1, Math.max(0, gray + (r - gray) * sat));
-        g = Math.min(1, Math.max(0, gray + (g - gray) * sat));
-        b = Math.min(1, Math.max(0, gray + (b - gray) * sat));
-      }
-      field.colors[i3] = r * pulse;
-      field.colors[i3 + 1] = g * pulse;
-      field.colors[i3 + 2] = b * pulse;
     }
   }
 
@@ -532,7 +291,7 @@ export function createMorphSequence() {
     }
 
     setFieldVisible(true);
-    const { w: cw, h: ch } = sampleDims();
+    const { w: cw, h: ch } = viewport.sampleDims();
     const nextId = SEQUENCE[(stageIndex + 1) % SEQUENCE.length]?.id;
     const angelMorph = step.id === 'angel' || nextId === 'angel';
     const morphFallback = angelMorph ? angelMorphFallback : null;
@@ -540,8 +299,8 @@ export function createMorphSequence() {
     if (!fromCloud || !toCloud
       || fromCloud.length !== field.positions.length
       || toCloud.length !== field.positions.length
-      || !cloudValid(fromCloud, cw, ch)
-      || !cloudValid(toCloud, cw, ch)) {
+      || !cloudValid(fromCloud, count, cw, ch)
+      || !cloudValid(toCloud, count, cw, ch)) {
       applyMorphStartSpreads(cw, ch, morphFallback, nextIndex);
       if (fromCloud) field.positions.set(fromCloud);
     }
@@ -549,7 +308,7 @@ export function createMorphSequence() {
     if (fromCloud && toCloud && fromCloud.length === field.positions.length && toCloud.length === field.positions.length) {
       morphPositions(field.positions, fromCloud, toCloud, progress, time, step.style);
     }
-    paintColors(progress);
+    paintMorphColors(field, count, time, stageIndex, colorA, colorB, progress);
     field.geo.setDrawRange(0, count);
     field.geo.attributes.position.needsUpdate = true;
     field.geo.attributes.color.needsUpdate = true;
@@ -570,9 +329,7 @@ export function createMorphSequence() {
 
   return {
     init(w, h, params, group) {
-      width = w;
-      height = h;
-      rememberStableViewport(w, h);
+      viewport.setSize(w, h);
       layer = group;
       time = 0;
       stageIndex = 0;
@@ -611,27 +368,24 @@ export function createMorphSequence() {
       fieldLarge.points.visible = false;
       layer.add(fieldLarge.points);
 
-      if (viewportIsReady()) enterHoldStage();
+      if (viewport.isReady()) enterHoldStage();
       else holdDeferred = true;
     },
 
     resize(w, h) {
-      const prevW = width;
-      const prevH = height;
-      width = w;
-      height = h;
-      rememberStableViewport(w, h);
+      const prevW = viewport.width;
+      const prevH = viewport.height;
+      viewport.setSize(w, h);
       flowerBloom?.resize?.(w, h);
       for (const slot of Object.values(bloomSlots)) slot.bloom?.resize?.(w, h);
 
-      const realDimsArrived = viewportReady(w, h) && !viewportReady(prevW, prevH);
-      if (phase === 'hold' && viewportIsReady() && (holdDeferred || realDimsArrived)) {
+      if (phase === 'hold' && viewport.isReady() && (holdDeferred || viewport.realDimsArrived(prevW, prevH))) {
         enterHoldStage(stageIndex);
       }
-      if (morphCompletePending && viewportIsReady()) {
+      if (morphCompletePending && viewport.isReady()) {
         tryCompleteMorph();
       }
-      if (pendingMorph && morphViewportReady()) beginMorph();
+      if (pendingMorph && viewport.morphReady()) beginMorph();
     },
 
     update(dt, pointer, audioData, params) {
@@ -639,11 +393,11 @@ export function createMorphSequence() {
       latestParams = params;
       currentPalette = params.palette || currentPalette;
 
-      if (viewportIsReady()) {
+      if (viewport.isReady()) {
         if (holdDeferred && phase === 'hold') enterHoldStage(stageIndex);
         if (morphCompletePending) tryCompleteMorph();
       }
-      if (morphViewportReady() && pendingMorph && phase !== 'morph') beginMorph();
+      if (viewport.morphReady() && pendingMorph && phase !== 'morph') beginMorph();
 
       const want = Math.min(1800, Math.max(600, Math.floor((params.particleCount || 1030) * 1.1)));
       if (want !== count && field && phase !== 'morph') {
@@ -687,9 +441,7 @@ export function createMorphSequence() {
       if (isFormBloomHold() && bloom) bloom.render();
     },
 
-    onPointerDown() {
-      // hold 中はダブルタップ進行のみ — タップ地点への bloom スポーンを抑止
-    },
+    onPointerDown() {},
 
     onPointerMove() {},
 
@@ -717,10 +469,7 @@ export function createMorphSequence() {
       flowerGroup = null;
       bloomSlots = {};
       layer = null;
-      if (labelEl) {
-        labelEl.remove();
-        labelEl = null;
-      }
+      label.destroy();
     },
   };
 }

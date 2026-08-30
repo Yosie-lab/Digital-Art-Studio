@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { toWorld, makePoints, rgbToUnit, stratifiedSpawnPoints, primeGrowingMarks, sampleMarksWorld, spreadScreenCloud, remapScreenMarks, safeViewport } from '../space3d.js';
+import { toWorld, makePoints, rgbToUnit, stratifiedSpawnPoints, primeGrowingMarks } from '../space3d.js';
+import { resizeBloomMarks, sampleBloomMarks, runBloomSpawns, trimMarkBuffer, trimShardBuffer } from '../bloom/bloomPresetUtils.js';
 import {
   letterBrightenRgb as brightenRgb,
   letterDisplayColor as displayColor,
@@ -445,9 +446,7 @@ export function createLetterXBloom() {
     },
 
     resize(w, h) {
-      remapScreenMarks(marks, width, height, w, h);
-      width = w;
-      height = h;
+      ({ width, height } = resizeBloomMarks(marks, width, height, w, h));
     },
 
     update(dt, pointer, audioData, params) {
@@ -455,26 +454,18 @@ export function createLetterXBloom() {
       currentPalette = params.palette || currentPalette;
       marks = marks.filter((m) => m.update(dt, time));
 
-      if (pointer?.velocity > 3) {
-        const n = Math.min(2, Math.floor(pointer.velocity / 16) + 1);
-        for (let i = 0; i < n; i++) {
-          spawn(
-            pointer.x + (Math.random() - 0.5) * 50,
-            pointer.y + (Math.random() - 0.5) * 50,
-          );
-        }
-      }
-
-      if (Math.random() < dt * 1.8 * (params.speed || 1)) {
-        spawn(Math.random() * width, Math.random() * height);
-      }
-
-      if (audioData?.isActive && audioData.bass > 0.3) {
-        const n = Math.floor(audioData.bass * 4);
-        for (let i = 0; i < n; i++) {
-          spawn(Math.random() * width, Math.random() * height);
-        }
-      }
+      runBloomSpawns({
+        dt,
+        pointer,
+        audioData,
+        params,
+        spawn: (p) => spawn(
+          p.x + (Math.random() - 0.5) * 50,
+          p.y + (Math.random() - 0.5) * 50,
+        ),
+        randomSpawn: () => spawn(Math.random() * width, Math.random() * height),
+        bassSpawn: () => spawn(Math.random() * width, Math.random() * height),
+      });
 
       shards = shards.filter((p) => {
         p.x += p.vx * dt;
@@ -500,8 +491,8 @@ export function createLetterXBloom() {
       });
 
       const maxMarks = Math.min(MAX, Math.max(20, Math.floor((params.particleCount || 1030) / 4)));
-      if (marks.length > maxMarks) marks.splice(0, marks.length - maxMarks);
-      if (shards.length > LETTER_FALL_MAX) shards.splice(0, shards.length - LETTER_FALL_MAX);
+      trimMarkBuffer(marks, maxMarks);
+      trimShardBuffer(shards, LETTER_FALL_MAX);
     },
 
     render() {
@@ -524,8 +515,7 @@ export function createLetterXBloom() {
     },
 
     samplePoints(count, vw = width, vh = height) {
-      const { w, h } = safeViewport(vw, vh, width, height);
-      return sampleMarksWorld(marks, count, w, h, spreadScreenCloud);
+      return sampleBloomMarks(marks, count, vw, vh, width, height);
     },
 
     destroy() {

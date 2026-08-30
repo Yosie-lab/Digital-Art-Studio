@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { clearGroup } from './space3d.js';
 import { createStarfield } from './starfield.js';
+import { createPointerState, bindCanvasPointer } from './pointer.js';
 
 export class ArtEngine {
   constructor(canvas) {
@@ -24,7 +25,6 @@ export class ArtEngine {
     this.layer = new THREE.Group();
     this.scene.add(this.layer);
 
-    // Spacey Bloom 宇宙背景 + trail フェード
     this._bgColor = this.starfield.bgColor;
     this._forceClear = true;
     this._fadeCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -57,12 +57,7 @@ export class ArtEngine {
     this._fpsTimer = 0;
     this._fpsFrames = 0;
 
-    this.pointer = {
-      x: 0, y: 0,
-      prevX: 0, prevY: 0,
-      isDown: false,
-      velocity: 0,
-    };
+    this.pointer = createPointerState();
 
     this.params = {
       particleCount: 1030,
@@ -151,60 +146,17 @@ export class ArtEngine {
     window.addEventListener('orientationchange', scheduleResize);
     window.visualViewport?.addEventListener('resize', scheduleResize);
 
-    const updatePointer = (x, y, resetVelocity = false) => {
-      if (resetVelocity) {
-        this.pointer.prevX = x;
-        this.pointer.prevY = y;
-        this.pointer.x = x;
-        this.pointer.y = y;
-        this.pointer.velocity = 0;
-        return;
-      }
-      this.pointer.prevX = this.pointer.x;
-      this.pointer.prevY = this.pointer.y;
-      this.pointer.x = x;
-      this.pointer.y = y;
-      const dx = x - this.pointer.prevX;
-      const dy = y - this.pointer.prevY;
-      this.pointer.velocity = Math.sqrt(dx * dx + dy * dy);
-    };
-
-    this.canvas.addEventListener('mousemove', (e) => {
-      updatePointer(e.clientX, e.clientY);
-      this.activePreset?.onPointerMove?.(e.clientX, e.clientY, this.pointer);
+    bindCanvasPointer(this.canvas, this.pointer, {
+      onPointerMove: (x, y, pointer) => {
+        this.activePreset?.onPointerMove?.(x, y, pointer);
+      },
+      onPointerDown: (x, y, pointer) => {
+        this.activePreset?.onPointerDown?.(x, y, pointer);
+      },
+      onPointerUp: (pointer) => {
+        this.activePreset?.onPointerUp?.(pointer);
+      },
     });
-
-    this.canvas.addEventListener('mousedown', (e) => {
-      this.pointer.isDown = true;
-      updatePointer(e.clientX, e.clientY, true);
-      this.activePreset?.onPointerDown?.(e.clientX, e.clientY, this.pointer);
-    });
-
-    window.addEventListener('mouseup', () => {
-      this.pointer.isDown = false;
-      this.activePreset?.onPointerUp?.(this.pointer);
-    });
-
-    this.canvas.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      const t = e.touches[0];
-      this.pointer.isDown = true;
-      updatePointer(t.clientX, t.clientY, true);
-      this.activePreset?.onPointerDown?.(t.clientX, t.clientY, this.pointer);
-    }, { passive: false });
-
-    this.canvas.addEventListener('touchmove', (e) => {
-      e.preventDefault();
-      const t = e.touches[0];
-      updatePointer(t.clientX, t.clientY);
-      this.activePreset?.onPointerMove?.(t.clientX, t.clientY, this.pointer);
-    }, { passive: false });
-
-    this.canvas.addEventListener('touchend', (e) => {
-      e.preventDefault();
-      this.pointer.isDown = false;
-      this.activePreset?.onPointerUp?.(this.pointer);
-    }, { passive: false });
   }
 
   setPreset(preset) {
@@ -290,7 +242,6 @@ export class ArtEngine {
       }
     }
 
-    // 星空はメインシーンの霧の影響を受けないよう別描画
     this.starfield?.render?.(this.renderer);
     this.renderer.clearDepth();
     this.renderer.render(this.scene, this.camera);

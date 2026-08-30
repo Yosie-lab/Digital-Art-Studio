@@ -21,6 +21,29 @@ import {
   cyberTadpoleUnitColors,
 } from '../bloom/morphColors.js';
 
+/** UI から直接選択可能なプリセット */
+export const UI_PRESET_FACTORIES = {
+  morphSequence: createMorphSequence,
+  fluidAurora: createFluidAurora,
+  crystalDust: createCrystalDust,
+  kaleidoPrism: createKaleidoPrism,
+  interactiveRipples: createInteractiveRipples,
+};
+
+/** morph 内部・デバッグ用 bloom ファクトリ */
+export const INTERNAL_PRESET_FACTORIES = {
+  flowerBloom: createFlowerBloom,
+  letterXBloom: createLetterXBloom,
+  jellyfishBloom: createJellyfishBloom,
+  butterflyBloom: createButterflyBloom,
+  musicNoteBloom: createMusicNoteBloom,
+  tadpoleBloom: createTadpoleBloom,
+  angelBloom: createAngelBloom,
+  formBloom: createFormBloom,
+  brainBloom: createBrainBloom,
+  hourglassBloom: createHourglassBloom,
+};
+
 export {
   createFlowerBloom,
   createMorphSequence,
@@ -40,13 +63,4 @@ export {
   neonRainbowUnitColors,
   neonAngelUnitColors,
   cyberTadpoleUnitColors,
-};
-
-/** UI から直接選択可能なプリセット */
-export const UI_PRESET_FACTORIES = {
-  morphSequence: createMorphSequence,
-  fluidAurora: createFluidAurora,
-  crystalDust: createCrystalDust,
-  kaleidoPrism: createKaleidoPrism,
-  interactiveRipples: createInteractiveRipples,
 };
