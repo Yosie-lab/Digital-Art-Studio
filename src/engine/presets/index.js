@@ -44,7 +44,6 @@ export {
 
 /** UI から直接選択可能なプリセット */
 export const UI_PRESET_FACTORIES = {
-  flowerBloom: createFlowerBloom,
   morphSequence: createMorphSequence,
   fluidAurora: createFluidAurora,
   crystalDust: createCrystalDust,
