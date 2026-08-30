@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { getPaletteColors, hexToRgb } from '../palettes.js';
-import { makePoints, clearGroup, spreadModelCloudToWorld, spreadScreenCloud, viewportReady, safeViewport, cloudWellSpread, cloudIsDegenerate, minCloudSpread, ensureCloudSpread } from '../space3d.js';
+import { makePoints, clearGroup, spreadModelCloudToWorld, spreadScreenCloud, viewportReady, safeViewport, cloudWellSpread, cloudIsDegenerate, cloudStacked, minCloudSpread, ensureCloudSpread } from '../space3d.js';
 import { ANGEL_SATURATION } from '../bloom/cyberNeon.js';
 import { morphPositions } from '../morph/morphEngine.js';
 import { createFlowerBloom } from './flowerBloom.js';
@@ -269,15 +269,6 @@ export function createMorphSequence() {
     return ensureCloudSpread(cloud, count, w, h, fb);
   }
 
-  function forceMorphCloud(cloud, w, h, fallback = null) {
-    const fb = fallback || spreadScreenCloud;
-    const min = minCloudSpread(w, h);
-    if (!cloud || cloud.length !== count * 3 || cloudIsDegenerate(cloud, min)) {
-      return ensureSpreadCloud(fb(count, w, h), w, h, fb);
-    }
-    return ensureSpreadCloud(cloud, w, h, fb);
-  }
-
   function guaranteeMorphClouds(cw, ch, fallback = null) {
     const fb = fallback || spreadScreenCloud;
     if (!cloudValid(fromCloud, cw, ch)) fromCloud = ensureSpreadCloud(fb(count, cw, ch), cw, ch, fb);
@@ -290,7 +281,20 @@ export function createMorphSequence() {
       if (!Number.isFinite(cloud[i])) return false;
     }
     const min = minCloudSpread(w, h);
-    return cloudWellSpread(cloud, min) && !cloudIsDegenerate(cloud, min);
+    const minUnique = Math.min(count, Math.max(48, Math.floor(count * 0.18)));
+    return cloudWellSpread(cloud, min) && !cloudIsDegenerate(cloud, min) && !cloudStacked(cloud, minUnique);
+  }
+
+  /** morph 開始時: 画面全体へ必ず散布（sample は参考、座標は spread 優先） */
+  function morphStartSpreadCloud(w, h, fallback = null) {
+    const fb = fallback || spreadScreenCloud;
+    return ensureSpreadCloud(fb(count, w, h), w, h, fb);
+  }
+
+  function applyMorphStartSpreads(cw, ch, fallback = null) {
+    fromCloud = morphStartSpreadCloud(cw, ch, fallback);
+    toCloud = morphStartSpreadCloud(cw, ch, fallback);
+    guaranteeMorphClouds(cw, ch, fallback);
   }
 
   function syncBloomViewports() {
@@ -391,9 +395,7 @@ export function createMorphSequence() {
       bloomSlots.angel?.bloom?.resize?.(cw, ch);
     }
 
-    fromCloud = forceMorphCloud(sampleStageCloud(stageIndex), cw, ch, angelMorph ? angelMorphFallback : null);
-    toCloud = forceMorphCloud(sampleStageCloud(nextIndex), cw, ch, angelMorph ? angelMorphFallback : null);
-    guaranteeMorphClouds(cw, ch, angelMorph ? angelMorphFallback : null);
+    applyMorphStartSpreads(cw, ch, angelMorph ? angelMorphFallback : null);
 
     phase = 'morph';
     phaseT = 0;
@@ -502,7 +504,7 @@ export function createMorphSequence() {
       || toCloud.length !== field.positions.length
       || !cloudValid(fromCloud, cw, ch)
       || !cloudValid(toCloud, cw, ch)) {
-      guaranteeMorphClouds(cw, ch, morphFallback);
+      applyMorphStartSpreads(cw, ch, morphFallback);
       if (fromCloud) field.positions.set(fromCloud);
     }
     const progress = Math.min(1, phaseT / step.morph);

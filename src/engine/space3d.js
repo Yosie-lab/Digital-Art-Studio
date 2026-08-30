@@ -126,6 +126,21 @@ export function cloudWellSpread(cloud, minSpread = 48) {
   return cloudSpread(cloud) >= minSpread;
 }
 
+/** 広がりはあるが多数粒子が同一 XY に重なっている（spreadScreenCloud の旧48アンカー等） */
+export function cloudStacked(cloud, minUnique = 48) {
+  if (!cloud || cloud.length < 6) return true;
+  const n = cloud.length / 3;
+  const uniq = new Set();
+  for (let i = 0; i < n; i++) {
+    const x = cloud[i * 3];
+    const y = cloud[i * 3 + 1];
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    uniq.add(`${Math.round(x * 2) / 2},${Math.round(y * 2) / 2}`);
+  }
+  const need = Math.min(n, Math.max(minUnique, Math.floor(n * 0.18)));
+  return uniq.size < need;
+}
+
 /** 広がりはあるが実質1点に潰れている点群（iOS 縮小 viewport サンプル等） */
 export function cloudIsDegenerate(cloud, minSpread = 48) {
   if (!cloud || cloud.length < 6) return true;
@@ -190,10 +205,11 @@ export function marksOutOfViewport(marks, w, h, margin = 0.08) {
 export function ensureCloudSpread(cloud, count, w, h, fallback = null) {
   const { w: vw, h: vh } = safeViewport(w, h);
   const min = minCloudSpread(vw, vh);
-  if (cloudWellSpread(cloud, min) && !cloudIsDegenerate(cloud, min)) return cloud;
+  const minUnique = Math.min(count, Math.max(48, Math.floor(count * 0.18)));
+  if (cloudWellSpread(cloud, min) && !cloudIsDegenerate(cloud, min) && !cloudStacked(cloud, minUnique)) return cloud;
   const fb = fallback || spreadScreenCloud;
   const next = fb(count, vw, vh);
-  if (cloudWellSpread(next, min) && !cloudIsDegenerate(next, min)) return next;
+  if (cloudWellSpread(next, min) && !cloudIsDegenerate(next, min) && !cloudStacked(next, minUnique)) return next;
   return spreadScreenCloud(count, vw, vh);
 }
 
@@ -225,16 +241,17 @@ export function spreadModelCloudToWorld(modelPts, count, w, h, scale = 0.14) {
   const { w: vw, h: vh } = safeViewport(w, h);
   const out = new Float32Array(count * 3);
   const srcN = Math.max(1, modelPts.length / 3);
-  const anchors = stratifiedSpawnPoints(Math.min(count, 56), vw, vh);
+  const anchors = stratifiedSpawnPoints(count, vw, vh);
+  const cell = Math.max(8, Math.min(vw, vh) / Math.ceil(Math.sqrt(count)));
   for (let i = 0; i < count; i++) {
     const si = Math.floor(Math.random() * srcN);
     const mx = modelPts[si * 3];
     const my = modelPts[si * 3 + 1];
     const mz = modelPts[si * 3 + 2];
-    const [ax, ay] = anchors[i % anchors.length];
+    const [ax, ay] = anchors[i];
     const wpos = toWorld(
-      ax + mx * scale + (Math.random() - 0.5) * 14,
-      ay + my * scale + (Math.random() - 0.5) * 14,
+      ax + mx * scale + (Math.random() - 0.5) * cell * 0.42,
+      ay + my * scale + (Math.random() - 0.5) * cell * 0.42,
       mz + (Math.random() - 0.5) * 40,
       vw,
       vh,
@@ -250,10 +267,13 @@ export function spreadModelCloudToWorld(modelPts, count, w, h, scale = 0.14) {
 export function spreadScreenCloud(count, w, h) {
   const { w: vw, h: vh } = safeViewport(w, h);
   const out = new Float32Array(count * 3);
-  const anchors = stratifiedSpawnPoints(Math.min(count, 48), vw, vh);
+  const anchors = stratifiedSpawnPoints(count, vw, vh);
+  const cell = Math.max(8, Math.min(vw, vh) / Math.ceil(Math.sqrt(count)));
   for (let i = 0; i < count; i++) {
-    const [x, y] = anchors[i % anchors.length];
-    const wpos = toWorld(x, y, (Math.random() - 0.5) * 80, vw, vh);
+    const [x, y] = anchors[i];
+    const jx = (Math.random() - 0.5) * cell * 0.55;
+    const jy = (Math.random() - 0.5) * cell * 0.55;
+    const wpos = toWorld(x + jx, y + jy, (Math.random() - 0.5) * 80, vw, vh);
     out[i * 3] = wpos.x;
     out[i * 3 + 1] = wpos.y;
     out[i * 3 + 2] = wpos.z;
