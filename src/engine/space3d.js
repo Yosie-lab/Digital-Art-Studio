@@ -126,6 +126,28 @@ export function cloudWellSpread(cloud, minSpread = 48) {
   return cloudSpread(cloud) >= minSpread;
 }
 
+/** ビューポートに対する最低広がり（ワールド XY） */
+export function minCloudSpread(w, h, floor = 48) {
+  const { w: vw, h: vh } = safeViewport(w, h);
+  return Math.max(floor, Math.min(vw, vh) * 0.22);
+}
+
+/** marks が画面に対して狭すぎるか（screen px） */
+export function marksNeedRemap(marks, w, h, ratio = 0.18) {
+  if (!marks?.length) return false;
+  const { w: vw, h: vh } = safeViewport(w, h);
+  return marksScreenSpread(marks) < Math.min(vw, vh) * ratio;
+}
+
+/** 点群が狭いとき画面全体へフォールバック */
+export function ensureCloudSpread(cloud, count, w, h, fallback = null) {
+  const { w: vw, h: vh } = safeViewport(w, h);
+  const min = minCloudSpread(vw, vh);
+  if (cloudWellSpread(cloud, min)) return cloud;
+  if (fallback) return fallback(count, vw, vh);
+  return spreadScreenCloud(count, vw, vh);
+}
+
 /** 画面内に層状（グリッド＋ジッター）でスポーン座標を配る */
 export function stratifiedSpawnPoints(count, w, h, margin = 0.06, yRange = null) {
   ({ w, h } = safeViewport(w, h));
@@ -172,7 +194,7 @@ export function spreadModelCloudToWorld(modelPts, count, w, h, scale = 0.14) {
     out[i * 3 + 1] = wpos.y;
     out[i * 3 + 2] = wpos.z;
   }
-  return out;
+  return ensureCloudSpread(out, count, vw, vh);
 }
 
 /** 画面全体にランダム点群（ワールド座標） */
@@ -227,14 +249,15 @@ export const primeGrowingFlowers = primeGrowingMarks;
 /** Bloom mark からモーフ用点群（ワールド座標） */
 export function sampleMarksWorld(marks, count, w, h, fallback = null) {
   const { w: vw, h: vh } = safeViewport(w, h);
-  const out = new Float32Array(count * 3);
+  const screenFallback = fallback || spreadScreenCloud;
   const n = marks.length;
   if (n === 0) {
-    return fallback ? fallback(count, vw, vh) : spreadScreenCloud(count, vw, vh);
+    return screenFallback(count, vw, vh);
   }
-  if (marksScreenSpread(marks) < 32) {
+  if (marksNeedRemap(marks, vw, vh)) {
     remapScreenMarks(marks, 0, 0, vw, vh);
   }
+  const out = new Float32Array(count * 3);
   for (let i = 0; i < count; i++) {
     const m = marks[i % n];
     const spread = markSpreadSize(m);
@@ -249,5 +272,5 @@ export function sampleMarksWorld(marks, count, w, h, fallback = null) {
     out[i * 3 + 1] = wpos.y;
     out[i * 3 + 2] = wpos.z;
   }
-  return out;
+  return ensureCloudSpread(out, count, vw, vh, screenFallback);
 }

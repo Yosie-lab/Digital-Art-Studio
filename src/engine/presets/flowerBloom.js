@@ -7,6 +7,7 @@ import {
   primeGrowingMarks,
   sampleMarksWorld,
   spreadScreenCloud,
+  spreadModelCloudToWorld,
   remapScreenMarks,
   safeViewport,
 } from '../space3d.js';
@@ -19,6 +20,7 @@ import {
   paletteAccentRgb,
   randomFlowerPetalColor,
 } from '../bloom/bloomColors.js';
+import { samplePetalCloud } from '../morph/sampleShapes.js';
 
 export function createFlowerBloom() {
   let flowers = [];
@@ -382,7 +384,9 @@ export function createFlowerBloom() {
 
     samplePoints(count, vw = width, vh = height) {
       const { w, h } = safeViewport(vw, vh, width, height);
-      return sampleMarksWorld(flowers, count, w, h, spreadScreenCloud);
+      const petalFallback = (n, cw, ch) =>
+        spreadModelCloudToWorld(samplePetalCloud(n, 95), n, cw, ch, 0.12);
+      return sampleMarksWorld(flowers, count, w, h, petalFallback);
     },
 
     setParams(p) { currentPalette = p.palette; },

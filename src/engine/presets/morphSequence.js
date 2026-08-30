@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { getPaletteColors, hexToRgb } from '../palettes.js';
-import { makePoints, clearGroup, spreadModelCloudToWorld, spreadScreenCloud, viewportReady, safeViewport, cloudWellSpread } from '../space3d.js';
+import { makePoints, clearGroup, spreadModelCloudToWorld, spreadScreenCloud, viewportReady, safeViewport, cloudWellSpread, minCloudSpread, ensureCloudSpread } from '../space3d.js';
 import { morphPositions } from '../morph/morphEngine.js';
 import { createFlowerBloom } from './flowerBloom.js';
 import { createLetterXBloom } from './letterXBloom.js';
@@ -207,26 +207,25 @@ export function createMorphSequence() {
   }
 
   function sampleDims() {
-    const { w, h } = safeViewport(width, height, stableWidth, stableHeight);
-    return { w, h };
+    if (viewportReady(width, height)) return { w: width, h: height };
+    if (viewportReady(stableWidth, stableHeight)) return { w: stableWidth, h: stableHeight };
+    return safeViewport(width, height, stableWidth, stableHeight);
   }
 
   function viewportIsReady() {
-    const { w, h } = sampleDims();
-    return viewportReady(w, h);
+    return viewportReady(width, height) || viewportReady(stableWidth, stableHeight);
   }
 
   function ensureSpreadCloud(cloud, w, h) {
-    if (cloudWellSpread(cloud)) return cloud;
-    return spreadScreenCloud(count, w, h);
+    return ensureCloudSpread(cloud, count, w, h, spreadScreenCloud);
   }
 
-  function cloudValid(cloud) {
+  function cloudValid(cloud, w, h) {
     if (!cloud || cloud.length !== count * 3) return false;
     for (let i = 0; i < cloud.length; i++) {
       if (!Number.isFinite(cloud[i])) return false;
     }
-    return cloudWellSpread(cloud);
+    return cloudWellSpread(cloud, minCloudSpread(w, h));
   }
 
   function sampleStageCloud(stepIndex) {
@@ -280,8 +279,8 @@ export function createMorphSequence() {
     fromCloud = sampleStageCloud(stageIndex);
     toCloud = sampleStageCloud(nextIndex);
     const { w: cw, h: ch } = sampleDims();
-    if (!cloudValid(fromCloud)) fromCloud = spreadScreenCloud(count, cw, ch);
-    if (!cloudValid(toCloud)) toCloud = spreadScreenCloud(count, cw, ch);
+    if (!cloudValid(fromCloud, cw, ch)) fromCloud = spreadScreenCloud(count, cw, ch);
+    if (!cloudValid(toCloud, cw, ch)) toCloud = spreadScreenCloud(count, cw, ch);
     colorA = colorsForStage(stageIndex);
     colorB = colorsForStage(nextIndex);
 
@@ -416,15 +415,14 @@ export function createMorphSequence() {
     resize(w, h) {
       const prevW = width;
       const prevH = height;
-      const hadStable = viewportReady(stableWidth, stableHeight);
       width = w;
       height = h;
       rememberStableViewport(w, h);
       flowerBloom?.resize?.(w, h);
       for (const slot of Object.values(bloomSlots)) slot.bloom?.resize?.(w, h);
 
-      const recovered = !hadStable && viewportReady(w, h) && !viewportReady(prevW, prevH);
-      if (phase === 'hold' && viewportIsReady() && (recovered || holdDeferred)) {
+      const realDimsArrived = viewportReady(w, h) && !viewportReady(prevW, prevH);
+      if (phase === 'hold' && viewportIsReady() && (holdDeferred || realDimsArrived)) {
         enterHoldStage();
       }
       if (pendingMorph && viewportIsReady()) beginMorph();

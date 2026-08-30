@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { toWorld, makePoints, rgbToUnit, stratifiedSpawnPoints, primeGrowingMarks, sampleMarksWorld, spreadModelCloudToWorld, remapScreenMarks, safeViewport } from '../space3d.js';
+import { toWorld, makePoints, rgbToUnit, stratifiedSpawnPoints, primeGrowingMarks, sampleMarksWorld, spreadScreenCloud, remapScreenMarks, safeViewport } from '../space3d.js';
 import {
   flowerDisplayColor as displayColor,
   flowerVividPetalRgb as vividPetalRgb,
@@ -659,17 +659,7 @@ export function createJellyfishBloom() {
 
     samplePoints(count, vw = width, vh = height) {
       const { w, h } = safeViewport(vw, vh, width, height);
-      return sampleMarksWorld(marks, count, w, h, (n, cw, ch) => {
-        const out = new Float32Array(n * 3);
-        for (let i = 0; i < n; i++) {
-          const u = Math.random() * Math.PI * 2;
-          const v = Math.random() * Math.PI * 0.55;
-          out[i * 3] = Math.sin(v) * Math.cos(u) * 48;
-          out[i * 3 + 1] = 10 + Math.cos(v) * 36;
-          out[i * 3 + 2] = Math.sin(v) * Math.sin(u) * 48;
-        }
-        return spreadModelCloudToWorld(out, n, cw, ch, 1);
-      });
+      return sampleMarksWorld(marks, count, w, h, spreadScreenCloud);
     },
 
     destroy() {
