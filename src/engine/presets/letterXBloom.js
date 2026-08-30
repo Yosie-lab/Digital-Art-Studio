@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { toWorld, makePoints, rgbToUnit, stratifiedSpawnPoints, primeGrowingMarks, sampleMarksWorld, spreadModelCloudToWorld, spreadScreenCloud } from '../space3d.js';
+import { toWorld, makePoints, rgbToUnit, stratifiedSpawnPoints, primeGrowingMarks, sampleMarksWorld, spreadModelCloudToWorld, spreadScreenCloud, remapScreenMarks, safeViewport } from '../space3d.js';
 import {
   letterBrightenRgb as brightenRgb,
   letterDisplayColor as displayColor,
@@ -445,6 +445,7 @@ export function createLetterXBloom() {
     },
 
     resize(w, h) {
+      remapScreenMarks(marks, width, height, w, h);
       width = w;
       height = h;
     },
@@ -522,8 +523,9 @@ export function createLetterXBloom() {
       currentPalette = p.palette || currentPalette;
     },
 
-    samplePoints(count) {
-      return sampleMarksWorld(marks, count, width, height, (n, w, h) => {
+    samplePoints(count, vw = width, vh = height) {
+      const { w, h } = safeViewport(vw, vh, width, height);
+      return sampleMarksWorld(marks, count, w, h, (n, cw, ch) => {
         const model = new Float32Array(n * 3);
         for (let i = 0; i < n; i++) {
           const ang = (Math.random() < 0.5 ? Math.PI / 4 : -Math.PI / 4) + (Math.random() - 0.5) * 0.2;
@@ -533,7 +535,7 @@ export function createLetterXBloom() {
           model[i * 3 + 1] = Math.cos(ang) * along * 50;
           model[i * 3 + 2] = (Math.random() - 0.5) * 18;
         }
-        return spreadModelCloudToWorld(model, n, w, h, 1);
+        return spreadModelCloudToWorld(model, n, cw, ch, 1);
       });
     },
 

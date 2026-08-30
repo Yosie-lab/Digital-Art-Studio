@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { toWorld, makePoints, rgbToUnit, stratifiedSpawnPoints, primeGrowingMarks, sampleMarksWorld, spreadScreenCloud } from '../space3d.js';
+import { toWorld, makePoints, rgbToUnit, stratifiedSpawnPoints, primeGrowingMarks, sampleMarksWorld, spreadScreenCloud, remapScreenMarks, safeViewport } from '../space3d.js';
 import { pickMarkSizeDefault as pickMarkSize } from '../bloom/bloomColors.js';
 import {
   ANGEL_CYBER_NEON,
@@ -437,6 +437,7 @@ export function createAngelBloom() {
     },
 
     resize(w, h) {
+      remapScreenMarks(marks, width, height, w, h);
       width = w;
       height = h;
     },
@@ -495,8 +496,9 @@ export function createAngelBloom() {
       currentPalette = name;
     },
 
-    samplePoints(count) {
-      return sampleMarksWorld(marks, count, width, height, spreadScreenCloud);
+    samplePoints(count, vw = width, vh = height) {
+      const { w, h } = safeViewport(vw, vh, width, height);
+      return sampleMarksWorld(marks, count, w, h, spreadScreenCloud);
     },
 
     destroy() {

@@ -9,6 +9,8 @@ import {
   primeGrowingMarks,
   sampleMarksWorld,
   spreadScreenCloud,
+  remapScreenMarks,
+  safeViewport,
 } from '../space3d.js';
 import { pickMarkSizeButterfly as pickMarkSize } from '../bloom/bloomColors.js';
 import { clamp, expSmooth, lerpAngle } from '../ease.js';
@@ -991,6 +993,7 @@ export function createButterflyBloom() {
     },
 
     resize(w, h) {
+      remapScreenMarks(marks, width, height, w, h);
       width = w;
       height = h;
     },
@@ -1053,8 +1056,9 @@ export function createButterflyBloom() {
     setParams() {},
     setPalette() {},
 
-    samplePoints(count) {
-      return sampleMarksWorld(marks, count, width, height, spreadScreenCloud);
+    samplePoints(count, vw = width, vh = height) {
+      const { w, h } = safeViewport(vw, vh, width, height);
+      return sampleMarksWorld(marks, count, w, h, spreadScreenCloud);
     },
 
     destroy() {

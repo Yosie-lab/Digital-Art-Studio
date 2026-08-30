@@ -1,7 +1,22 @@
 import * as THREE from 'three';
 
+/** モバイル向け: 有効なビューポート寸法か */
+export const VIEWPORT_MIN = 64;
+
+export function viewportReady(w, h, min = VIEWPORT_MIN) {
+  return Number.isFinite(w) && Number.isFinite(h) && w >= min && h >= min;
+}
+
+/** 0 / 極小を避け、最後に有効だった寸法へフォールバック */
+export function safeViewport(w, h, fallbackW = 0, fallbackH = 0, min = VIEWPORT_MIN) {
+  if (viewportReady(w, h, min)) return { w, h };
+  if (viewportReady(fallbackW, fallbackH, min)) return { w: fallbackW, h: fallbackH };
+  return { w: Math.max(w || 0, min), h: Math.max(h || 0, min) };
+}
+
 export function toWorld(x, y, z, w, h) {
-  return new THREE.Vector3(x - w * 0.5, h * 0.5 - y, z || 0);
+  const { w: vw, h: vh } = safeViewport(w, h);
+  return new THREE.Vector3(x - vw * 0.5, vh * 0.5 - y, z || 0);
 }
 
 export function disposeObject(obj) {
@@ -67,10 +82,53 @@ export function rgbToUnit(rgb) {
   return [rgb.r / 255, rgb.g / 255, rgb.b / 255];
 }
 
+/** bloom の screen 座標 marks をリサイズに追従（誤初期化時は再散布） */
+export function remapScreenMarks(marks, oldW, oldH, newW, newH) {
+  if (!marks?.length || !viewportReady(newW, newH)) return;
+  if (!viewportReady(oldW, oldH)) {
+    const pts = stratifiedSpawnPoints(marks.length, newW, newH);
+    for (let i = 0; i < marks.length; i++) {
+      marks[i].x = pts[i][0];
+      marks[i].y = pts[i][1];
+    }
+    return;
+  }
+  const sx = newW / oldW;
+  const sy = newH / oldH;
+  for (const m of marks) {
+    m.x *= sx;
+    m.y *= sy;
+  }
+}
+
+/** 点群が1点集中していないか（ワールド XY の広がり） */
+export function cloudSpread(cloud) {
+  if (!cloud || cloud.length < 6) return 0;
+  const n = cloud.length / 3;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (let i = 0; i < n; i++) {
+    const x = cloud[i * 3];
+    const y = cloud[i * 3 + 1];
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  if (!Number.isFinite(minX)) return 0;
+  return Math.max(maxX - minX, maxY - minY);
+}
+
+export function cloudWellSpread(cloud, minSpread = 48) {
+  return cloudSpread(cloud) >= minSpread;
+}
+
 /** 画面内に層状（グリッド＋ジッター）でスポーン座標を配る */
 export function stratifiedSpawnPoints(count, w, h, margin = 0.06, yRange = null) {
-  w = Math.max(w, 1);
-  h = Math.max(h, 1);
+  ({ w, h } = safeViewport(w, h));
   const cols = Math.max(1, Math.ceil(Math.sqrt(count * (w / h))));
   const rows = Math.max(1, Math.ceil(count / cols));
   const mx = w * margin;
@@ -93,9 +151,10 @@ export function stratifiedSpawnPoints(count, w, h, margin = 0.06, yRange = null)
 
 /** 原点中心のモデル点群を画面全体に散らしてワールド座標へ */
 export function spreadModelCloudToWorld(modelPts, count, w, h, scale = 0.14) {
+  const { w: vw, h: vh } = safeViewport(w, h);
   const out = new Float32Array(count * 3);
   const srcN = Math.max(1, modelPts.length / 3);
-  const anchors = stratifiedSpawnPoints(Math.min(count, 56), w, h);
+  const anchors = stratifiedSpawnPoints(Math.min(count, 56), vw, vh);
   for (let i = 0; i < count; i++) {
     const si = Math.floor(Math.random() * srcN);
     const mx = modelPts[si * 3];
@@ -106,8 +165,8 @@ export function spreadModelCloudToWorld(modelPts, count, w, h, scale = 0.14) {
       ax + mx * scale + (Math.random() - 0.5) * 14,
       ay + my * scale + (Math.random() - 0.5) * 14,
       mz + (Math.random() - 0.5) * 40,
-      w,
-      h,
+      vw,
+      vh,
     );
     out[i * 3] = wpos.x;
     out[i * 3 + 1] = wpos.y;
@@ -118,11 +177,12 @@ export function spreadModelCloudToWorld(modelPts, count, w, h, scale = 0.14) {
 
 /** 画面全体にランダム点群（ワールド座標） */
 export function spreadScreenCloud(count, w, h) {
+  const { w: vw, h: vh } = safeViewport(w, h);
   const out = new Float32Array(count * 3);
-  const anchors = stratifiedSpawnPoints(Math.min(count, 48), w, h);
+  const anchors = stratifiedSpawnPoints(Math.min(count, 48), vw, vh);
   for (let i = 0; i < count; i++) {
     const [x, y] = anchors[i % anchors.length];
-    const wpos = toWorld(x, y, (Math.random() - 0.5) * 80, w, h);
+    const wpos = toWorld(x, y, (Math.random() - 0.5) * 80, vw, vh);
     out[i * 3] = wpos.x;
     out[i * 3 + 1] = wpos.y;
     out[i * 3 + 2] = wpos.z;
@@ -132,6 +192,23 @@ export function spreadScreenCloud(count, w, h) {
 
 export function markSpreadSize(m, minSpread = 36) {
   return Math.max(m.size || 0, minSpread);
+}
+
+function marksScreenSpread(marks) {
+  if (!marks?.length) return 0;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const m of marks) {
+    if (!Number.isFinite(m.x) || !Number.isFinite(m.y)) continue;
+    if (m.x < minX) minX = m.x;
+    if (m.x > maxX) maxX = m.x;
+    if (m.y < minY) minY = m.y;
+    if (m.y > maxY) maxY = m.y;
+  }
+  if (!Number.isFinite(minX)) return 0;
+  return Math.max(maxX - minX, maxY - minY);
 }
 
 /** 成長中 mark を即表示サイズへ */
@@ -149,10 +226,14 @@ export const primeGrowingFlowers = primeGrowingMarks;
 
 /** Bloom mark からモーフ用点群（ワールド座標） */
 export function sampleMarksWorld(marks, count, w, h, fallback = null) {
+  const { w: vw, h: vh } = safeViewport(w, h);
   const out = new Float32Array(count * 3);
   const n = marks.length;
   if (n === 0) {
-    return fallback ? fallback(count, w, h) : spreadScreenCloud(count, w, h);
+    return fallback ? fallback(count, vw, vh) : spreadScreenCloud(count, vw, vh);
+  }
+  if (marksScreenSpread(marks) < 32) {
+    remapScreenMarks(marks, 0, 0, vw, vh);
   }
   for (let i = 0; i < count; i++) {
     const m = marks[i % n];
@@ -161,8 +242,8 @@ export function sampleMarksWorld(marks, count, w, h, fallback = null) {
       m.x + (Math.random() - 0.5) * spread,
       m.y + (Math.random() - 0.5) * spread,
       m.z + (Math.random() - 0.5) * Math.min(spread, 48),
-      w,
-      h,
+      vw,
+      vh,
     );
     out[i * 3] = wpos.x;
     out[i * 3 + 1] = wpos.y;

@@ -80,9 +80,31 @@ export class ArtEngine {
 
     this.width = 0;
     this.height = 0;
+    this._lastGoodWidth = 0;
+    this._lastGoodHeight = 0;
+    this._resizePending = false;
 
     this._resize();
     this._bindEvents();
+  }
+
+  _readViewportSize() {
+    const vv = window.visualViewport;
+    const w = Math.round(vv?.width ?? window.innerWidth);
+    const h = Math.round(vv?.height ?? window.innerHeight);
+    return { w, h };
+  }
+
+  _applyViewportSize(w, h) {
+    if (w < 64 || h < 64) {
+      if (this._lastGoodWidth >= 64 && this._lastGoodHeight >= 64) {
+        return { w: this._lastGoodWidth, h: this._lastGoodHeight, applied: false };
+      }
+      return { w: 0, h: 0, applied: false };
+    }
+    this._lastGoodWidth = w;
+    this._lastGoodHeight = h;
+    return { w, h, applied: true };
   }
 
   _fitCamera() {
@@ -92,9 +114,17 @@ export class ArtEngine {
   }
 
   _resize() {
+    const raw = this._readViewportSize();
+    const { w, h, applied } = this._applyViewportSize(raw.w, raw.h);
+    if (!applied && (w < 64 || h < 64)) {
+      this._resizePending = true;
+      return;
+    }
+    this._resizePending = false;
+
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    this.width = window.innerWidth;
-    this.height = window.innerHeight;
+    this.width = w;
+    this.height = h;
     this.renderer.setPixelRatio(dpr);
     this.renderer.setSize(this.width, this.height, false);
     this.camera.aspect = this.width / Math.max(this.height, 1);
@@ -107,10 +137,14 @@ export class ArtEngine {
 
   _bindEvents() {
     let resizeTimer;
-    window.addEventListener('resize', () => {
+    const scheduleResize = () => {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => this._resize(), 100);
-    });
+    };
+    window.addEventListener('resize', scheduleResize);
+    window.addEventListener('orientationchange', scheduleResize);
+    window.visualViewport?.addEventListener('resize', scheduleResize);
+    window.visualViewport?.addEventListener('scroll', scheduleResize);
 
     const updatePointer = (x, y) => {
       this.pointer.prevX = this.pointer.x;
@@ -204,6 +238,12 @@ export class ArtEngine {
       this.fps = Math.round(this._fpsFrames / this._fpsTimer);
       this._fpsFrames = 0;
       this._fpsTimer = 0;
+    }
+
+    if (this._resizePending) {
+      const raw = this._readViewportSize();
+      const { applied } = this._applyViewportSize(raw.w, raw.h);
+      if (applied) this._resize();
     }
 
     this.layer.rotation.y = Math.sin(this._elapsed * 0.17) * 0.28;

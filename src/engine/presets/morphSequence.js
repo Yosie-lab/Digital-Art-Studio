@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { getPaletteColors, hexToRgb } from '../palettes.js';
-import { makePoints, clearGroup, spreadModelCloudToWorld, spreadScreenCloud } from '../space3d.js';
+import { makePoints, clearGroup, spreadModelCloudToWorld, spreadScreenCloud, viewportReady, safeViewport, cloudWellSpread } from '../space3d.js';
 import { morphPositions } from '../morph/morphEngine.js';
 import { createFlowerBloom } from './flowerBloom.js';
 import { createLetterXBloom } from './letterXBloom.js';
@@ -79,6 +79,10 @@ export function createMorphSequence() {
   let colorB = null;
   let labelEl = null;
   let lastPointerDown = 0;
+  let stableWidth = 0;
+  let stableHeight = 0;
+  let pendingMorph = false;
+  let holdDeferred = false;
 
   function currentId() {
     return SEQUENCE[stageIndex]?.id;
@@ -167,9 +171,10 @@ export function createMorphSequence() {
 
   function startFlowerBloom(params) {
     stopEverything();
-    if (!flowerGroup || !layer) return;
+    if (!flowerGroup || !layer || !viewportIsReady()) return;
+    const { w, h } = sampleDims();
     flowerBloom = createFlowerBloom();
-    flowerBloom.init(width, height, params || latestParams || { palette: currentPalette }, flowerGroup);
+    flowerBloom.init(w, h, params || latestParams || { palette: currentPalette }, flowerGroup);
     setFieldVisible(false);
     setLabel('花びら', MANUAL_HINT);
   }
@@ -178,10 +183,11 @@ export function createMorphSequence() {
     stopEverything();
     const slot = bloomSlots[stepId];
     const factory = BLOOM_FACTORIES[stepId];
-    if (!slot || !factory) return;
+    if (!slot || !factory || !viewportIsReady()) return;
+    const { w, h } = sampleDims();
     try {
       slot.bloom = factory();
-      slot.bloom.init(width, height, latestParams || { palette: currentPalette }, slot.group);
+      slot.bloom.init(w, h, latestParams || { palette: currentPalette }, slot.group);
     } catch (err) {
       console.error('[MorphSequence] bloom init failed:', stepId, err);
       slot.bloom = null;
@@ -191,11 +197,28 @@ export function createMorphSequence() {
     setLabel(label, MANUAL_HINT);
   }
 
+  function rememberStableViewport(w, h) {
+    if (viewportReady(w, h)) {
+      stableWidth = w;
+      stableHeight = h;
+      return true;
+    }
+    return false;
+  }
+
   function sampleDims() {
-    return {
-      w: Math.max(width, 1),
-      h: Math.max(height, 1),
-    };
+    const { w, h } = safeViewport(width, height, stableWidth, stableHeight);
+    return { w, h };
+  }
+
+  function viewportIsReady() {
+    const { w, h } = sampleDims();
+    return viewportReady(w, h);
+  }
+
+  function ensureSpreadCloud(cloud, w, h) {
+    if (cloudWellSpread(cloud)) return cloud;
+    return spreadScreenCloud(count, w, h);
   }
 
   function cloudValid(cloud) {
@@ -203,7 +226,7 @@ export function createMorphSequence() {
     for (let i = 0; i < cloud.length; i++) {
       if (!Number.isFinite(cloud[i])) return false;
     }
-    return true;
+    return cloudWellSpread(cloud);
   }
 
   function sampleStageCloud(stepIndex) {
@@ -211,13 +234,13 @@ export function createMorphSequence() {
     const { w, h } = sampleDims();
 
     if (step.id === 'petal') {
-      if (flowerBloom?.samplePoints) return flowerBloom.samplePoints(count);
+      if (flowerBloom?.samplePoints) return ensureSpreadCloud(flowerBloom.samplePoints(count, w, h), w, h);
       const model = samplePetalCloud(count, 95);
       return spreadModelCloudToWorld(model, count, w, h, 0.12);
     }
 
     const live = bloomSlots[step.id]?.bloom;
-    if (live?.samplePoints) return live.samplePoints(count);
+    if (live?.samplePoints) return ensureSpreadCloud(live.samplePoints(count, w, h), w, h);
 
     const tempId = step.id === 'letter' ? 'letter' : step.id;
     const temp = createSolidForm(tempId, currentPalette);
@@ -247,7 +270,7 @@ export function createMorphSequence() {
     return paletteUnitColors(currentPalette, count);
   }
 
-  function beginMorph() {
+  function runMorph() {
     const step = SEQUENCE[stageIndex];
     const nextIndex = (stageIndex + 1) % SEQUENCE.length;
     const next = SEQUENCE[nextIndex];
@@ -271,7 +294,21 @@ export function createMorphSequence() {
     setLabel(`${step.label} → ${next.label}`, '変容中');
   }
 
+  function beginMorph() {
+    if (!viewportIsReady()) {
+      pendingMorph = true;
+      return;
+    }
+    pendingMorph = false;
+    runMorph();
+  }
+
   function enterHoldStage() {
+    if (!viewportIsReady()) {
+      holdDeferred = true;
+      return;
+    }
+    holdDeferred = false;
     phase = 'hold';
     phaseT = 0;
     const step = SEQUENCE[stageIndex];
@@ -343,6 +380,7 @@ export function createMorphSequence() {
     init(w, h, params, group) {
       width = w;
       height = h;
+      rememberStableViewport(w, h);
       layer = group;
       time = 0;
       stageIndex = 0;
@@ -371,20 +409,36 @@ export function createMorphSequence() {
       field.mat.opacity = 0.95;
       layer.add(field.points);
 
-      enterHoldStage();
+      if (viewportIsReady()) enterHoldStage();
+      else holdDeferred = true;
     },
 
     resize(w, h) {
+      const prevW = width;
+      const prevH = height;
+      const hadStable = viewportReady(stableWidth, stableHeight);
       width = w;
       height = h;
+      rememberStableViewport(w, h);
       flowerBloom?.resize?.(w, h);
       for (const slot of Object.values(bloomSlots)) slot.bloom?.resize?.(w, h);
+
+      const recovered = !hadStable && viewportReady(w, h) && !viewportReady(prevW, prevH);
+      if (phase === 'hold' && viewportIsReady() && (recovered || holdDeferred)) {
+        enterHoldStage();
+      }
+      if (pendingMorph && viewportIsReady()) beginMorph();
     },
 
     update(dt, pointer, audioData, params) {
       time += dt;
       latestParams = params;
       currentPalette = params.palette || currentPalette;
+
+      if (viewportIsReady()) {
+        if (holdDeferred && phase === 'hold') enterHoldStage();
+        if (pendingMorph) beginMorph();
+      }
 
       const want = Math.min(1800, Math.max(600, Math.floor((params.particleCount || 1030) * 1.1)));
       if (want !== count && field && phase !== 'morph') {

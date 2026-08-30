@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { toWorld, makePoints, rgbToUnit, stratifiedSpawnPoints, primeGrowingMarks, sampleMarksWorld, spreadScreenCloud } from '../space3d.js';
+import { toWorld, makePoints, rgbToUnit, stratifiedSpawnPoints, primeGrowingMarks, sampleMarksWorld, spreadScreenCloud, remapScreenMarks, safeViewport } from '../space3d.js';
 import {
   letterBrightenRgb as brightenRgb,
   letterDisplayColor as displayColor,
@@ -421,6 +421,7 @@ export function createMusicNoteBloom() {
     },
 
     resize(w, h) {
+      remapScreenMarks(marks, width, height, w, h);
       width = w;
       height = h;
     },
@@ -481,8 +482,9 @@ export function createMusicNoteBloom() {
       currentPalette = p.palette || currentPalette;
     },
 
-    samplePoints(count) {
-      return sampleMarksWorld(marks, count, width, height, spreadScreenCloud);
+    samplePoints(count, vw = width, vh = height) {
+      const { w, h } = safeViewport(vw, vh, width, height);
+      return sampleMarksWorld(marks, count, w, h, spreadScreenCloud);
     },
 
     destroy() {

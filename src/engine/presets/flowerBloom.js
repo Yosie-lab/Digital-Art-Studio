@@ -7,6 +7,8 @@ import {
   primeGrowingMarks,
   sampleMarksWorld,
   spreadScreenCloud,
+  remapScreenMarks,
+  safeViewport,
 } from '../space3d.js';
 import {
   boostVividRgb,
@@ -302,7 +304,11 @@ export function createFlowerBloom() {
       }
     },
 
-    resize(w, h) { width = w; height = h; },
+    resize(w, h) {
+      remapScreenMarks(flowers, width, height, w, h);
+      width = w;
+      height = h;
+    },
 
     update(dt, pointer, audioData, params) {
       time += dt;
@@ -374,8 +380,9 @@ export function createFlowerBloom() {
     onPointerMove() {},
     onPointerUp() {},
 
-    samplePoints(count) {
-      return sampleMarksWorld(flowers, count, width, height, spreadScreenCloud);
+    samplePoints(count, vw = width, vh = height) {
+      const { w, h } = safeViewport(vw, vh, width, height);
+      return sampleMarksWorld(flowers, count, w, h, spreadScreenCloud);
     },
 
     setParams(p) { currentPalette = p.palette; },

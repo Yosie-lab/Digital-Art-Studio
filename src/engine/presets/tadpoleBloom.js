@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { toWorld, makePoints, rgbToUnit, stratifiedSpawnPoints, primeGrowingMarks, sampleMarksWorld, spreadScreenCloud } from '../space3d.js';
+import { toWorld, makePoints, rgbToUnit, stratifiedSpawnPoints, primeGrowingMarks, sampleMarksWorld, spreadScreenCloud, remapScreenMarks, safeViewport } from '../space3d.js';
 import { pickTadpoleSize } from '../bloom/bloomColors.js';
 import {
   cyberHexToRgb,
@@ -405,6 +405,7 @@ export function createTadpoleBloom() {
     },
 
     resize(w, h) {
+      remapScreenMarks(marks, width, height, w, h);
       width = w;
       height = h;
     },
@@ -465,8 +466,9 @@ export function createTadpoleBloom() {
       currentPalette = p.palette || currentPalette;
     },
 
-    samplePoints(count) {
-      return sampleMarksWorld(marks, count, width, height, spreadScreenCloud);
+    samplePoints(count, vw = width, vh = height) {
+      const { w, h } = safeViewport(vw, vh, width, height);
+      return sampleMarksWorld(marks, count, w, h, spreadScreenCloud);
     },
 
     destroy() {
