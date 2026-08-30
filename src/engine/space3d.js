@@ -139,6 +139,21 @@ export function marksNeedRemap(marks, w, h, ratio = 0.18) {
   return marksScreenSpread(marks) < Math.min(vw, vh) * ratio;
 }
 
+/** mark 座標がサンプリング viewport のスケールと食い違っていないか */
+export function marksOutOfViewport(marks, w, h, margin = 0.08) {
+  if (!marks?.length || !viewportReady(w, h)) return false;
+  const { w: vw, h: vh } = safeViewport(w, h);
+  const minX = -vw * margin;
+  const minY = -vh * margin;
+  const maxX = vw * (1 + margin);
+  const maxY = vh * (1 + margin);
+  for (const m of marks) {
+    if (!Number.isFinite(m.x) || !Number.isFinite(m.y)) return true;
+    if (m.x < minX || m.y < minY || m.x > maxX || m.y > maxY) return true;
+  }
+  return false;
+}
+
 /** 点群が狭いとき画面全体へフォールバック */
 export function ensureCloudSpread(cloud, count, w, h, fallback = null) {
   const { w: vw, h: vh } = safeViewport(w, h);
@@ -254,7 +269,7 @@ export function sampleMarksWorld(marks, count, w, h, fallback = null) {
   if (n === 0) {
     return screenFallback(count, vw, vh);
   }
-  if (marksNeedRemap(marks, vw, vh)) {
+  if (marksNeedRemap(marks, vw, vh) || marksOutOfViewport(marks, vw, vh)) {
     remapScreenMarks(marks, 0, 0, vw, vh);
   }
   const out = new Float32Array(count * 3);

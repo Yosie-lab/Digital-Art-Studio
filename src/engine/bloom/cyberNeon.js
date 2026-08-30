@@ -18,7 +18,7 @@ export const ANGEL_CYBER_NEON = [
   '#e040fb', '#d946ef',
 ];
 
-const ANGEL_SATURATION = 1.38;
+export const ANGEL_SATURATION = 1.25;
 
 /** クラゲ向けサイバーネオン */
 export const JELLY_CYBER_NEON = [

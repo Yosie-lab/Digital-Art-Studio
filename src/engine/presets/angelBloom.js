@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { toWorld, makePoints, rgbToUnit, stratifiedSpawnPoints, primeGrowingMarks, sampleMarksWorld, spreadScreenCloud, remapScreenMarks, safeViewport } from '../space3d.js';
+import { toWorld, makePoints, rgbToUnit, stratifiedSpawnPoints, primeGrowingMarks, sampleMarksWorld, spreadModelCloudToWorld, spreadScreenCloud, remapScreenMarks, safeViewport, viewportReady, marksNeedRemap, marksOutOfViewport } from '../space3d.js';
+import { sampleAngelCloud } from '../morph/sampleShapes.js';
 import { pickMarkSizeDefault as pickMarkSize } from '../bloom/bloomColors.js';
 import {
   ANGEL_CYBER_NEON,
@@ -581,7 +582,16 @@ export function createAngelBloom() {
 
     samplePoints(count, vw = width, vh = height) {
       const { w, h } = safeViewport(vw, vh, width, height);
-      return sampleMarksWorld(marks, count, w, h, spreadScreenCloud);
+      if (viewportReady(w, h) && marks.length) {
+        if (!viewportReady(width, height) || marksOutOfViewport(marks, w, h) || marksNeedRemap(marks, w, h, 0.2)) {
+          remapScreenMarks(marks, viewportReady(width, height) ? width : 0, viewportReady(width, height) ? height : 0, w, h);
+        } else if (width !== w || height !== h) {
+          remapScreenMarks(marks, width, height, w, h);
+        }
+      }
+      const angelFallback = (n, cw, ch) =>
+        spreadModelCloudToWorld(sampleAngelCloud(n, 130), n, cw, ch, 0.14);
+      return sampleMarksWorld(marks, count, w, h, angelFallback);
     },
 
     destroy() {

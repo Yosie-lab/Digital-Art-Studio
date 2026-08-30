@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { getPaletteColors, hexToRgb } from '../palettes.js';
 import { makePoints, clearGroup, spreadModelCloudToWorld, spreadScreenCloud, viewportReady, safeViewport, cloudWellSpread, minCloudSpread, ensureCloudSpread } from '../space3d.js';
+import { ANGEL_SATURATION } from '../bloom/cyberNeon.js';
 import { morphPositions } from '../morph/morphEngine.js';
 import { createFlowerBloom } from './flowerBloom.js';
 import { createLetterXBloom } from './letterXBloom.js';
@@ -13,7 +14,7 @@ import {
   neonAngelUnitColors,
 } from '../bloom/morphColors.js';
 import { createButterflyBloom } from './butterflyBloom.js';
-import { samplePetalCloud } from '../morph/sampleShapes.js';
+import { samplePetalCloud, sampleAngelCloud } from '../morph/sampleShapes.js';
 import { createSolidForm } from '../morph/solidForms.js';
 
 /**
@@ -262,6 +263,36 @@ export function createMorphSequence() {
     return cloudWellSpread(cloud, minCloudSpread(w, h));
   }
 
+  function syncBloomViewports() {
+    if (!viewportIsReady()) return;
+    const { w, h } = sampleDims();
+    flowerBloom?.resize?.(w, h);
+    for (const slot of Object.values(bloomSlots)) slot.bloom?.resize?.(w, h);
+  }
+
+  function sampleAngelStageCloud(w, h) {
+    const live = bloomSlots.angel?.bloom;
+    if (live?.samplePoints) return ensureSpreadCloud(live.samplePoints(count, w, h), w, h);
+
+    const slot = bloomSlots.angel;
+    const factory = BLOOM_FACTORIES.angel;
+    if (factory && slot?.group) {
+      try {
+        const temp = factory();
+        temp.init(w, h, latestParams || { palette: currentPalette }, slot.group);
+        const cloud = ensureSpreadCloud(temp.samplePoints(count, w, h), w, h);
+        temp.destroy();
+        clearGroup(slot.group);
+        return cloud;
+      } catch (err) {
+        console.error('[MorphSequence] angel prewarm failed:', err);
+        clearGroup(slot.group);
+      }
+    }
+
+    return spreadModelCloudToWorld(sampleAngelCloud(count, 130), count, w, h, 0.14);
+  }
+
   function sampleStageCloud(stepIndex) {
     const step = SEQUENCE[stepIndex];
     const { w, h } = sampleDims();
@@ -271,6 +302,8 @@ export function createMorphSequence() {
       const model = samplePetalCloud(count, 95);
       return spreadModelCloudToWorld(model, count, w, h, 0.12);
     }
+
+    if (step.id === 'angel') return sampleAngelStageCloud(w, h);
 
     const live = bloomSlots[step.id]?.bloom;
     if (live?.samplePoints) return ensureSpreadCloud(live.samplePoints(count, w, h), w, h);
@@ -310,6 +343,7 @@ export function createMorphSequence() {
     phase = 'morph';
     phaseT = 0;
 
+    syncBloomViewports();
     fromCloud = sampleStageCloud(stageIndex);
     toCloud = sampleStageCloud(nextIndex);
     const { w: cw, h: ch } = sampleDims();
@@ -372,7 +406,7 @@ export function createMorphSequence() {
         g = g * (1 - w) + w;
         b = b * (1 - w) + w;
         const gray = (r + g + b) / 3;
-        const sat = 1.38;
+        const sat = ANGEL_SATURATION;
         r = Math.min(1, Math.max(0, gray + (r - gray) * sat));
         g = Math.min(1, Math.max(0, gray + (g - gray) * sat));
         b = Math.min(1, Math.max(0, gray + (b - gray) * sat));
