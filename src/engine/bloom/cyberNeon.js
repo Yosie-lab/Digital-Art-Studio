@@ -128,7 +128,7 @@ function angelSaturateRgb(rgb, amount = ANGEL_SATURATION) {
   };
 }
 
-export function angelFillColor(hex, scale = 1.08) {
+export function angelFillColor(hex, scale = 1.0) {
   const sat = angelSaturateRgb(angelHexToRgb(hex));
   let r = (sat.r / 255) * scale;
   let g = (sat.g / 255) * scale;
@@ -142,7 +142,7 @@ export function angelFillColor(hex, scale = 1.08) {
   return { r, g, b };
 }
 
-export function angelRimColor(hex, boost = 1.32) {
+export function angelRimColor(hex, boost = 1.18) {
   const sat = angelSaturateRgb(angelHexToRgb(hex));
   return {
     r: Math.min(1, (sat.r / 255) * boost),
@@ -151,7 +151,7 @@ export function angelRimColor(hex, boost = 1.32) {
   };
 }
 
-export function angelParticleFill(hex, scale = 1.12, whiteMix = 0.07) {
+export function angelParticleFill(hex, scale = 1.0, whiteMix = 0.06) {
   const sat = angelSaturateRgb(angelHexToRgb(hex));
   const w = Math.min(1, Math.max(0, whiteMix));
   let r = Math.min(1, (sat.r / 255) * scale);
@@ -160,7 +160,7 @@ export function angelParticleFill(hex, scale = 1.12, whiteMix = 0.07) {
   r = r * (1 - w) + w;
   g = g * (1 - w) + w;
   b = b * (1 - w) + w;
-  const shine = 0.035;
+  const shine = 0.03;
   return {
     r: Math.min(1, r * (1 - shine) + shine),
     g: Math.min(1, g * (1 - shine) + shine),

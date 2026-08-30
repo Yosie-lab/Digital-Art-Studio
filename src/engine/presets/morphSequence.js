@@ -259,12 +259,17 @@ export function createMorphSequence() {
     return w >= MORPH_VIEWPORT_MIN && h >= MORPH_VIEWPORT_MIN;
   }
 
-  function forceMorphCloud(cloud, w, h) {
+  function forceMorphCloud(cloud, w, h, fallback = null) {
     const min = minCloudSpread(w, h);
     if (!cloud || cloud.length !== count * 3 || cloudIsDegenerate(cloud, min)) {
+      if (fallback) return ensureSpreadCloud(fallback(count, w, h), count, w, h);
       return spreadScreenCloud(count, w, h);
     }
-    return cloud;
+    return ensureSpreadCloud(cloud, count, w, h, fallback ? (n, cw, ch) => fallback(n, cw, ch) : null);
+  }
+
+  function angelMorphFallback(n, w, h) {
+    return spreadModelCloudToWorld(sampleAngelCloud(n, 130), n, w, h, 0.14);
   }
 
   function ensureSpreadCloud(cloud, w, h) {
@@ -288,16 +293,22 @@ export function createMorphSequence() {
   }
 
   function sampleAngelStageCloud(w, h) {
+    const { w: vw, h: vh } = safeViewport(w, h, stableWidth, stableHeight);
+    const fallback = (n, cw, ch) => angelMorphFallback(n, cw, ch);
+
     const live = bloomSlots.angel?.bloom;
-    if (live?.samplePoints) return ensureSpreadCloud(live.samplePoints(count, w, h), w, h);
+    if (live?.samplePoints) {
+      live.resize?.(vw, vh);
+      return ensureSpreadCloud(live.samplePoints(count, vw, vh), vw, vh, fallback);
+    }
 
     const slot = bloomSlots.angel;
     const factory = BLOOM_FACTORIES.angel;
     if (factory && slot?.group) {
       try {
         const temp = factory();
-        temp.init(w, h, latestParams || { palette: currentPalette }, slot.group);
-        const cloud = ensureSpreadCloud(temp.samplePoints(count, w, h), w, h);
+        temp.init(vw, vh, latestParams || { palette: currentPalette }, slot.group);
+        const cloud = ensureSpreadCloud(temp.samplePoints(count, vw, vh), vw, vh, fallback);
         temp.destroy();
         clearGroup(slot.group);
         return cloud;
@@ -307,7 +318,7 @@ export function createMorphSequence() {
       }
     }
 
-    return spreadModelCloudToWorld(sampleAngelCloud(count, 130), count, w, h, 0.14);
+    return ensureSpreadCloud(angelMorphFallback(count, vw, vh), vw, vh);
   }
 
   function sampleStageCloud(stepIndex) {
@@ -368,8 +379,13 @@ export function createMorphSequence() {
     const min = minCloudSpread(cw, ch);
 
     syncBloomViewports();
-    fromCloud = forceMorphCloud(sampleStageCloud(stageIndex), cw, ch);
-    toCloud = forceMorphCloud(sampleStageCloud(nextIndex), cw, ch);
+    const angelMorph = step.id === 'angel' || next.id === 'angel';
+    if (angelMorph) {
+      bloomSlots.angel?.bloom?.resize?.(cw, ch);
+    }
+
+    fromCloud = forceMorphCloud(sampleStageCloud(stageIndex), cw, ch, angelMorph ? angelMorphFallback : null);
+    toCloud = forceMorphCloud(sampleStageCloud(nextIndex), cw, ch, angelMorph ? angelMorphFallback : null);
     if (!cloudValid(fromCloud, cw, ch)) fromCloud = spreadScreenCloud(count, cw, ch);
     if (!cloudValid(toCloud, cw, ch)) toCloud = spreadScreenCloud(count, cw, ch);
 
@@ -445,7 +461,7 @@ export function createMorphSequence() {
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
       const pulse = (stepId === 'angel' || nextId === 'angel')
-        ? 1.06 + 0.58 * (0.5 + 0.5 * Math.sin(time * 2.5 + i * 0.02))
+        ? 0.92 + 0.48 * (0.5 + 0.5 * Math.sin(time * 2.5 + i * 0.02))
         : 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(time * 2.5 + i * 0.02));
       let r = colorA[i3] * (1 - mix) + colorB[i3] * mix;
       let g = colorA[i3 + 1] * (1 - mix) + colorB[i3 + 1] * mix;
@@ -493,7 +509,7 @@ export function createMorphSequence() {
     const sizeMul = angelMorph ? 0.36 : 0.55;
     const baseSize = Math.max(4, Math.min(14, (params.particleSize || 15) * sizeMul));
     field.mat.size = baseSize;
-    field.mat.opacity = angelMorph ? 0.78 : 0.95;
+    field.mat.opacity = angelMorph ? 0.66 : 0.95;
     syncAngelLargeField(angelMorph, baseSize, field.mat.opacity);
 
     if (progress >= 1 && !morphCompletePending) {

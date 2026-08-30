@@ -190,7 +190,7 @@ export function marksOutOfViewport(marks, w, h, margin = 0.08) {
 export function ensureCloudSpread(cloud, count, w, h, fallback = null) {
   const { w: vw, h: vh } = safeViewport(w, h);
   const min = minCloudSpread(vw, vh);
-  if (cloudWellSpread(cloud, min)) return cloud;
+  if (cloudWellSpread(cloud, min) && !cloudIsDegenerate(cloud, min)) return cloud;
   if (fallback) return fallback(count, vw, vh);
   return spreadScreenCloud(count, vw, vh);
 }
@@ -294,20 +294,20 @@ export function primeGrowingMarks(marks) {
 export const primeGrowingFlowers = primeGrowingMarks;
 
 /** Bloom mark からモーフ用点群（ワールド座標） */
-export function sampleMarksWorld(marks, count, w, h, fallback = null) {
+export function sampleMarksWorld(marks, count, w, h, fallback = null, spreadMin = 36) {
   const { w: vw, h: vh } = safeViewport(w, h);
   const screenFallback = fallback || spreadScreenCloud;
   const n = marks.length;
   if (n === 0) {
     return screenFallback(count, vw, vh);
   }
-  if (marksNeedRemap(marks, vw, vh) || marksOutOfViewport(marks, vw, vh)) {
+  if (marksNeedRemap(marks, vw, vh, 0.28) || marksOutOfViewport(marks, vw, vh)) {
     remapScreenMarks(marks, 0, 0, vw, vh);
   }
   const out = new Float32Array(count * 3);
   for (let i = 0; i < count; i++) {
     const m = marks[i % n];
-    const spread = markSpreadSize(m);
+    const spread = markSpreadSize(m, spreadMin);
     const wpos = toWorld(
       m.x + (Math.random() - 0.5) * spread,
       m.y + (Math.random() - 0.5) * spread,

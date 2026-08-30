@@ -31,20 +31,20 @@ const ANGEL_SPARKLE_LARGE_COUNT = 48;
 const ANGEL_FALL_MAX = 1100;
 const ANGEL_FALL_LARGE_MAX = 280;
 const ANGEL_LARGE_SHARD_CHANCE = 0.28;
-const ANGEL_PARTICLE_GLOW = 1.78;
-const ANGEL_BODY_OPACITY = 0.14;
-const ANGEL_RIM_OPACITY = 0.42;
-const ANGEL_WING_OPACITY = 0.12;
-const ANGEL_WING_RIM_OPACITY = 0.36;
-const ANGEL_HALO_OPACITY = 0.17;
+const ANGEL_PARTICLE_GLOW = 1.52;
+const ANGEL_BODY_OPACITY = 0.12;
+const ANGEL_RIM_OPACITY = 0.36;
+const ANGEL_WING_OPACITY = 0.10;
+const ANGEL_WING_RIM_OPACITY = 0.30;
+const ANGEL_HALO_OPACITY = 0.14;
 const ANGEL_EYE_OPACITY = 0.58;
 const ANGEL_MOUTH_OPACITY = 0.52;
-const ANGEL_SPARKLE_OPACITY = 0.74;
-const ANGEL_FALL_OPACITY = 0.68;
-const ANGEL_FILL_BOOST = 1.24;
-const ANGEL_WING_FILL_BOOST = 1.2;
-const ANGEL_HALO_FILL_BOOST = 1.14;
-const ANGEL_RIM_BOOST = 1.4;
+const ANGEL_SPARKLE_OPACITY = 0.62;
+const ANGEL_FALL_OPACITY = 0.58;
+const ANGEL_FILL_BOOST = 1.10;
+const ANGEL_WING_FILL_BOOST = 1.06;
+const ANGEL_HALO_FILL_BOOST = 1.02;
+const ANGEL_RIM_BOOST = 1.22;
 
 function angelNeonRim(hex) {
   return angelRimColor(hex, ANGEL_RIM_BOOST);
@@ -183,7 +183,7 @@ export function createAngelBloom() {
           vz: (Math.random() - 0.5) * 25,
           rgb: angelShardRgb(this.color),
           opacity: 1,
-          glow: (2.12 + Math.random() * 0.88) * ANGEL_PARTICLE_GLOW,
+          glow: (1.85 + Math.random() * 0.78) * ANGEL_PARTICLE_GLOW,
           kind: 'dust',
           large: Math.random() < ANGEL_LARGE_SHARD_CHANCE,
           twinkle: Math.random() * Math.PI * 2,
@@ -204,7 +204,7 @@ export function createAngelBloom() {
           vz: (Math.random() - 0.5) * 45,
           rgb: angelShardRgb(hex),
           opacity: 1,
-          glow: (2.02 + Math.random() * 0.82) * ANGEL_PARTICLE_GLOW,
+          glow: (1.78 + Math.random() * 0.72) * ANGEL_PARTICLE_GLOW,
           kind: 'shard',
           large: Math.random() < ANGEL_LARGE_SHARD_CHANCE,
           rot: Math.random() * Math.PI * 2,
@@ -328,7 +328,7 @@ export function createAngelBloom() {
         sparkleField.positions[i * 3 + 1] = wpos.y;
         sparkleField.positions[i * 3 + 2] = wpos.z;
         const pulse = 0.82 + 0.65 * Math.abs(Math.sin(time * 2.6 + s.phase));
-        const sc = angelParticleFill(angelColorAt(s.phase * 3 + i * 0.1), 1.54, 0.06);
+        const sc = angelParticleFill(angelColorAt(s.phase * 3 + i * 0.1), 1.38, 0.06);
         const glow = pulse * ANGEL_PARTICLE_GLOW;
         sparkleField.colors[i * 3] = Math.min(1, sc.r * glow);
         sparkleField.colors[i * 3 + 1] = Math.min(1, sc.g * glow);
@@ -345,7 +345,7 @@ export function createAngelBloom() {
         sparkleFieldLarge.positions[i * 3 + 1] = wpos.y;
         sparkleFieldLarge.positions[i * 3 + 2] = wpos.z;
         const pulse = 0.82 + 0.65 * Math.abs(Math.sin(time * 2.6 + s.phase));
-        const sc = angelParticleFill(angelColorAt(s.phase * 3 + i * 0.17), 1.54, 0.06);
+        const sc = angelParticleFill(angelColorAt(s.phase * 3 + i * 0.17), 1.38, 0.06);
         const glow = pulse * ANGEL_PARTICLE_GLOW * 0.92;
         sparkleFieldLarge.colors[i * 3] = Math.min(1, sc.r * glow);
         sparkleFieldLarge.colors[i * 3 + 1] = Math.min(1, sc.g * glow);
@@ -583,7 +583,7 @@ export function createAngelBloom() {
     samplePoints(count, vw = width, vh = height) {
       const { w, h } = safeViewport(vw, vh, width, height);
       if (viewportReady(w, h) && marks.length) {
-        if (!viewportReady(width, height) || marksOutOfViewport(marks, w, h) || marksNeedRemap(marks, w, h, 0.2)) {
+        if (!viewportReady(width, height) || marksOutOfViewport(marks, w, h) || marksNeedRemap(marks, w, h, 0.28)) {
           remapScreenMarks(marks, viewportReady(width, height) ? width : 0, viewportReady(width, height) ? height : 0, w, h);
         } else if (width !== w || height !== h) {
           remapScreenMarks(marks, width, height, w, h);
@@ -591,7 +591,7 @@ export function createAngelBloom() {
       }
       const angelFallback = (n, cw, ch) =>
         spreadModelCloudToWorld(sampleAngelCloud(n, 130), n, cw, ch, 0.14);
-      return sampleMarksWorld(marks, count, w, h, angelFallback);
+      return sampleMarksWorld(marks, count, w, h, angelFallback, 56);
     },
 
     destroy() {
