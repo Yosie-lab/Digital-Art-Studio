@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { getPaletteColors, hexToRgb } from '../palettes.js';
-import { makePoints, clearGroup, spreadModelCloudToWorld, spreadScreenCloud, viewportReady, safeViewport, cloudWellSpread, minCloudSpread, ensureCloudSpread } from '../space3d.js';
+import { makePoints, clearGroup, spreadModelCloudToWorld, spreadScreenCloud, viewportReady, safeViewport, cloudWellSpread, cloudIsDegenerate, minCloudSpread, ensureCloudSpread } from '../space3d.js';
 import { ANGEL_SATURATION } from '../bloom/cyberNeon.js';
 import { morphPositions } from '../morph/morphEngine.js';
 import { createFlowerBloom } from './flowerBloom.js';
@@ -34,6 +34,8 @@ const SEQUENCE = [
 ];
 
 const MANUAL_HINT = 'じっくり操作可 · 次へはダブルクリックのみ';
+const MORPH_VIEWPORT_MIN = 200;
+const DOUBLE_TAP_MS = 450;
 
 const BLOOM_FACTORIES = {
   letter: createLetterXBloom,
@@ -81,11 +83,12 @@ export function createMorphSequence() {
   let colorA = null;
   let colorB = null;
   let labelEl = null;
-  let lastPointerDown = 0;
+  let lastAdvanceTap = 0;
   let stableWidth = 0;
   let stableHeight = 0;
   let pendingMorph = false;
   let holdDeferred = false;
+  let morphCompletePending = false;
 
   function currentId() {
     return SEQUENCE[stageIndex]?.id;
@@ -103,14 +106,13 @@ export function createMorphSequence() {
     return bloomSlots[currentId()]?.bloom || null;
   }
 
-  function tryAdvanceByDoubleClick() {
-    const now = performance.now();
-    if (now - lastPointerDown < 380) {
+  function tryAdvanceByDoubleTap(now = performance.now()) {
+    if (now - lastAdvanceTap < DOUBLE_TAP_MS) {
       beginMorph();
-      lastPointerDown = 0;
+      lastAdvanceTap = 0;
       return true;
     }
-    lastPointerDown = now;
+    lastAdvanceTap = now;
     return false;
   }
 
@@ -251,6 +253,20 @@ export function createMorphSequence() {
     return viewportReady(width, height) || viewportReady(stableWidth, stableHeight);
   }
 
+  /** morph 開始・完了に必要な実寸（64px フォールバック不可） */
+  function morphViewportReady() {
+    const { w, h } = sampleDims();
+    return w >= MORPH_VIEWPORT_MIN && h >= MORPH_VIEWPORT_MIN;
+  }
+
+  function forceMorphCloud(cloud, w, h) {
+    const min = minCloudSpread(w, h);
+    if (!cloud || cloud.length !== count * 3 || cloudIsDegenerate(cloud, min)) {
+      return spreadScreenCloud(count, w, h);
+    }
+    return cloud;
+  }
+
   function ensureSpreadCloud(cloud, w, h) {
     return ensureCloudSpread(cloud, count, w, h, spreadScreenCloud);
   }
@@ -260,7 +276,8 @@ export function createMorphSequence() {
     for (let i = 0; i < cloud.length; i++) {
       if (!Number.isFinite(cloud[i])) return false;
     }
-    return cloudWellSpread(cloud, minCloudSpread(w, h));
+    const min = minCloudSpread(w, h);
+    return cloudWellSpread(cloud, min) && !cloudIsDegenerate(cloud, min);
   }
 
   function syncBloomViewports() {
@@ -337,18 +354,37 @@ export function createMorphSequence() {
   }
 
   function runMorph() {
+    if (!morphViewportReady()) {
+      pendingMorph = true;
+      return;
+    }
+    pendingMorph = false;
+    morphCompletePending = false;
+
     const step = SEQUENCE[stageIndex];
     const nextIndex = (stageIndex + 1) % SEQUENCE.length;
     const next = SEQUENCE[nextIndex];
-    phase = 'morph';
-    phaseT = 0;
+    const { w: cw, h: ch } = sampleDims();
+    const min = minCloudSpread(cw, ch);
 
     syncBloomViewports();
-    fromCloud = sampleStageCloud(stageIndex);
-    toCloud = sampleStageCloud(nextIndex);
-    const { w: cw, h: ch } = sampleDims();
+    fromCloud = forceMorphCloud(sampleStageCloud(stageIndex), cw, ch);
+    toCloud = forceMorphCloud(sampleStageCloud(nextIndex), cw, ch);
     if (!cloudValid(fromCloud, cw, ch)) fromCloud = spreadScreenCloud(count, cw, ch);
     if (!cloudValid(toCloud, cw, ch)) toCloud = spreadScreenCloud(count, cw, ch);
+
+    if (cloudIsDegenerate(fromCloud, min) || cloudIsDegenerate(toCloud, min)) {
+      morphCompletePending = true;
+      phase = 'morph';
+      phaseT = step.morph;
+      stopEverything();
+      setFieldVisible(false);
+      tryCompleteMorph();
+      return;
+    }
+
+    phase = 'morph';
+    phaseT = 0;
     colorA = colorsForStage(stageIndex);
     colorB = colorsForStage(nextIndex);
 
@@ -362,7 +398,8 @@ export function createMorphSequence() {
   }
 
   function beginMorph() {
-    if (!viewportIsReady()) {
+    if (phase === 'morph') return;
+    if (!morphViewportReady()) {
       pendingMorph = true;
       return;
     }
@@ -370,21 +407,34 @@ export function createMorphSequence() {
     runMorph();
   }
 
-  function enterHoldStage() {
+  function enterHoldStage(index = stageIndex) {
     if (!viewportIsReady()) {
       holdDeferred = true;
-      return;
+      return false;
     }
     holdDeferred = false;
+    morphCompletePending = false;
+    pendingMorph = false;
     phase = 'hold';
     phaseT = 0;
-    const step = SEQUENCE[stageIndex];
+    fromCloud = null;
+    toCloud = null;
+    const step = SEQUENCE[index];
     setFieldVisible(false);
 
     if (step.id === 'petal') {
       startFlowerBloom(latestParams);
     } else if (BLOOM_FACTORIES[step.id]) {
       startFormBloom(step.id, step.label);
+    }
+    return true;
+  }
+
+  function tryCompleteMorph() {
+    if (!morphCompletePending || phase !== 'morph') return;
+    const nextIndex = (stageIndex + 1) % SEQUENCE.length;
+    if (enterHoldStage(nextIndex)) {
+      stageIndex = nextIndex;
     }
   }
 
@@ -420,13 +470,20 @@ export function createMorphSequence() {
   function syncStage(dt, params) {
     if (!field) return;
     const step = SEQUENCE[stageIndex];
-    phaseT += dt * (params.speed || 1);
 
     if (phase === 'hold') return;
 
+    if (morphCompletePending) {
+      phaseT = step.morph;
+    } else {
+      phaseT += dt * (params.speed || 1);
+    }
+
     setFieldVisible(true);
     const progress = Math.min(1, phaseT / step.morph);
-    morphPositions(field.positions, fromCloud, toCloud, progress, time, step.style);
+    if (fromCloud && toCloud && fromCloud.length === field.positions.length && toCloud.length === field.positions.length) {
+      morphPositions(field.positions, fromCloud, toCloud, progress, time, step.style);
+    }
     paintColors(progress);
     field.geo.setDrawRange(0, count);
     field.geo.attributes.position.needsUpdate = true;
@@ -439,9 +496,12 @@ export function createMorphSequence() {
     field.mat.opacity = angelMorph ? 0.78 : 0.95;
     syncAngelLargeField(angelMorph, baseSize, field.mat.opacity);
 
-    if (progress >= 1) {
-      stageIndex = (stageIndex + 1) % SEQUENCE.length;
-      enterHoldStage();
+    if (progress >= 1 && !morphCompletePending) {
+      morphCompletePending = true;
+      phaseT = step.morph;
+      tryCompleteMorph();
+    } else if (morphCompletePending) {
+      tryCompleteMorph();
     }
   }
 
@@ -455,6 +515,9 @@ export function createMorphSequence() {
       stageIndex = 0;
       phase = 'hold';
       phaseT = 0;
+      morphCompletePending = false;
+      pendingMorph = false;
+      holdDeferred = false;
       currentPalette = params.palette || 'rainbow';
       latestParams = { ...params };
 
@@ -500,9 +563,12 @@ export function createMorphSequence() {
 
       const realDimsArrived = viewportReady(w, h) && !viewportReady(prevW, prevH);
       if (phase === 'hold' && viewportIsReady() && (holdDeferred || realDimsArrived)) {
-        enterHoldStage();
+        enterHoldStage(stageIndex);
       }
-      if (pendingMorph && viewportIsReady()) beginMorph();
+      if (morphCompletePending && viewportIsReady()) {
+        tryCompleteMorph();
+      }
+      if (pendingMorph && morphViewportReady()) beginMorph();
     },
 
     update(dt, pointer, audioData, params) {
@@ -511,9 +577,10 @@ export function createMorphSequence() {
       currentPalette = params.palette || currentPalette;
 
       if (viewportIsReady()) {
-        if (holdDeferred && phase === 'hold') enterHoldStage();
-        if (pendingMorph) beginMorph();
+        if (holdDeferred && phase === 'hold') enterHoldStage(stageIndex);
+        if (morphCompletePending) tryCompleteMorph();
       }
+      if (morphViewportReady() && pendingMorph && phase !== 'morph') beginMorph();
 
       const want = Math.min(1800, Math.max(600, Math.floor((params.particleCount || 1030) * 1.1)));
       if (want !== count && field && phase !== 'morph') {
@@ -559,13 +626,11 @@ export function createMorphSequence() {
 
     onPointerDown(x, y, pointer) {
       if (isPetalHold()) {
-        if (tryAdvanceByDoubleClick()) return;
         flowerBloom?.onPointerDown?.(x, y, pointer);
         return;
       }
 
       if (isFormBloomHold()) {
-        if (tryAdvanceByDoubleClick()) return;
         activeBloom()?.onPointerDown?.(x, y, pointer);
       }
     },
@@ -576,6 +641,9 @@ export function createMorphSequence() {
     },
 
     onPointerUp(pointer) {
+      if (phase === 'hold' && (isPetalHold() || isFormBloomHold())) {
+        if (tryAdvanceByDoubleTap()) return;
+      }
       if (isPetalHold()) flowerBloom?.onPointerUp?.(pointer);
       if (isFormBloomHold()) activeBloom()?.onPointerUp?.(pointer);
     },

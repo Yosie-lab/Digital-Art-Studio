@@ -144,7 +144,6 @@ export class ArtEngine {
     window.addEventListener('resize', scheduleResize);
     window.addEventListener('orientationchange', scheduleResize);
     window.visualViewport?.addEventListener('resize', scheduleResize);
-    window.visualViewport?.addEventListener('scroll', scheduleResize);
 
     const updatePointer = (x, y) => {
       this.pointer.prevX = this.pointer.x;

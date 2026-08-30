@@ -126,6 +126,38 @@ export function cloudWellSpread(cloud, minSpread = 48) {
   return cloudSpread(cloud) >= minSpread;
 }
 
+/** 広がりはあるが実質1点に潰れている点群（iOS 縮小 viewport サンプル等） */
+export function cloudIsDegenerate(cloud, minSpread = 48) {
+  if (!cloud || cloud.length < 6) return true;
+  if (!cloudWellSpread(cloud, minSpread)) return true;
+  const n = cloud.length / 3;
+  let cx = 0;
+  let cy = 0;
+  let valid = 0;
+  for (let i = 0; i < n; i++) {
+    const x = cloud[i * 3];
+    const y = cloud[i * 3 + 1];
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    cx += x;
+    cy += y;
+    valid++;
+  }
+  if (valid < 2) return true;
+  cx /= valid;
+  cy /= valid;
+  let maxDistSq = 0;
+  for (let i = 0; i < n; i++) {
+    const x = cloud[i * 3];
+    const y = cloud[i * 3 + 1];
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    const dx = x - cx;
+    const dy = y - cy;
+    maxDistSq = Math.max(maxDistSq, dx * dx + dy * dy);
+  }
+  const minRadius = minSpread * 0.28;
+  return maxDistSq < minRadius * minRadius;
+}
+
 /** ビューポートに対する最低広がり（ワールド XY） */
 export function minCloudSpread(w, h, floor = 48) {
   const { w: vw, h: vh } = safeViewport(w, h);
