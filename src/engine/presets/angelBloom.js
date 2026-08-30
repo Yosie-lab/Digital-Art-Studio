@@ -22,10 +22,15 @@ import {
 } from '../geometries/angel.js';
 
 const ANGEL_PARTICLE_SIZE_SPARKLE = 6;
+const ANGEL_PARTICLE_SIZE_SPARKLE_LARGE = 10.5;
 const ANGEL_PARTICLE_SIZE_FALL = 14;
-const ANGEL_PARTICLE_GLOW = 1.78;
+const ANGEL_PARTICLE_SIZE_FALL_LARGE = 21;
 const ANGEL_SPARKLE_COUNT = 180;
+const ANGEL_SPARKLE_LARGE_COUNT = 48;
 const ANGEL_FALL_MAX = 1100;
+const ANGEL_FALL_LARGE_MAX = 280;
+const ANGEL_LARGE_SHARD_CHANCE = 0.28;
+const ANGEL_PARTICLE_GLOW = 1.78;
 const ANGEL_BODY_OPACITY = 0.14;
 const ANGEL_RIM_OPACITY = 0.42;
 const ANGEL_WING_OPACITY = 0.12;
@@ -51,6 +56,7 @@ export function createAngelBloom() {
   let marks = [];
   let shards = [];
   let sparkles = [];
+  let sparklesLarge = [];
   let width = 0;
   let height = 0;
   let time = 0;
@@ -68,7 +74,9 @@ export function createAngelBloom() {
   let wingOutlineRMesh = null;
   let haloMesh = null;
   let sparkleField = null;
+  let sparkleFieldLarge = null;
   let fallField = null;
+  let fallFieldLarge = null;
   let bodyGeo = null;
   let angelEyeGeo = null;
   let angelMouthGeo = null;
@@ -176,6 +184,7 @@ export function createAngelBloom() {
           opacity: 1,
           glow: (2.12 + Math.random() * 0.88) * ANGEL_PARTICLE_GLOW,
           kind: 'dust',
+          large: Math.random() < ANGEL_LARGE_SHARD_CHANCE,
           twinkle: Math.random() * Math.PI * 2,
         });
       }
@@ -196,6 +205,7 @@ export function createAngelBloom() {
           opacity: 1,
           glow: (2.02 + Math.random() * 0.82) * ANGEL_PARTICLE_GLOW,
           kind: 'shard',
+          large: Math.random() < ANGEL_LARGE_SHARD_CHANCE,
           rot: Math.random() * Math.PI * 2,
           rotSpeed: (Math.random() - 0.5) * 4,
           twinkle: Math.random() * Math.PI * 2,
@@ -317,7 +327,7 @@ export function createAngelBloom() {
         sparkleField.positions[i * 3 + 1] = wpos.y;
         sparkleField.positions[i * 3 + 2] = wpos.z;
         const pulse = 0.82 + 0.65 * Math.abs(Math.sin(time * 2.6 + s.phase));
-        const sc = angelParticleFill(angelColorAt(s.phase * 3 + i * 0.1), 1.62, 0.06);
+        const sc = angelParticleFill(angelColorAt(s.phase * 3 + i * 0.1), 1.54, 0.06);
         const glow = pulse * ANGEL_PARTICLE_GLOW;
         sparkleField.colors[i * 3] = Math.min(1, sc.r * glow);
         sparkleField.colors[i * 3 + 1] = Math.min(1, sc.g * glow);
@@ -327,25 +337,67 @@ export function createAngelBloom() {
       sparkleField.geo.attributes.position.needsUpdate = true;
       sparkleField.geo.attributes.color.needsUpdate = true;
     }
-    if (fallField) {
-      const n = Math.min(shards.length, ANGEL_FALL_MAX);
-      for (let i = 0; i < n; i++) {
-        const p = shards[i];
+    if (sparkleFieldLarge) {
+      sparklesLarge.forEach((s, i) => {
+        const wpos = toWorld(s.x, s.y, s.z, width, height);
+        sparkleFieldLarge.positions[i * 3] = wpos.x;
+        sparkleFieldLarge.positions[i * 3 + 1] = wpos.y;
+        sparkleFieldLarge.positions[i * 3 + 2] = wpos.z;
+        const pulse = 0.82 + 0.65 * Math.abs(Math.sin(time * 2.6 + s.phase));
+        const sc = angelParticleFill(angelColorAt(s.phase * 3 + i * 0.17), 1.54, 0.06);
+        const glow = pulse * ANGEL_PARTICLE_GLOW * 0.92;
+        sparkleFieldLarge.colors[i * 3] = Math.min(1, sc.r * glow);
+        sparkleFieldLarge.colors[i * 3 + 1] = Math.min(1, sc.g * glow);
+        sparkleFieldLarge.colors[i * 3 + 2] = Math.min(1, sc.b * glow);
+      });
+      sparkleFieldLarge.geo.setDrawRange(0, sparklesLarge.length);
+      sparkleFieldLarge.geo.attributes.position.needsUpdate = true;
+      sparkleFieldLarge.geo.attributes.color.needsUpdate = true;
+    }
+    if (fallField || fallFieldLarge) {
+      let ni = 0;
+      let li = 0;
+      const n = Math.min(shards.length, ANGEL_FALL_MAX + ANGEL_FALL_LARGE_MAX);
+      for (let si = 0; si < n; si++) {
+        const p = shards[si];
         const wpos = toWorld(p.x, p.y, p.z, width, height);
-        fallField.positions[i * 3] = wpos.x;
-        fallField.positions[i * 3 + 1] = wpos.y;
-        fallField.positions[i * 3 + 2] = wpos.z;
         const [r0, g0, b0] = rgbToUnit(p.rgb);
         const twinkle = 0.84 + 0.38 * Math.abs(Math.sin(time * 9 + (p.twinkle || 0)));
         const glow = (p.glow || 1.92) * (0.66 + p.opacity * 0.56) * twinkle * ANGEL_PARTICLE_GLOW;
         const w = 0.06;
-        fallField.colors[i * 3] = Math.min(1, r0 * glow * (1 - w) + w);
-        fallField.colors[i * 3 + 1] = Math.min(1, g0 * glow * (1 - w) + w);
-        fallField.colors[i * 3 + 2] = Math.min(1, b0 * glow * (1 - w) + w);
+        const cr = Math.min(1, r0 * glow * (1 - w) + w);
+        const cg = Math.min(1, g0 * glow * (1 - w) + w);
+        const cb = Math.min(1, b0 * glow * (1 - w) + w);
+        if (p.large && fallFieldLarge && li < ANGEL_FALL_LARGE_MAX) {
+          const i3 = li * 3;
+          fallFieldLarge.positions[i3] = wpos.x;
+          fallFieldLarge.positions[i3 + 1] = wpos.y;
+          fallFieldLarge.positions[i3 + 2] = wpos.z;
+          fallFieldLarge.colors[i3] = cr;
+          fallFieldLarge.colors[i3 + 1] = cg;
+          fallFieldLarge.colors[i3 + 2] = cb;
+          li++;
+        } else if (fallField && ni < ANGEL_FALL_MAX) {
+          const i3 = ni * 3;
+          fallField.positions[i3] = wpos.x;
+          fallField.positions[i3 + 1] = wpos.y;
+          fallField.positions[i3 + 2] = wpos.z;
+          fallField.colors[i3] = cr;
+          fallField.colors[i3 + 1] = cg;
+          fallField.colors[i3 + 2] = cb;
+          ni++;
+        }
       }
-      fallField.geo.setDrawRange(0, n);
-      fallField.geo.attributes.position.needsUpdate = true;
-      fallField.geo.attributes.color.needsUpdate = true;
+      if (fallField) {
+        fallField.geo.setDrawRange(0, ni);
+        fallField.geo.attributes.position.needsUpdate = true;
+        fallField.geo.attributes.color.needsUpdate = true;
+      }
+      if (fallFieldLarge) {
+        fallFieldLarge.geo.setDrawRange(0, li);
+        fallFieldLarge.geo.attributes.position.needsUpdate = true;
+        fallFieldLarge.geo.attributes.color.needsUpdate = true;
+      }
     }
   }
 
@@ -374,6 +426,7 @@ export function createAngelBloom() {
       marks = [];
       shards = [];
       sparkles = [];
+      sparklesLarge = [];
       time = 0;
       layer = group;
 
@@ -412,14 +465,27 @@ export function createAngelBloom() {
       }
 
       sparkleField = makePoints(ANGEL_SPARKLE_COUNT, ANGEL_PARTICLE_SIZE_SPARKLE);
+      sparkleFieldLarge = makePoints(ANGEL_SPARKLE_LARGE_COUNT, ANGEL_PARTICLE_SIZE_SPARKLE_LARGE);
       fallField = makePoints(ANGEL_FALL_MAX, ANGEL_PARTICLE_SIZE_FALL);
+      fallFieldLarge = makePoints(ANGEL_FALL_LARGE_MAX, ANGEL_PARTICLE_SIZE_FALL_LARGE);
       sparkleField.mat.blending = THREE.AdditiveBlending;
+      sparkleFieldLarge.mat.blending = THREE.AdditiveBlending;
       fallField.mat.blending = THREE.AdditiveBlending;
+      fallFieldLarge.mat.blending = THREE.AdditiveBlending;
       sparkleField.mat.opacity = ANGEL_SPARKLE_OPACITY;
+      sparkleFieldLarge.mat.opacity = ANGEL_SPARKLE_OPACITY * 0.88;
       fallField.mat.opacity = ANGEL_FALL_OPACITY;
+      fallFieldLarge.mat.opacity = ANGEL_FALL_OPACITY * 0.9;
       sparkleField.mat.toneMapped = false;
+      sparkleFieldLarge.mat.toneMapped = false;
       fallField.mat.toneMapped = false;
-      layer.add(sparkleField.points, fallField.points);
+      fallFieldLarge.mat.toneMapped = false;
+      layer.add(
+        sparkleField.points,
+        sparkleFieldLarge.points,
+        fallField.points,
+        fallFieldLarge.points,
+      );
 
       for (const [x, y] of stratifiedSpawnPoints(20, w, h, 0.06, [h * 0.25, h * 0.95])) spawn(x, y);
       primeGrowingMarks(marks);
@@ -430,6 +496,16 @@ export function createAngelBloom() {
           y: Math.random() * h,
           z: (Math.random() - 0.5) * 220,
           speedY: -(0.12 + Math.random() * 0.32),
+          phase: Math.random() * Math.PI * 2,
+          rgb: angelShardRgb(randomAngelCyberHex()),
+        });
+      }
+      for (let i = 0; i < ANGEL_SPARKLE_LARGE_COUNT; i++) {
+        sparklesLarge.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          z: (Math.random() - 0.5) * 260,
+          speedY: -(0.08 + Math.random() * 0.24),
           phase: Math.random() * Math.PI * 2,
           rgb: angelShardRgb(randomAngelCyberHex()),
         });
@@ -477,6 +553,13 @@ export function createAngelBloom() {
           s.x = Math.random() * width;
         }
       });
+      sparklesLarge.forEach((s) => {
+        s.y += s.speedY * (params.speed || 1) * 58 * dt;
+        if (s.y < -10) {
+          s.y = height + 10;
+          s.x = Math.random() * width;
+        }
+      });
 
       const maxMarks = Math.min(MAX, Math.max(16, Math.floor((params.particleCount || 1030) / 5)));
       if (marks.length > maxMarks) marks.splice(0, marks.length - maxMarks);
@@ -505,6 +588,7 @@ export function createAngelBloom() {
       marks = [];
       shards = [];
       sparkles = [];
+      sparklesLarge = [];
       bodyGeo?.dispose();
       angelEyeGeo?.dispose();
       angelMouthGeo?.dispose();
@@ -524,7 +608,9 @@ export function createAngelBloom() {
       wingOutlineRMesh = null;
       haloMesh = null;
       sparkleField = null;
+      sparkleFieldLarge = null;
       fallField = null;
+      fallFieldLarge = null;
       layer = null;
     },
   };

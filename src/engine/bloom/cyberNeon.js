@@ -8,14 +8,17 @@ export const TADPOLE_CYBER_NEON = [
   '#ff00e5', '#ff2bd6', '#e040fb', '#c026d3',
 ];
 
-/** 天使専用: ピンク / 金 / 白金 / ラベンダー + シアン / エレクトリックブルー / バイオレットブルー */
+/** 天使専用: ピンク / 金 / ラベンダー + シアン / エレクトリックブルー / バイオレットブルー（青系やや多め） */
 export const ANGEL_CYBER_NEON = [
   '#ff1ac6', '#ff2ea8', '#ff00aa', '#ff4dd2',
   '#00ffff', '#00e5ff', '#00b8ff', '#2979ff',
+  '#18d4ff', '#40c4ff', '#448aff', '#651fff',
   '#ffd000', '#ffbf00', '#ffe135', '#fff36a',
   '#c44dff', '#b44dff', '#7c4dff', '#536dfe',
   '#e040fb', '#d946ef',
 ];
+
+const ANGEL_SATURATION = 1.38;
 
 /** クラゲ向けサイバーネオン */
 export const JELLY_CYBER_NEON = [
@@ -116,7 +119,7 @@ function angelHexToRgb(hex) {
   };
 }
 
-function angelSaturateRgb(rgb, amount = 1.58) {
+function angelSaturateRgb(rgb, amount = ANGEL_SATURATION) {
   const gray = (rgb.r + rgb.g + rgb.b) / 3;
   return {
     r: Math.min(255, Math.max(0, Math.round(gray + (rgb.r - gray) * amount))),
@@ -126,7 +129,7 @@ function angelSaturateRgb(rgb, amount = 1.58) {
 }
 
 export function angelFillColor(hex, scale = 1.08) {
-  const sat = angelSaturateRgb(angelHexToRgb(hex), 1.58);
+  const sat = angelSaturateRgb(angelHexToRgb(hex));
   let r = (sat.r / 255) * scale;
   let g = (sat.g / 255) * scale;
   let b = (sat.b / 255) * scale;
@@ -140,7 +143,7 @@ export function angelFillColor(hex, scale = 1.08) {
 }
 
 export function angelRimColor(hex, boost = 1.32) {
-  const sat = angelSaturateRgb(angelHexToRgb(hex), 1.58);
+  const sat = angelSaturateRgb(angelHexToRgb(hex));
   return {
     r: Math.min(1, (sat.r / 255) * boost),
     g: Math.min(1, (sat.g / 255) * boost),
@@ -149,7 +152,7 @@ export function angelRimColor(hex, boost = 1.32) {
 }
 
 export function angelParticleFill(hex, scale = 1.12, whiteMix = 0.07) {
-  const sat = angelSaturateRgb(angelHexToRgb(hex), 1.58);
+  const sat = angelSaturateRgb(angelHexToRgb(hex));
   const w = Math.min(1, Math.max(0, whiteMix));
   let r = Math.min(1, (sat.r / 255) * scale);
   let g = Math.min(1, (sat.g / 255) * scale);

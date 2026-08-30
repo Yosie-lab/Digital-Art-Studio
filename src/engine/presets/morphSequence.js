@@ -66,6 +66,8 @@ export function createMorphSequence() {
   /** @type {Record<string, { group: import('three').Group, bloom: any }>} */
   let bloomSlots = {};
   let field = null;
+  let fieldLarge = null;
+  let largeCount = 0;
   let currentPalette = 'rainbow';
   let latestParams = null;
   let count = 1200;
@@ -145,6 +147,38 @@ export function createMorphSequence() {
     if (!field) return;
     field.points.visible = visible;
     if (!visible) field.geo.setDrawRange(0, 0);
+    if (fieldLarge) {
+      fieldLarge.points.visible = visible;
+      if (!visible) fieldLarge.geo.setDrawRange(0, 0);
+    }
+  }
+
+  function syncAngelLargeField(angelMorph, baseSize, opacity) {
+    if (!fieldLarge || !angelMorph) {
+      if (fieldLarge) {
+        fieldLarge.points.visible = false;
+        fieldLarge.geo.setDrawRange(0, 0);
+      }
+      return;
+    }
+    fieldLarge.points.visible = true;
+    fieldLarge.mat.size = Math.min(18, baseSize * 1.72);
+    fieldLarge.mat.opacity = opacity * 0.9;
+    let li = 0;
+    for (let i = 0; i < count && li < largeCount; i += 4) {
+      const i3 = i * 3;
+      const li3 = li * 3;
+      fieldLarge.positions[li3] = field.positions[i3];
+      fieldLarge.positions[li3 + 1] = field.positions[i3 + 1];
+      fieldLarge.positions[li3 + 2] = field.positions[i3 + 2];
+      fieldLarge.colors[li3] = field.colors[i3];
+      fieldLarge.colors[li3 + 1] = field.colors[i3 + 1];
+      fieldLarge.colors[li3 + 2] = field.colors[i3 + 2];
+      li++;
+    }
+    fieldLarge.geo.setDrawRange(0, li);
+    fieldLarge.geo.attributes.position.needsUpdate = true;
+    fieldLarge.geo.attributes.color.needsUpdate = true;
   }
 
   function stopFlowerBloom() {
@@ -338,7 +372,7 @@ export function createMorphSequence() {
         g = g * (1 - w) + w;
         b = b * (1 - w) + w;
         const gray = (r + g + b) / 3;
-        const sat = 1.58;
+        const sat = 1.38;
         r = Math.min(1, Math.max(0, gray + (r - gray) * sat));
         g = Math.min(1, Math.max(0, gray + (g - gray) * sat));
         b = Math.min(1, Math.max(0, gray + (b - gray) * sat));
@@ -366,8 +400,10 @@ export function createMorphSequence() {
     const nextId = SEQUENCE[(stageIndex + 1) % SEQUENCE.length]?.id;
     const angelMorph = step.id === 'angel' || nextId === 'angel';
     const sizeMul = angelMorph ? 0.36 : 0.55;
-    field.mat.size = Math.max(4, Math.min(14, (params.particleSize || 15) * sizeMul));
+    const baseSize = Math.max(4, Math.min(14, (params.particleSize || 15) * sizeMul));
+    field.mat.size = baseSize;
     field.mat.opacity = angelMorph ? 0.78 : 0.95;
+    syncAngelLargeField(angelMorph, baseSize, field.mat.opacity);
 
     if (progress >= 1) {
       stageIndex = (stageIndex + 1) % SEQUENCE.length;
@@ -402,11 +438,18 @@ export function createMorphSequence() {
 
       const n = Math.min(1800, Math.max(600, Math.floor((params.particleCount || 1030) * 1.1)));
       rebuildColors(n);
+      largeCount = Math.max(1, Math.floor(n * 0.24));
 
       field = makePoints(n, 8);
       field.mat.sizeAttenuation = true;
       field.mat.opacity = 0.95;
       layer.add(field.points);
+
+      fieldLarge = makePoints(largeCount, 12);
+      fieldLarge.mat.sizeAttenuation = true;
+      fieldLarge.mat.opacity = 0.78;
+      fieldLarge.points.visible = false;
+      layer.add(fieldLarge.points);
 
       if (viewportIsReady()) enterHoldStage();
       else holdDeferred = true;
@@ -444,9 +487,21 @@ export function createMorphSequence() {
         field.geo.dispose();
         field.mat.map?.dispose();
         field.mat.dispose();
+        if (fieldLarge) {
+          layer.remove(fieldLarge.points);
+          fieldLarge.geo.dispose();
+          fieldLarge.mat.map?.dispose();
+          fieldLarge.mat.dispose();
+          fieldLarge = null;
+        }
         rebuildColors(want);
+        largeCount = Math.max(1, Math.floor(count * 0.24));
         field = makePoints(count, 8);
-        layer.add(field.points);
+        fieldLarge = makePoints(largeCount, 12);
+        fieldLarge.mat.sizeAttenuation = true;
+        fieldLarge.mat.opacity = 0.78;
+        fieldLarge.points.visible = false;
+        layer.add(field.points, fieldLarge.points);
         if (phase === 'hold') setFieldVisible(false);
       }
 
@@ -505,6 +560,7 @@ export function createMorphSequence() {
     destroy() {
       stopEverything();
       field = null;
+      fieldLarge = null;
       flowerGroup = null;
       bloomSlots = {};
       layer = null;
