@@ -132,10 +132,15 @@ const BUTTERFLY_MOVE_REF = [3, 24];
 const BUTTERFLY_MOVE_REF_DEPART = [12, 58];
 const BUTTERFLY_PARTICLE_GLOW = 1.42;
 const BUTTERFLY_SPARKLE_COUNT = 125;
-const BUTTERFLY_FALL_MAX = 780;
+const BUTTERFLY_FALL_MAX = 1600;
 const BUTTERFLY_PARTICLE_SIZE_SPARKLE = 4;
 const BUTTERFLY_PARTICLE_SIZE_FALL = 7;
 const BUTTERFLY_SIZE_SCALE = 1.18;
+/** 飛行・羽ばたきの速度倍率（少しだけ速く） */
+const BUTTERFLY_MOVE_MUL = 1.22;
+/** 消滅（depart）時のダスト放出倍率 */
+const BUTTERFLY_DEPART_DUST_MUL = 3.2;
+const BUTTERFLY_DEPART_BURST = 28;
 
 function flapTempo01(flapSpeed) {
   const lo = BUTTERFLY_FLAP_SLOW[0];
@@ -307,8 +312,9 @@ export function createButterflyBloom() {
       this.growthRate = 0.34 + Math.random() * 0.38;
       this.flapPhase = Math.random() * Math.PI * 2;
       this.flapTempoTrait = Math.random();
-      this.flapSpeed = BUTTERFLY_FLAP_SLOW[0]
-        + this.flapTempoTrait * (BUTTERFLY_FLAP_FAST[1] - BUTTERFLY_FLAP_SLOW[0]) * 0.55;
+      this.flapSpeed = (BUTTERFLY_FLAP_SLOW[0]
+        + this.flapTempoTrait * (BUTTERFLY_FLAP_FAST[1] - BUTTERFLY_FLAP_SLOW[0]) * 0.55)
+        * BUTTERFLY_MOVE_MUL;
       this.flapSpeedTarget = this.flapSpeed;
       this.flapRhythmTarget = this.flapSpeed;
       this.wingRhythmMul = 0.38 + this.flapTempoTrait * 0.26;
@@ -332,7 +338,7 @@ export function createButterflyBloom() {
       this.smoothRate = 0.72 + Math.random() * 0.55;
       this.orbitR = 0.45 + Math.random() * 0.75;
       this.orbitPhase = Math.random() * Math.PI * 2;
-      this.maxSpeed = 16 + Math.random() * 9;
+      this.maxSpeed = (16 + Math.random() * 9) * BUTTERFLY_MOVE_MUL;
       this.tiltAmp = 0.03 + Math.random() * 0.04;
       this.rollAmp = 0.03 + Math.random() * 0.05;
 
@@ -343,7 +349,7 @@ export function createButterflyBloom() {
       this.targetPitchAngle = this.pitchAngle;
       this.heading = this.flowAngle;
 
-      const flySpeed = 3.5 + this.flapTempoTrait * 10;
+      const flySpeed = (3.5 + this.flapTempoTrait * 10) * BUTTERFLY_MOVE_MUL;
       this.vx = Math.sin(this.heading) * Math.cos(this.pitchAngle) * flySpeed;
       this.vy = -Math.cos(this.heading) * Math.cos(this.pitchAngle) * flySpeed;
       this.vz = Math.sin(this.pitchAngle) * flySpeed * 0.85;
@@ -410,7 +416,7 @@ export function createButterflyBloom() {
       dir.y *= 0.55 + Math.random() * 0.35;
       dir.normalize();
       this.departDir = dir;
-      this.departSpeed = 28 + this.departTempo * 38;
+      this.departSpeed = (28 + this.departTempo * 38) * BUTTERFLY_MOVE_MUL;
       this.maxSpeed = Math.max(this.maxSpeed, this.departSpeed + 14);
       this.targetFlowAngle = Math.atan2(dir.x, -dir.y);
       this.targetPitchAngle = clamp(Math.asin(dir.z), -0.78, 0.78);
@@ -423,6 +429,7 @@ export function createButterflyBloom() {
       this.vx = expSmooth(this.vx, dir.x * dash, 0.05, dashK);
       this.vy = expSmooth(this.vy, dir.y * dash, 0.05, dashK);
       this.vz = expSmooth(this.vz, dir.z * dash, 0.05, dashK);
+      this._dustBurst(BUTTERFLY_DEPART_BURST);
     }
 
     _updateDepart(dt) {
@@ -468,15 +475,15 @@ export function createButterflyBloom() {
 
         if (this.flapRhythm === 'slow') {
           const span = BUTTERFLY_FLAP_SLOW[1] - BUTTERFLY_FLAP_SLOW[0];
-          this.flapRhythmTarget = BUTTERFLY_FLAP_SLOW[0]
+          this.flapRhythmTarget = (BUTTERFLY_FLAP_SLOW[0]
             + this.flapTempoTrait * span * 0.55
-            + Math.random() * span * 0.35;
+            + Math.random() * span * 0.35) * BUTTERFLY_MOVE_MUL;
           this.wingRhythmMul = 0.4 + this.flapTempoTrait * 0.16;
         } else {
           const span = BUTTERFLY_FLAP_FAST[1] - BUTTERFLY_FLAP_FAST[0];
-          this.flapRhythmTarget = BUTTERFLY_FLAP_FAST[0]
+          this.flapRhythmTarget = (BUTTERFLY_FLAP_FAST[0]
             + this.flapTempoTrait * span * 0.75
-            + Math.random() * span * 0.35;
+            + Math.random() * span * 0.35) * BUTTERFLY_MOVE_MUL;
           this.wingRhythmMul = 0.58 + this.flapTempoTrait * 0.28;
         }
       }
@@ -513,7 +520,7 @@ export function createButterflyBloom() {
       }
       const cp = Math.cos(this.pitchAngle);
       const sp = Math.sin(this.pitchAngle);
-      const speed = 8.5 + this.driftRadius * 2.2;
+      const speed = (8.5 + this.driftRadius * 2.2) * BUTTERFLY_MOVE_MUL;
       return {
         vx: Math.sin(this.heading) * cp * speed,
         vy: -Math.cos(this.heading) * cp * speed,
@@ -723,11 +730,15 @@ export function createButterflyBloom() {
           break;
         case 'departing':
           if (this._updateDepart(dt) === false) return false;
-          if (Math.random() < dt * 8.8) this._dust();
+          if (Math.random() < dt * 8.8 * BUTTERFLY_DEPART_DUST_MUL) {
+            this._dust(2 + Math.floor(Math.random() * 3));
+          }
           break;
         case 'wilting':
           this.opacity -= dt * 0.14;
-          if (Math.random() < dt * 6.2) this._dust();
+          if (Math.random() < dt * 6.2 * BUTTERFLY_DEPART_DUST_MUL) {
+            this._dust(2 + Math.floor(Math.random() * 2));
+          }
           break;
       }
       return this.opacity > 0.01 && this.lifetime < this.maxLifetime;
@@ -748,19 +759,36 @@ export function createButterflyBloom() {
       if (this.z > 380) this.z = -340;
     }
 
-    _dust() {
-      const count = 1 + (Math.random() < 0.45 ? 1 : 0);
+    _dust(extra = 0) {
+      const count = 1 + (Math.random() < 0.55 ? 1 : 0) + extra;
       for (let i = 0; i < count; i++) {
         shards.push({
-          x: this.x + (Math.random() - 0.5) * this.size,
-          y: this.y + (Math.random() - 0.5) * this.size,
-          z: this.z + (Math.random() - 0.5) * this.size,
-          vx: (Math.random() - 0.5) * 50,
-          vy: (Math.random() - 0.5) * 50,
-          vz: (Math.random() - 0.5) * 50,
-          rgb: saturateRgb(this.accent, 1.22),
+          x: this.x + (Math.random() - 0.5) * this.size * 1.35,
+          y: this.y + (Math.random() - 0.5) * this.size * 1.35,
+          z: this.z + (Math.random() - 0.5) * this.size * 1.2,
+          vx: (Math.random() - 0.5) * 70,
+          vy: (Math.random() - 0.5) * 70,
+          vz: (Math.random() - 0.5) * 70,
+          rgb: saturateRgb(Math.random() < 0.55 ? this.accent : this.rgb, 1.22),
           opacity: 1,
           glow: (1.85 + Math.random() * 0.85) * BUTTERFLY_PARTICLE_GLOW,
+          twinkle: Math.random() * Math.PI * 2,
+        });
+      }
+    }
+
+    _dustBurst(n) {
+      for (let i = 0; i < n; i++) {
+        shards.push({
+          x: this.x + (Math.random() - 0.5) * this.size * 1.8,
+          y: this.y + (Math.random() - 0.5) * this.size * 1.8,
+          z: this.z + (Math.random() - 0.5) * this.size * 1.5,
+          vx: (Math.random() - 0.5) * 110,
+          vy: (Math.random() - 0.5) * 110,
+          vz: (Math.random() - 0.5) * 95,
+          rgb: saturateRgb(i % 2 === 0 ? this.accent : this.rgb, 1.28),
+          opacity: 1,
+          glow: (2.1 + Math.random() * 0.9) * BUTTERFLY_PARTICLE_GLOW,
           twinkle: Math.random() * Math.PI * 2,
         });
       }
