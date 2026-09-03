@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Digital Art Studio — チームラボ風デジタルアート作成</title>
+  <meta name="description" content="チームラボのような幻想的なデジタルアートを簡単に作成できるインタラクティブWebアプリケーション">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+  <script type="module" crossorigin src="/Digital-Art-Studio/assets/index-DXRdZBO1.js"></script>
+  <link rel="stylesheet" crossorigin href="/Digital-Art-Studio/assets/index-DEzwSv7Y.css">
+</head>
+<body>
+  <!-- メインキャンバス -->
+  <canvas id="artCanvas"></canvas>
+
+  <!-- ヘッダーツールバー -->
+  <header class="toolbar" id="toolbar">
+    <div class="toolbar-left">
+      <h1 class="logo">✦ <span>Digital Art Studio</span></h1>
+    </div>
+    <div class="toolbar-right">
+      <!-- スクリーンショット -->
+      <button class="icon-btn" id="btnCapture" title="スクリーンショット (PNG)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+          <circle cx="12" cy="13" r="4"/>
+        </svg>
+      </button>
+      <!-- 録画 -->
+      <button class="icon-btn" id="btnRecord" title="録画 (WebM)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <circle cx="12" cy="12" r="4" fill="currentColor"/>
+        </svg>
+      </button>
+      <!-- フルスクリーン -->
+      <button class="icon-btn" id="btnFullscreen" title="フルスクリーン">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 3 21 3 21 9"/>
+          <polyline points="9 21 3 21 3 15"/>
+          <line x1="21" y1="3" x2="14" y2="10"/>
+          <line x1="3" y1="21" x2="10" y2="14"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- プリセット選択バー (画面下部) -->
+  <nav class="preset-bar" id="presetBar">
+    <button class="preset-btn active" data-preset="morphSequence">
+      <span class="preset-icon">🧬</span>
+      <span class="preset-name">Morph Sequence</span>
+    </button>
+    <button class="preset-btn" data-preset="fluidAurora">
+      <span class="preset-icon">🌊</span>
+      <span class="preset-name">Fluid Aurora</span>
+    </button>
+    <button class="preset-btn" data-preset="crystalDust">
+      <span class="preset-icon">✨</span>
+      <span class="preset-name">Crystal Dust</span>
+    </button>
+    <button class="preset-btn" data-preset="kaleidoPrism">
+      <span class="preset-icon">🌀</span>
+      <span class="preset-name">Kaleido Prism</span>
+    </button>
+    <button class="preset-btn" data-preset="interactiveRipples">
+      <span class="preset-icon">🎆</span>
+      <span class="preset-name">Ripples</span>
+    </button>
+  </nav>
+
+  <!-- サイドコントロールパネル -->
+  <aside class="control-panel collapsed" id="controlPanel">
+    <button class="panel-toggle" id="panelToggle" title="パネル開閉">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+    </button>
+    <div class="panel-content">
+      <!-- カラーパレット -->
+      <section class="control-section is-collapsed" id="paletteSection">
+        <h3>
+          <button type="button" class="section-toggle" id="paletteToggle" aria-expanded="false">
+            🎨 カラーパレット
+          </button>
+        </h3>
+        <div class="section-body" id="paletteBody">
+        <div class="palette-grid" id="paletteGrid">
+          <button class="palette-swatch active" data-palette="rainbow" title="🌈 レインボー" style="background: linear-gradient(135deg, #1a48ff, #2a5cff, #4a38d0, #6888ff)"></button>
+          <button class="palette-swatch" data-palette="cyberNeon" title="⚡ サイバーネオン" style="background: linear-gradient(135deg, #1a48ff, #2a5cff, #4a38d0, #6888ff)"></button>
+          <button class="palette-swatch" data-palette="midnight" title="🌙 ミッドナイト" style="background: linear-gradient(135deg, #6a9bff, #5a40ff)"></button>
+          <button class="palette-swatch" data-palette="silver" title="白銀 × 銀世界" style="background: linear-gradient(135deg, #f0f5fa, #b8cbd8)"></button>
+          <button class="palette-swatch" data-palette="atmosphere" title="ブルー × 大気圏" style="background: linear-gradient(135deg, #5ebbff, #0044ff)"></button>
+          <button class="palette-swatch" data-palette="sakura" title="桜 × 翡翠" style="background: linear-gradient(135deg, #ffd5e0, #50fa7b)"></button>
+          <button class="palette-swatch" data-palette="nebula" title="星雲 × 深宇宙" style="background: linear-gradient(135deg, #bd80ff, #6d28d9)"></button>
+          <button class="palette-swatch" data-palette="crystal" title="水 × クリスタル" style="background: linear-gradient(135deg, #00f5ff, #0080ff)"></button>
+          <button class="palette-swatch" data-palette="amber" title="黄金 × 琥珀" style="background: linear-gradient(135deg, #fff700, #ff6f00)"></button>
+          <button class="palette-swatch" data-palette="shiny" title="シャイニーピンク" style="background: linear-gradient(135deg, #ff40d0, #b000ff)"></button>
+        </div>
+        <div class="custom-color-row">
+          <label for="customColor">カスタム</label>
+          <input type="color" id="customColor" value="#ff5cf0">
+        </div>
+        </div>
+      </section>
+
+      <!-- 物理パラメーター -->
+      <section class="control-section">
+        <h3>⚙️ パラメーター</h3>
+        <div class="slider-group">
+          <div class="slider-row">
+            <label for="particleCount">パーティクル数</label>
+            <span class="slider-value" id="particleCountValue">1030</span>
+          </div>
+          <input type="range" id="particleCount" min="50" max="2000" value="1030" step="10">
+        </div>
+        <div class="slider-group">
+          <div class="slider-row">
+            <label for="particleSize">サイズ</label>
+            <span class="slider-value" id="particleSizeValue">15</span>
+          </div>
+          <input type="range" id="particleSize" min="1" max="30" value="15" step="1">
+        </div>
+        <div class="slider-group">
+          <div class="slider-row">
+            <label for="speed">速度</label>
+            <span class="slider-value" id="speedValue">2.6</span>
+          </div>
+          <input type="range" id="speed" min="0.1" max="5" value="2.6" step="0.1">
+        </div>
+        <div class="slider-group">
+          <div class="slider-row">
+            <label for="trail">残像</label>
+            <span class="slider-value" id="trailValue">0.49</span>
+          </div>
+          <input type="range" id="trail" min="0" max="0.98" value="0.49" step="0.01">
+        </div>
+        <div class="slider-group">
+          <div class="slider-row">
+            <label for="gravity">引力</label>
+            <span class="slider-value" id="gravityValue">0.00</span>
+          </div>
+          <input type="range" id="gravity" min="-1" max="1" value="0" step="0.01">
+        </div>
+      </section>
+
+      <!-- オーディオ連動 -->
+      <section class="control-section">
+        <h3>🎵 オーディオ連動</h3>
+        <button class="btn-audio" id="btnAudio">
+          <span class="audio-icon">🎙️</span>
+          <span class="audio-label">マイク OFF</span>
+        </button>
+      </section>
+
+      <!-- ヒント -->
+      <section class="control-section hint-section">
+        <p class="hint-text">💡 ダブルクリックでUIを非表示にできます</p>
+      </section>
+    </div>
+  </aside>
+
+  <!-- ステータスバー (左上) -->
+  <div class="status-bar" id="statusBar">
+    <span class="status-fps" id="fpsDisplay">60 FPS</span>
+    <span class="status-recording hidden" id="recordingStatus">⏺ REC</span>
+  </div>
+
+</body>
+</html>
