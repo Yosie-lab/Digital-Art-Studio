@@ -36,19 +36,21 @@ export function colorsForStage(stepIndex, count, currentPalette) {
   return paletteUnitColors(currentPalette, count);
 }
 
-export function paintMorphColors(field, count, time, stageIndex, colorA, colorB, mix) {
+export function paintMorphColors(field, count, time, stageIndex, colorA, colorB, mix, opts = {}) {
   const stepId = SEQUENCE[stageIndex]?.id;
   const nextId = SEQUENCE[(stageIndex + 1) % SEQUENCE.length]?.id;
-  const angelMix = stepId === 'angel' || nextId === 'angel';
+  // 溶解中は「次が天使」だけで輝度ブーストしない（移行直後の一瞬の明るさを防ぐ）
+  const boostNextAngel = opts.boostNextAngel !== false;
+  const angelBoost = stepId === 'angel' || (boostNextAngel && nextId === 'angel');
   for (let i = 0; i < count; i++) {
     const i3 = i * 3;
-    const pulse = (stepId === 'angel' || nextId === 'angel')
+    const pulse = angelBoost
       ? 0.92 + 0.48 * (0.5 + 0.5 * Math.sin(time * 2.5 + i * 0.02))
       : 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(time * 2.5 + i * 0.02));
     let r = colorA[i3] * (1 - mix) + colorB[i3] * mix;
     let g = colorA[i3 + 1] * (1 - mix) + colorB[i3 + 1] * mix;
     let b = colorA[i3 + 2] * (1 - mix) + colorB[i3 + 2] * mix;
-    if (angelMix) {
+    if (angelBoost) {
       const w = 0.06;
       r = r * (1 - w) + w;
       g = g * (1 - w) + w;

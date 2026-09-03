@@ -76,6 +76,8 @@ export function createMorphSequence() {
   let dissolveParticleOpSmooth = 0;
   let dissolveNextOpSmooth = 0;
   let dissolveSizeSmooth = 0.7;
+  /** 天使登場直後の露出オーバーシュート抑え（1=通常） */
+  let angelIntroMul = 1;
 
   function currentId() {
     return SEQUENCE[stageIndex]?.id;
@@ -128,7 +130,68 @@ export function createMorphSequence() {
       for (const g of dissolveFadeGroups) setGroupOpacity(g, dissolveModelOpSmooth);
     }
     if (dissolveHandoffDone && dissolveIncomingGroup) {
-      setGroupOpacity(dissolveIncomingGroup, dissolveNextOpSmooth);
+      const incomingId = currentId();
+      let op = dissolveNextOpSmooth;
+      if (incomingId === 'angel') {
+        // 立ち上がりをさらに遅らせ、最初の数フレームの閃きを潰す
+        op = op * op * angelIntroMul;
+        dissolveIncomingGroup.visible = op > 0.05;
+      }
+      setGroupOpacity(dissolveIncomingGroup, op);
+    }
+  }
+
+  function clearAngelIntroDim(root = bloomSlots.angel?.group) {
+    if (!root) return;
+    root.traverse((obj) => {
+      const mats = obj.material
+        ? (Array.isArray(obj.material) ? obj.material : [obj.material])
+        : [];
+      for (const m of mats) {
+        if (!m || m.opacity == null) continue;
+        if (m.userData._angelIntroBase != null) {
+          m.opacity = m.userData._angelIntroBase;
+          delete m.userData._angelIntroBase;
+        }
+      }
+    });
+  }
+
+  function applyAngelIntroDim(mul) {
+    const root = bloomSlots.angel?.group;
+    if (!root) return;
+    const o = Math.min(1, Math.max(0, mul));
+    root.visible = true;
+    root.traverse((obj) => {
+      const mats = obj.material
+        ? (Array.isArray(obj.material) ? obj.material : [obj.material])
+        : [];
+      for (const m of mats) {
+        if (!m || m.opacity == null) continue;
+        if (m.userData._angelIntroBase == null) {
+          m.userData._angelIntroBase = m.opacity;
+        }
+        m.transparent = true;
+        m.opacity = m.userData._angelIntroBase * o;
+        if ('needsUpdate' in m) m.needsUpdate = true;
+      }
+    });
+  }
+
+  function updateAngelIntro(dt) {
+    if (angelIntroMul >= 0.999) {
+      if (angelIntroMul !== 1) {
+        clearAngelIntroDim();
+        angelIntroMul = 1;
+      }
+      return;
+    }
+    if (currentId() !== 'angel' || phase !== 'hold') return;
+    angelIntroMul = dampToward(angelIntroMul, 1, dt, 2.4);
+    applyAngelIntroDim(angelIntroMul);
+    if (angelIntroMul > 0.995) {
+      clearAngelIntroDim();
+      angelIntroMul = 1;
     }
   }
 
@@ -219,6 +282,8 @@ export function createMorphSequence() {
     dissolveParticleOpSmooth = 0;
     dissolveNextOpSmooth = 0;
     dissolveSizeSmooth = 0.65;
+    angelIntroMul = 1;
+    clearAngelIntroDim();
 
     const step = SEQUENCE[stageIndex];
     const cloud = sampleLiveStageCloud();
@@ -257,12 +322,16 @@ export function createMorphSequence() {
   }
 
   function paintDissolveGlow(fade, progress) {
-    paintMorphColors(field, count, time, dissolveFromIndex, colorA, colorA, 0);
+    // 次ステージが天使でも溶解粒子に天使ブーストをかけない
+    paintMorphColors(field, count, time, dissolveFromIndex, colorA, colorA, 0, { boostNextAngel: false });
     const rise = smootherstep(Math.min(1, progress / 0.28));
     const fall = 1 - smootherstep(Math.max(0, (progress - 0.38) / 0.62));
     const spark = 0.68 + 0.48 * rise * fall;
-    const intensity = Math.max(0, fade) * spark;
-    const whiteMix = Math.max(0, 0.32 * rise * fall);
+    const nextId = SEQUENCE[(dissolveFromIndex + 1) % SEQUENCE.length]?.id;
+    // 天使登場と重なる明るさの山を少し抑える
+    const intoAngel = nextId === 'angel' ? 0.58 : 1;
+    const intensity = Math.max(0, fade) * spark * intoAngel;
+    const whiteMix = Math.max(0, 0.32 * rise * fall) * (nextId === 'angel' ? 0.45 : 1);
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
       let r = field.colors[i3];
@@ -343,7 +412,13 @@ export function createMorphSequence() {
       dissolveIncomingGroup = null;
     }
     setGroupOpacity(dissolveIncomingGroup, 0);
-    if (dissolveIncomingGroup) dissolveIncomingGroup.renderOrder = 5;
+    if (dissolveIncomingGroup) {
+      dissolveIncomingGroup.renderOrder = 5;
+      if (step.id === 'angel') {
+        dissolveIncomingGroup.visible = false;
+        angelIntroMul = 0.78;
+      }
+    }
     label.set(step.label, '現れています…');
     return true;
   }
@@ -365,6 +440,16 @@ export function createMorphSequence() {
     }
     // フェード用に下げた不透明度を元に戻す
     restoreGroupOpacity(dissolveIncomingGroup);
+    if (dissolveIncomingGroup) dissolveIncomingGroup.visible = true;
+    const arrivedAngel = SEQUENCE[stageIndex]?.id === 'angel';
+    if (arrivedAngel) {
+      // 完了時のスナップで一瞬明るく見えるのを抑える
+      angelIntroMul = Math.min(angelIntroMul, 0.72);
+      applyAngelIntroDim(angelIntroMul);
+    } else {
+      angelIntroMul = 1;
+      clearAngelIntroDim();
+    }
     dissolveHandoffDone = false;
     dissolveModelsCleared = false;
     dissolveFadeGroups = [];
@@ -387,7 +472,7 @@ export function createMorphSequence() {
     // 粒子はモデルより少し早く立ち上がり、長く尾を引いて消える
     const birth = smootherstep(Math.min(1, progress / (DISSOLVE_MODEL_FADE_END * 0.55)));
     const life = 1 - smootherstep(Math.max(0, (progress - 0.22) / 0.78));
-    const particleTarget = birth * life;
+    let particleTarget = birth * life;
 
     let nextTarget = 0;
     if (progress >= DISSOLVE_HANDOFF_AT) {
@@ -397,10 +482,20 @@ export function createMorphSequence() {
       nextTarget = s * s;
     }
 
+    const incomingId = SEQUENCE[(dissolveFromIndex + 1) % SEQUENCE.length]?.id;
+    // 天使は加算合成が強いので、粒子と重なる区間の露出を抑える
+    if (incomingId === 'angel') {
+      particleTarget *= 0.42 + 0.58 * smootherstep(progress / 0.5);
+      if (progress >= DISSOLVE_HANDOFF_AT) {
+        particleTarget *= Math.max(0.08, 1 - nextTarget * 0.95);
+        nextTarget = nextTarget * nextTarget * 0.82;
+      }
+    }
+
     // 指数スムージングで不透明度の段差を消す
     dissolveModelOpSmooth = dampToward(dissolveModelOpSmooth, modelTarget, dt, 4.2);
-    dissolveParticleOpSmooth = dampToward(dissolveParticleOpSmooth, particleTarget, dt, 3.8);
-    dissolveNextOpSmooth = dampToward(dissolveNextOpSmooth, nextTarget, dt, 2.6);
+    dissolveParticleOpSmooth = dampToward(dissolveParticleOpSmooth, particleTarget, dt, incomingId === 'angel' ? 3.2 : 3.8);
+    dissolveNextOpSmooth = dampToward(dissolveNextOpSmooth, nextTarget, dt, incomingId === 'angel' ? 1.7 : 2.6);
     const sizeTarget = 0.62 + 0.5 * birth * life;
     dissolveSizeSmooth = dampToward(dissolveSizeSmooth, sizeTarget, dt, 3.4);
 
@@ -625,6 +720,8 @@ export function createMorphSequence() {
     dissolveParticleOpSmooth = 0;
     dissolveNextOpSmooth = 0;
     dissolveSizeSmooth = 0.7;
+    angelIntroMul = 1;
+    clearAngelIntroDim();
     phase = 'hold';
     phaseT = 0;
     fromCloud = null;
@@ -730,6 +827,7 @@ export function createMorphSequence() {
       dissolveParticleOpSmooth = 0;
       dissolveNextOpSmooth = 0;
       dissolveSizeSmooth = 0.7;
+      angelIntroMul = 1;
       currentPalette = params.palette || 'rainbow';
       latestParams = { ...params };
 
@@ -835,6 +933,7 @@ export function createMorphSequence() {
 
       const boost = pointer?.velocity > 8 && phase === 'morph' ? 1.35 : 1;
       syncStage(dt * boost, params);
+      updateAngelIntro(dt);
     },
 
     render() {
