@@ -45,6 +45,7 @@ const ANGEL_FILL_BOOST = 1.10;
 const ANGEL_WING_FILL_BOOST = 1.06;
 const ANGEL_HALO_FILL_BOOST = 1.02;
 const ANGEL_RIM_BOOST = 1.22;
+const ANGEL_RISE_MUL = 2.0;
 
 function angelNeonRim(hex) {
   return angelRimColor(hex, ANGEL_RIM_BOOST);
@@ -113,7 +114,7 @@ export function createAngelBloom() {
       this.windAmp = 0.06 + Math.random() * 0.05;
       this.flapPhase = Math.random() * Math.PI * 2;
       this.flapSpeed = 4.2 + Math.random() * 2.2;
-      this.riseSpeed = 55 + Math.random() * 45;
+      this.riseSpeed = (55 + Math.random() * 45) * ANGEL_RISE_MUL;
       this.bobPhase = Math.random() * Math.PI * 2;
       this.bobSpeed = 1.1 + Math.random() * 0.7;
       this.spinY = 0.25 + Math.random() * 0.2;
@@ -548,14 +549,14 @@ export function createAngelBloom() {
       });
 
       sparkles.forEach((s) => {
-        s.y += s.speedY * (params.speed || 1) * 70 * dt;
+        s.y += s.speedY * (params.speed || 1) * 70 * ANGEL_RISE_MUL * dt;
         if (s.y < -10) {
           s.y = height + 10;
           s.x = Math.random() * width;
         }
       });
       sparklesLarge.forEach((s) => {
-        s.y += s.speedY * (params.speed || 1) * 58 * dt;
+        s.y += s.speedY * (params.speed || 1) * 58 * ANGEL_RISE_MUL * dt;
         if (s.y < -10) {
           s.y = height + 10;
           s.x = Math.random() * width;
