@@ -38,8 +38,8 @@ const METEOR_TINTS = [
 const MAX_METEORS = 8;
 /** Spacey Bloom 背景波紋（全プリセット共通） */
 const MAX_BG_RIPPLES = 28;
-/** Spacey の 0.008/frame@60fps 相当（出現間隔を倍に） */
-const BG_RIPPLE_SPAWN_PER_SEC = 0.48;
+/** Spacey より出現を少し遅め（間隔をさらに延ばす） */
+const BG_RIPPLE_SPAWN_PER_SEC = 0.36;
 
 export function createStarfield() {
   const scene = new THREE.Scene();

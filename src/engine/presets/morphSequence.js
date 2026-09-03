@@ -28,7 +28,7 @@ import { createFlowerBloom } from './flowerBloom.js';
 
 /**
  * 変容シークエンス
- * hold: Infinity = 自動進行なし（ダブルクリックのみ）
+ * hold 秒で自動進行、ダブルクリックでも次ステージへ（天使の次は花びら）
  */
 export function createMorphSequence() {
   const viewport = createMorphViewport();
@@ -282,7 +282,14 @@ export function createMorphSequence() {
     if (!field) return;
     const step = SEQUENCE[stageIndex];
 
-    if (phase === 'hold') return;
+    if (phase === 'hold') {
+      // 実時間でホールド（速度スライダーの影響を受けない）
+      if (Number.isFinite(step.hold) && step.hold > 0) {
+        phaseT += dt;
+        if (phaseT >= step.hold) beginMorph();
+      }
+      return;
+    }
 
     if (morphCompletePending) {
       phaseT = step.morph;

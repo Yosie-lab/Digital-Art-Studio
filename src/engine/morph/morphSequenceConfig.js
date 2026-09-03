@@ -7,19 +7,19 @@ import { createAngelBloom } from '../presets/angelBloom.js';
 
 /**
  * 変容シークエンス定義
- * 花びら → クラゲ → 文字 → オタマ → 蝶 → 音楽記号 → 天使
+ * 花びら → クラゲ → 文字 → オタマ → 蝶 → 音楽記号 → 天使 →（ループ）
  */
 export const SEQUENCE = [
-  { id: 'petal', label: '花びら', hold: Infinity, morph: 2.4, style: 'swarm' },
-  { id: 'jellyfish', label: 'クラゲ', hold: Infinity, morph: 2.4, style: 'trail' },
-  { id: 'letter', label: 'A B C · X Y Z', hold: Infinity, morph: 2.4, style: 'swarm' },
-  { id: 'tadpole', label: 'オタマ', hold: Infinity, morph: 2.4, style: 'trail' },
-  { id: 'butterfly', label: '蝶', hold: Infinity, morph: 2.2, style: 'swarm' },
-  { id: 'music', label: '♪ 音楽記号', hold: Infinity, morph: 2.6, style: 'burst' },
-  { id: 'angel', label: '天使', hold: Infinity, morph: 2.8, style: 'burst' },
+  { id: 'petal', label: '花びら', hold: 30, morph: 2.4, style: 'swarm' },
+  { id: 'jellyfish', label: 'クラゲ', hold: 30, morph: 2.4, style: 'trail' },
+  { id: 'letter', label: 'A B C · X Y Z', hold: 30, morph: 2.4, style: 'swarm' },
+  { id: 'tadpole', label: 'オタマ', hold: 30, morph: 2.4, style: 'trail' },
+  { id: 'butterfly', label: '蝶', hold: 30, morph: 2.2, style: 'swarm' },
+  { id: 'music', label: '♪ 音楽記号', hold: 30, morph: 2.6, style: 'burst' },
+  { id: 'angel', label: '天使', hold: 30, morph: 2.8, style: 'burst' },
 ];
 
-export const MANUAL_HINT = 'じっくり操作可 · 次へはダブルクリックのみ';
+export const MANUAL_HINT = '30秒で自動切替 · ダブルクリックでも次へ';
 export const MORPH_VIEWPORT_MIN = 200;
 export const DOUBLE_TAP_MS = 520;
 
