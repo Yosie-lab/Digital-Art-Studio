@@ -68,6 +68,15 @@ SLIDER_CONFIG.forEach(({ id, displayId, key, parse }) => {
 /* ============================================================
    カラーパレット
    ============================================================ */
+const paletteSection = document.getElementById('paletteSection');
+const paletteToggle = document.getElementById('paletteToggle');
+if (paletteToggle && paletteSection) {
+  paletteToggle.addEventListener('click', () => {
+    const collapsed = paletteSection.classList.toggle('is-collapsed');
+    paletteToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  });
+}
+
 const paletteBtns = document.querySelectorAll('.palette-swatch');
 
 paletteBtns.forEach(btn => {

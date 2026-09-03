@@ -82,8 +82,13 @@
     </button>
     <div class="panel-content">
       <!-- カラーパレット -->
-      <section class="control-section">
-        <h3>🎨 カラーパレット</h3>
+      <section class="control-section is-collapsed" id="paletteSection">
+        <h3>
+          <button type="button" class="section-toggle" id="paletteToggle" aria-expanded="false">
+            🎨 カラーパレット
+          </button>
+        </h3>
+        <div class="section-body" id="paletteBody">
         <div class="palette-grid" id="paletteGrid">
           <button class="palette-swatch active" data-palette="rainbow" title="🌈 レインボー" style="background: linear-gradient(135deg, #1a48ff, #2a5cff, #4a38d0, #6888ff)"></button>
           <button class="palette-swatch" data-palette="cyberNeon" title="⚡ サイバーネオン" style="background: linear-gradient(135deg, #1a48ff, #2a5cff, #4a38d0, #6888ff)"></button>
@@ -99,6 +104,7 @@
         <div class="custom-color-row">
           <label for="customColor">カスタム</label>
           <input type="color" id="customColor" value="#ff5cf0">
+        </div>
         </div>
       </section>
 

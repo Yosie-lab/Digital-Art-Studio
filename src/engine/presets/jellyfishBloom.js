@@ -31,7 +31,7 @@ const JELLY_FALL_MAX = 1250;
 const JELLY_PARTICLE_SIZE_SPARKLE = 5.5;
 const JELLY_PARTICLE_SIZE_FALL = 12;
 /** クラゲ本体・背景粒子の上昇速度倍率（天使より控えめ） */
-const JELLY_RISE_MUL = 1.35;
+const JELLY_RISE_MUL = 1.48;
 /** 細かい発光パーティクルの放出倍率 */
 const JELLY_SMALL_SPARK_MUL = 1.4;
 

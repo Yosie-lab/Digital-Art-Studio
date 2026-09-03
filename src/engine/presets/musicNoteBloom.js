@@ -29,6 +29,8 @@ const MUSIC_SPARKLE_COUNT = 140;
 const MUSIC_FALL_MAX = 1200;
 const MUSIC_SPAWN_RATE = 3.0;
 const MUSIC_GROWTH_MUL = 1.35;
+/** 音符が咲いてからパーティクルが出始めるまでの秒数 */
+const MUSIC_PARTICLE_DELAY = 1.05;
 
 /**
  * 楽譜として読めるシルエット表示 + Flower Bloom 出現ロジック
@@ -99,6 +101,7 @@ export function createMusicNoteBloom() {
       this.maxLifetime = 6 + Math.random() * 6;
       this.phase = 'growing';
       this.opacity = 1;
+      this.bloomedAt = null;
     }
 
     update(dt, t) {
@@ -149,10 +152,16 @@ export function createMusicNoteBloom() {
         case 'growing':
           this.growth = Math.min(1, this.growth + this.growthRate * dt);
           this.size = this.maxSize * easeOutBack(this.growth);
-          if (this.growth >= 1) this.phase = 'bloomed';
+          if (this.growth >= 1) {
+            this.phase = 'bloomed';
+            this.bloomedAt = this.lifetime;
+          }
           break;
         case 'bloomed':
-          if (Math.random() < dt * 3.5) this._shedDust();
+          if (this.bloomedAt == null) this.bloomedAt = this.lifetime;
+          if (this.lifetime - this.bloomedAt >= MUSIC_PARTICLE_DELAY) {
+            if (Math.random() < dt * 3.5) this._shedDust();
+          }
           if (this.lifetime > this.maxLifetime * 0.55) this.phase = 'wilting';
           break;
         case 'wilting':

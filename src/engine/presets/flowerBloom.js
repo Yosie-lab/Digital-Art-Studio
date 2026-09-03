@@ -42,6 +42,8 @@ export function createFlowerBloom() {
   /** 花・パーティクルの出現を少し早く */
   const FLOWER_GROWTH_MUL = 1.22;
   const FLOWER_SPAWN_RATE = 2.3;
+  /** 花が咲いてからパーティクルが出始めるまでの秒数 */
+  const FLOWER_PARTICLE_DELAY = 0.85;
 
   class Flower {
     constructor(x, y, palette) {
@@ -66,6 +68,12 @@ export function createFlowerBloom() {
       this.phase = 'growing';
       this.opacity = 1;
       this.innerRgb = brightenRgb(this.rgb);
+      this.bloomedAt = null;
+    }
+
+    _canShedParticles() {
+      if (this.bloomedAt == null) return false;
+      return this.lifetime - this.bloomedAt >= FLOWER_PARTICLE_DELAY;
     }
 
     update(dt) {
@@ -75,16 +83,20 @@ export function createFlowerBloom() {
         case 'growing':
           this.growth = Math.min(1, this.growth + this.growthRate * dt);
           this.size = this.maxSize * this._easeOutBack(this.growth);
-          if (this.growth >= 1) this.phase = 'bloomed';
+          if (this.growth >= 1) {
+            this.phase = 'bloomed';
+            this.bloomedAt = this.lifetime;
+          }
           break;
         case 'bloomed':
-          if (Math.random() < dt * 2.4) this._shedDust();
+          if (this.bloomedAt == null) this.bloomedAt = this.lifetime;
+          if (this._canShedParticles() && Math.random() < dt * 2.4) this._shedDust();
           if (this.lifetime > this.maxLifetime * 0.5) this.phase = 'wilting';
           break;
         case 'wilting':
           this.opacity -= dt * 0.28;
-          if (Math.random() < dt * 5.6) this._shedPetal();
-          if (Math.random() < dt * 7.5) this._shedDust();
+          if (this._canShedParticles() && Math.random() < dt * 5.6) this._shedPetal();
+          if (this._canShedParticles() && Math.random() < dt * 7.5) this._shedDust();
           break;
       }
       return this.opacity > 0.01 && this.lifetime < this.maxLifetime;
