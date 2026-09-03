@@ -36,10 +36,10 @@ const METEOR_TINTS = [
 ];
 
 const MAX_METEORS = 8;
-/** Spacey Bloom 背景波紋。出現間隔は元の約半分（0.008→0.016 /frame@60fps） */
+/** Spacey Bloom 背景波紋（全プリセット共通） */
 const MAX_BG_RIPPLES = 28;
-/** Spacey の 0.008/frame@60fps の約半分 */
-const BG_RIPPLE_SPAWN_PER_SEC = 0.96;
+/** Spacey の 0.008/frame@60fps 相当（出現間隔を倍に） */
+const BG_RIPPLE_SPAWN_PER_SEC = 0.48;
 
 export function createStarfield() {
   const scene = new THREE.Scene();
@@ -262,18 +262,17 @@ export function createStarfield() {
       rippleDummy.scale.set(Math.max(scaleX, 0.001), Math.max(scaleY, 0.001), 1);
       rippleDummy.updateMatrix();
       rippleMesh.setMatrixAt(i, rippleDummy.matrix);
-      // Spacey: hsla(..., alpha * 0.55)
+      // Spacey より少し控えめな輝度
       rippleMesh.setColorAt(
         i,
-        rippleColor.setRGB(cr * a * 0.55, cg * a * 0.55, cb * a * 0.55),
+        rippleColor.setRGB(cr * a * 0.42, cg * a * 0.42, cb * a * 0.42),
       );
 
       rippleDummy.updateMatrix();
       rippleGlowMesh.setMatrixAt(i, rippleDummy.matrix);
-      // Spacey: hsla(..., alpha * 0.15)
       rippleGlowMesh.setColorAt(
         i,
-        rippleColor.setRGB(cr * a * 0.15, cg * a * 0.15, cb * a * 0.15),
+        rippleColor.setRGB(cr * a * 0.11, cg * a * 0.11, cb * a * 0.11),
       );
     }
 
