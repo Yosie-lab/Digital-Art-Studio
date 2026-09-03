@@ -41,7 +41,7 @@ const MAX_BG_RIPPLES = 28;
 /** Spacey より出現を少し遅め（間隔をさらに延ばす） */
 const BG_RIPPLE_SPAWN_PER_SEC = 0.36;
 /** 後から追加した背景波紋の輝度（1=当初） */
-const BG_RIPPLE_BRIGHTNESS = 0.70;
+const BG_RIPPLE_BRIGHTNESS = 0.65;
 
 export function createStarfield() {
   const scene = new THREE.Scene();
