@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-/** Spacey Bloom Fluid 準拠の宇宙星空 + 流れ星背景 */
+/** Spacey Bloom Fluid 準拠の宇宙星空 + 流れ星 + 背景波紋 */
 const STAR_COLORS = [
   [255, 255, 255],
   [180, 195, 255],
@@ -36,6 +36,10 @@ const METEOR_TINTS = [
 ];
 
 const MAX_METEORS = 8;
+/** Spacey Bloom 背景波紋。出現間隔は元の約半分（0.008→0.016 /frame@60fps） */
+const MAX_BG_RIPPLES = 28;
+/** Spacey の 0.008/frame@60fps の約半分 */
+const BG_RIPPLE_SPAWN_PER_SEC = 0.96;
 
 export function createStarfield() {
   const scene = new THREE.Scene();
@@ -136,6 +140,148 @@ export function createStarfield() {
   glowMesh.frustumCulled = false;
   glowMesh.renderOrder = 1;
   scene.add(glowMesh);
+
+  // --- 背景波紋（Spacey Bloom Fluid 準拠・全プリセット共通） ---
+  // Torus は OrthoCamera(near=0) で Z クリップされるため、XY 平面の Ring を使う
+  let bgRipples = [];
+  const rippleDummy = new THREE.Object3D();
+  const rippleColor = new THREE.Color();
+  // Spacey: lineWidth 3.2 / グロー 6.4 相当の細いリング
+  const rippleGeo = new THREE.RingGeometry(0.972, 1.0, 96);
+  const rippleMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 1,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    depthTest: false,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+  });
+  const rippleMesh = new THREE.InstancedMesh(rippleGeo, rippleMat, MAX_BG_RIPPLES);
+  rippleMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_BG_RIPPLES * 3), 3);
+  rippleMesh.frustumCulled = false;
+  rippleMesh.renderOrder = 0.5;
+  scene.add(rippleMesh);
+
+  const rippleGlowGeo = new THREE.RingGeometry(0.945, 1.02, 96);
+  const rippleGlowMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 1,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    depthTest: false,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+  });
+  const rippleGlowMesh = new THREE.InstancedMesh(rippleGlowGeo, rippleGlowMat, MAX_BG_RIPPLES);
+  rippleGlowMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_BG_RIPPLES * 3), 3);
+  rippleGlowMesh.frustumCulled = false;
+  rippleGlowMesh.renderOrder = 0.45;
+  scene.add(rippleGlowMesh);
+
+  for (let i = 0; i < MAX_BG_RIPPLES; i++) {
+    rippleDummy.position.set(0, 0, 10);
+    rippleDummy.scale.set(0.001, 0.001, 0.001);
+    rippleDummy.rotation.set(0, 0, 0);
+    rippleDummy.updateMatrix();
+    rippleMesh.setMatrixAt(i, rippleDummy.matrix);
+    rippleGlowMesh.setMatrixAt(i, rippleDummy.matrix);
+    rippleMesh.setColorAt(i, rippleColor.setRGB(0, 0, 0));
+    rippleGlowMesh.setColorAt(i, rippleColor.setRGB(0, 0, 0));
+  }
+  rippleMesh.instanceMatrix.needsUpdate = true;
+  rippleGlowMesh.instanceMatrix.needsUpdate = true;
+  if (rippleMesh.instanceColor) rippleMesh.instanceColor.needsUpdate = true;
+  if (rippleGlowMesh.instanceColor) rippleGlowMesh.instanceColor.needsUpdate = true;
+
+  function hslToRgb(h, s, l) {
+    const a = s * Math.min(l, 1 - l);
+    const f = (n) => {
+      const k = (n + h / 30) % 12;
+      return l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    };
+    return [f(0), f(8), f(4)];
+  }
+
+  function createBackgroundRipple(x, y) {
+    if (bgRipples.length >= MAX_BG_RIPPLES) bgRipples.shift();
+    const hue = 185 + Math.random() * 25;
+    bgRipples.push({
+      x,
+      y,
+      r: 0,
+      maxR: 90 + Math.random() * 70,
+      speed: (1.5 + Math.random() * 0.8) * 60,
+      alpha: 0.8,
+      rgb: hslToRgb(hue, 0.7, 0.75),
+    });
+  }
+
+  function hideRippleInstance(i) {
+    rippleDummy.position.set(0, 0, 10);
+    rippleDummy.scale.set(0.001, 0.001, 0.001);
+    rippleDummy.rotation.set(0, 0, 0);
+    rippleDummy.updateMatrix();
+    rippleMesh.setMatrixAt(i, rippleDummy.matrix);
+    rippleGlowMesh.setMatrixAt(i, rippleDummy.matrix);
+    rippleMesh.setColorAt(i, rippleColor.setRGB(0, 0, 0));
+    rippleGlowMesh.setColorAt(i, rippleColor.setRGB(0, 0, 0));
+  }
+
+  function updateBgRipples(dt) {
+    if (width < 2 || height < 2) return;
+
+    if (Math.random() < BG_RIPPLE_SPAWN_PER_SEC * dt) {
+      createBackgroundRipple(Math.random() * width, Math.random() * height);
+    }
+
+    for (let i = bgRipples.length - 1; i >= 0; i--) {
+      const r = bgRipples[i];
+      r.r += r.speed * dt;
+      r.alpha = 0.8 * (1 - r.r / r.maxR);
+      if (r.r >= r.maxR || r.alpha <= 0) bgRipples.splice(i, 1);
+    }
+
+    for (let i = 0; i < MAX_BG_RIPPLES; i++) {
+      const r = bgRipples[i];
+      if (!r || r.r < 1) {
+        hideRippleInstance(i);
+        continue;
+      }
+
+      const mid = toNdc(r.x, r.y);
+      const scaleX = (r.r / width) * 2;
+      const scaleY = (r.r / height) * 2;
+      const a = Math.max(0, r.alpha);
+      const [cr, cg, cb] = r.rgb;
+
+      rippleDummy.position.set(mid.x, mid.y, 0);
+      rippleDummy.rotation.set(0, 0, 0);
+      rippleDummy.scale.set(Math.max(scaleX, 0.001), Math.max(scaleY, 0.001), 1);
+      rippleDummy.updateMatrix();
+      rippleMesh.setMatrixAt(i, rippleDummy.matrix);
+      // Spacey: hsla(..., alpha * 0.55)
+      rippleMesh.setColorAt(
+        i,
+        rippleColor.setRGB(cr * a * 0.55, cg * a * 0.55, cb * a * 0.55),
+      );
+
+      rippleDummy.updateMatrix();
+      rippleGlowMesh.setMatrixAt(i, rippleDummy.matrix);
+      // Spacey: hsla(..., alpha * 0.15)
+      rippleGlowMesh.setColorAt(
+        i,
+        rippleColor.setRGB(cr * a * 0.15, cg * a * 0.15, cb * a * 0.15),
+      );
+    }
+
+    rippleMesh.instanceMatrix.needsUpdate = true;
+    rippleGlowMesh.instanceMatrix.needsUpdate = true;
+    if (rippleMesh.instanceColor) rippleMesh.instanceColor.needsUpdate = true;
+    if (rippleGlowMesh.instanceColor) rippleGlowMesh.instanceColor.needsUpdate = true;
+  }
 
   function starTexture() {
     const c = document.createElement('canvas');
@@ -325,6 +471,15 @@ export function createStarfield() {
     points.renderOrder = 0;
     scene.add(points);
     syncStars(0, null);
+
+    // 起動直後にも波紋を出しておく（全プリセット共通背景）
+    bgRipples = [];
+    for (let i = 0; i < 3; i++) {
+      createBackgroundRipple(Math.random() * width, Math.random() * height);
+      const r = bgRipples[bgRipples.length - 1];
+      r.r = Math.random() * 40;
+      r.alpha = 0.8 * (1 - r.r / r.maxR);
+    }
   }
 
   function syncStars(dt, pointer) {
@@ -364,6 +519,7 @@ export function createStarfield() {
     if (w !== width || h !== height || !points) rebuild(w, h);
     syncStars(dt, pointer);
     updateMeteors(dt);
+    updateBgRipples(dt);
   }
 
   function render(renderer) {
@@ -378,13 +534,18 @@ export function createStarfield() {
       points.material.dispose();
       points = null;
     }
-    scene.remove(meteorMesh, glowMesh, bgMesh);
+    scene.remove(meteorMesh, glowMesh, bgMesh, rippleMesh, rippleGlowMesh);
     meteorGeo.dispose();
     meteorMat.map?.dispose();
     meteorMat.dispose();
     glowMat.dispose();
+    rippleGeo.dispose();
+    rippleGlowGeo.dispose();
+    rippleMat.dispose();
+    rippleGlowMat.dispose();
     bgMesh.geometry.dispose();
     bgMat.dispose();
+    bgRipples = [];
   }
 
   return {
