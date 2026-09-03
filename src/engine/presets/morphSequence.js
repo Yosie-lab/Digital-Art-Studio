@@ -21,6 +21,9 @@ import {
   SEQUENCE,
   MANUAL_HINT,
   DOUBLE_TAP_MS,
+  DISSOLVE_DURATION,
+  DISSOLVE_HANDOFF_AT,
+  DISSOLVE_MODEL_FADE_END,
   BLOOM_FACTORIES,
 } from '../morph/morphSequenceConfig.js';
 import { neutralHoldPointer } from '../pointer.js';
@@ -29,6 +32,7 @@ import { createFlowerBloom } from './flowerBloom.js';
 /**
  * 変容シークエンス
  * hold 秒で自動進行、ダブルクリックでも次ステージへ（天使の次は花びら）
+ * 切替時はモデルが輝く粒子に変化して消え、粒子が薄れる頃に次ステージが重なる
  */
 export function createMorphSequence() {
   const viewport = createMorphViewport();
@@ -58,17 +62,35 @@ export function createMorphSequence() {
   let pendingMorph = false;
   let holdDeferred = false;
   let morphCompletePending = false;
+  /** @type {Float32Array | null} */
+  let dissolveVel = null;
+  let dissolveFromIndex = 0;
+  let dissolveHandoffDone = false;
+  let dissolveModelsCleared = false;
+  /** @type {import('three').Object3D[]} */
+  let dissolveFadeGroups = [];
+  /** @type {import('three').Object3D | null} */
+  let dissolveIncomingGroup = null;
+  // フレーム間スムージング用（急な不透明度変化を抑える）
+  let dissolveModelOpSmooth = 1;
+  let dissolveParticleOpSmooth = 0;
+  let dissolveNextOpSmooth = 0;
+  let dissolveSizeSmooth = 0.7;
 
   function currentId() {
     return SEQUENCE[stageIndex]?.id;
   }
 
   function isPetalHold() {
-    return currentId() === 'petal' && phase === 'hold';
+    return currentId() === 'petal' && (
+      phase === 'hold' || (phase === 'dissolve' && dissolveHandoffDone)
+    );
   }
 
   function isFormBloomHold() {
-    return phase === 'hold' && !!BLOOM_FACTORIES[currentId()];
+    return !!BLOOM_FACTORIES[currentId()] && (
+      phase === 'hold' || (phase === 'dissolve' && dissolveHandoffDone)
+    );
   }
 
   function activeBloom() {
@@ -77,12 +99,322 @@ export function createMorphSequence() {
 
   function tryAdvanceByDoubleTap(now = performance.now()) {
     if (now - lastAdvanceTap < DOUBLE_TAP_MS) {
-      beginMorph();
+      beginDissolve();
       lastAdvanceTap = 0;
       return true;
     }
     lastAdvanceTap = now;
     return false;
+  }
+
+  function sampleLiveStageCloud() {
+    const { w, h } = viewport.sampleDims();
+    const fallback = (n, cw, ch) => morphStartSpreadCloud(n, cw, ch);
+    if (currentId() === 'petal' && flowerBloom?.samplePoints) {
+      syncBloomViewports();
+      return ensureSpreadCloud(flowerBloom.samplePoints(count, w, h), count, w, h, fallback);
+    }
+    const bloom = activeBloom();
+    if (bloom?.samplePoints) {
+      syncBloomViewports();
+      return ensureSpreadCloud(bloom.samplePoints(count, w, h), count, w, h, fallback);
+    }
+    return ensureSpreadCloud(
+      sampleStageCloudNeutral(stageIndex, count, w, h, currentPalette),
+      count,
+      w,
+      h,
+      fallback,
+    );
+  }
+
+  function smootherstep(t) {
+    const x = Math.min(1, Math.max(0, t));
+    return x * x * x * (x * (x * 6 - 15) + 10);
+  }
+
+  function dampToward(current, target, dt, rate) {
+    const k = 1 - Math.exp(-Math.max(0, rate) * dt);
+    return current + (target - current) * k;
+  }
+
+  function setGroupOpacity(root, opacity) {
+    if (!root) return;
+    const o = Math.min(1, Math.max(0, opacity));
+    root.traverse((obj) => {
+      const mats = obj.material
+        ? (Array.isArray(obj.material) ? obj.material : [obj.material])
+        : [];
+      for (const m of mats) {
+        if (!m || m.opacity == null) continue;
+        if (m.userData._dissolveBaseOpacity == null) {
+          m.userData._dissolveBaseOpacity = m.opacity;
+        }
+        m.transparent = true;
+        m.opacity = m.userData._dissolveBaseOpacity * o;
+        if ('depthWrite' in m) m.depthWrite = o > 0.88;
+        if ('needsUpdate' in m) m.needsUpdate = true;
+      }
+    });
+  }
+
+  function collectActiveBloomGroups() {
+    const groups = [];
+    if (flowerBloom && flowerGroup) groups.push(flowerGroup);
+    for (const slot of Object.values(bloomSlots)) {
+      if (slot.bloom && slot.group) groups.push(slot.group);
+    }
+    return groups;
+  }
+
+  function beginDissolve() {
+    if (phase === 'dissolve' || phase === 'morph') return;
+    if (!viewport.morphReady()) {
+      pendingMorph = true;
+      return;
+    }
+    pendingMorph = false;
+    morphCompletePending = false;
+    dissolveHandoffDone = false;
+    dissolveModelsCleared = false;
+    dissolveIncomingGroup = null;
+    dissolveFromIndex = stageIndex;
+    dissolveFadeGroups = collectActiveBloomGroups();
+    dissolveModelOpSmooth = 1;
+    dissolveParticleOpSmooth = 0;
+    dissolveNextOpSmooth = 0;
+    dissolveSizeSmooth = 0.65;
+
+    const step = SEQUENCE[stageIndex];
+    const cloud = sampleLiveStageCloud();
+    dissolveVel = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const i3 = i * 3;
+      const ang = Math.random() * Math.PI * 2;
+      const elev = (Math.random() - 0.15) * 0.32;
+      const sp = 2.2 + Math.random() * 11;
+      dissolveVel[i3] = Math.cos(ang) * sp * Math.cos(elev);
+      dissolveVel[i3 + 1] = Math.sin(elev) * sp * 0.4 + 1.2;
+      dissolveVel[i3 + 2] = Math.sin(ang) * sp * Math.cos(elev);
+    }
+
+    colorA = colorsForStage(dissolveFromIndex, count, currentPalette);
+    colorB = colorA;
+    field.positions.set(cloud);
+    paintDissolveGlow(0.04, 0);
+    field.geo.setDrawRange(0, count);
+    field.geo.attributes.position.needsUpdate = true;
+    field.geo.attributes.color.needsUpdate = true;
+    field.mat.opacity = 0;
+    field.mat.size = Math.max(4, Math.min(13, (latestParams?.particleSize || 15) * 0.55));
+    field.points.renderOrder = 30;
+    setFieldVisible(true);
+    if (fieldLarge) {
+      fieldLarge.points.visible = false;
+      fieldLarge.geo.setDrawRange(0, 0);
+    }
+
+    phase = 'dissolve';
+    phaseT = 0;
+    fromCloud = null;
+    toCloud = null;
+    label.set(step.label, '光の粒子へ…');
+  }
+
+  function paintDissolveGlow(fade, progress) {
+    paintMorphColors(field, count, time, dissolveFromIndex, colorA, colorA, 0);
+    const rise = smootherstep(Math.min(1, progress / 0.28));
+    const fall = 1 - smootherstep(Math.max(0, (progress - 0.38) / 0.62));
+    const spark = 0.68 + 0.48 * rise * fall;
+    const intensity = Math.max(0, fade) * spark;
+    const whiteMix = Math.max(0, 0.32 * rise * fall);
+    for (let i = 0; i < count; i++) {
+      const i3 = i * 3;
+      let r = field.colors[i3];
+      let g = field.colors[i3 + 1];
+      let b = field.colors[i3 + 2];
+      r = r * (1 - whiteMix) + whiteMix;
+      g = g * (1 - whiteMix) + whiteMix;
+      b = b * (1 - whiteMix) + whiteMix;
+      field.colors[i3] = Math.min(1, r * intensity * 1.08);
+      field.colors[i3 + 1] = Math.min(1, g * intensity * 1.08);
+      field.colors[i3 + 2] = Math.min(1, b * intensity * 1.08);
+    }
+  }
+
+  function clearOutgoingDissolveModels() {
+    // 次ステージ開始後に全破棄すると新モデルも消えるため、退場側だけ片付ける
+    const outgoing = new Set(dissolveFadeGroups);
+    const keep = dissolveIncomingGroup;
+
+    if (outgoing.has(flowerGroup) && keep !== flowerGroup) {
+      stopFlowerBloom();
+    }
+
+    for (const id of Object.keys(bloomSlots)) {
+      const slot = bloomSlots[id];
+      if (!slot?.group || !outgoing.has(slot.group)) continue;
+      if (slot.group === keep) continue;
+      slot.bloom?.destroy?.();
+      clearGroup(slot.group);
+      slot.bloom = null;
+    }
+
+    dissolveFadeGroups = [];
+    dissolveModelsCleared = true;
+  }
+
+  function restoreGroupOpacity(root) {
+    if (!root) return;
+    root.traverse((obj) => {
+      const mats = obj.material
+        ? (Array.isArray(obj.material) ? obj.material : [obj.material])
+        : [];
+      for (const m of mats) {
+        if (!m || m.opacity == null) continue;
+        if (m.userData._dissolveBaseOpacity != null) {
+          m.opacity = m.userData._dissolveBaseOpacity;
+          delete m.userData._dissolveBaseOpacity;
+        }
+        if ('depthWrite' in m) m.depthWrite = true;
+        if ('needsUpdate' in m) m.needsUpdate = true;
+      }
+    });
+  }
+
+  function startNextStageUnderDissolve(nextIndex) {
+    if (!viewport.isReady()) return false;
+    const step = SEQUENCE[nextIndex];
+    stageIndex = nextIndex;
+    if (step.id === 'petal') {
+      // 旧 flower が残っていれば先に破棄（skipStop でも安全に差し替え）
+      if (flowerBloom) {
+        flowerBloom.destroy();
+        flowerBloom = null;
+        if (flowerGroup) clearGroup(flowerGroup);
+      }
+      startFlowerBloom(latestParams, { skipStop: true, keepFieldVisible: true });
+      dissolveIncomingGroup = flowerGroup;
+    } else if (BLOOM_FACTORIES[step.id]) {
+      const slot = bloomSlots[step.id];
+      if (slot?.bloom) {
+        slot.bloom.destroy?.();
+        slot.bloom = null;
+        if (slot.group) clearGroup(slot.group);
+      }
+      startFormBloom(step.id, step.label, { skipStop: true, keepFieldVisible: true });
+      dissolveIncomingGroup = bloomSlots[step.id]?.group || null;
+    } else {
+      dissolveIncomingGroup = null;
+    }
+    setGroupOpacity(dissolveIncomingGroup, 0);
+    if (dissolveIncomingGroup) dissolveIncomingGroup.renderOrder = 5;
+    label.set(step.label, '現れています…');
+    return true;
+  }
+
+  function finishDissolve() {
+    dissolveVel = null;
+    pendingMorph = false;
+    phase = 'hold';
+    phaseT = 0;
+    setFieldVisible(false);
+    if (fieldLarge) {
+      fieldLarge.points.visible = false;
+      fieldLarge.geo.setDrawRange(0, 0);
+    }
+    if (!dissolveModelsCleared) clearOutgoingDissolveModels();
+    if (!dissolveHandoffDone) {
+      const nextIndex = (dissolveFromIndex + 1) % SEQUENCE.length;
+      startNextStageUnderDissolve(nextIndex);
+    }
+    // フェード用に下げた不透明度を元に戻す
+    restoreGroupOpacity(dissolveIncomingGroup);
+    dissolveHandoffDone = false;
+    dissolveModelsCleared = false;
+    dissolveFadeGroups = [];
+    dissolveIncomingGroup = null;
+    dissolveModelOpSmooth = 1;
+    dissolveParticleOpSmooth = 0;
+    dissolveNextOpSmooth = 0;
+    dissolveSizeSmooth = 0.7;
+    const step = SEQUENCE[stageIndex];
+    label.set(step.label, MANUAL_HINT);
+  }
+
+  function updateDissolve(dt, params) {
+    if (!field || !dissolveVel) return;
+    phaseT += dt;
+    const progress = Math.min(1, phaseT / DISSOLVE_DURATION);
+
+    const modelT = Math.min(1, progress / DISSOLVE_MODEL_FADE_END);
+    const modelTarget = 1 - smootherstep(modelT);
+    // 粒子はモデルより少し早く立ち上がり、長く尾を引いて消える
+    const birth = smootherstep(Math.min(1, progress / (DISSOLVE_MODEL_FADE_END * 0.62)));
+    const life = 1 - smootherstep(Math.max(0, (progress - 0.26) / 0.74));
+    const particleTarget = birth * life;
+
+    let nextTarget = 0;
+    if (progress >= DISSOLVE_HANDOFF_AT) {
+      const raw = (progress - DISSOLVE_HANDOFF_AT) / Math.max(0.001, 1 - DISSOLVE_HANDOFF_AT);
+      // さらに遅い立ち上がり（ease-in 強め）
+      const s = smootherstep(raw);
+      nextTarget = s * s * s;
+    }
+
+    // 指数スムージングで不透明度の段差を消す
+    dissolveModelOpSmooth = dampToward(dissolveModelOpSmooth, modelTarget, dt, 5.2);
+    dissolveParticleOpSmooth = dampToward(dissolveParticleOpSmooth, particleTarget, dt, 4.4);
+    dissolveNextOpSmooth = dampToward(dissolveNextOpSmooth, nextTarget, dt, 3.2);
+    const sizeTarget = 0.62 + 0.5 * birth * life;
+    dissolveSizeSmooth = dampToward(dissolveSizeSmooth, sizeTarget, dt, 3.8);
+
+    const damp = Math.exp(-dt * 1.25);
+    const motionGate = 0.12 + 0.88 * smootherstep(Math.min(1, progress / 0.45));
+    for (let i = 0; i < count; i++) {
+      const i3 = i * 3;
+      field.positions[i3] += dissolveVel[i3] * dt * motionGate;
+      field.positions[i3 + 1] += dissolveVel[i3 + 1] * dt * motionGate;
+      field.positions[i3 + 2] += dissolveVel[i3 + 2] * dt * motionGate;
+      dissolveVel[i3] *= damp;
+      dissolveVel[i3 + 1] = dissolveVel[i3 + 1] * damp - 2.2 * dt;
+      dissolveVel[i3 + 2] *= damp;
+    }
+
+    if (!dissolveModelsCleared) {
+      for (const g of dissolveFadeGroups) setGroupOpacity(g, dissolveModelOpSmooth);
+      // 十分溶けてから退場側だけ破棄（次ステージは残す）
+      if (dissolveModelOpSmooth <= 0.03 && modelT >= 0.92) {
+        clearOutgoingDissolveModels();
+      }
+    }
+
+    paintDissolveGlow(Math.max(0.03, dissolveParticleOpSmooth), progress);
+    field.mat.opacity = Math.max(0, Math.min(1, dissolveParticleOpSmooth));
+    const baseSize = Math.max(4, Math.min(13, (params.particleSize || 15) * 0.56));
+    field.mat.size = baseSize * dissolveSizeSmooth;
+    field.geo.attributes.position.needsUpdate = true;
+    field.geo.attributes.color.needsUpdate = true;
+    setFieldVisible(true);
+
+    if (!dissolveHandoffDone && progress >= DISSOLVE_HANDOFF_AT) {
+      const nextIndex = (dissolveFromIndex + 1) % SEQUENCE.length;
+      if (startNextStageUnderDissolve(nextIndex)) {
+        dissolveHandoffDone = true;
+        dissolveNextOpSmooth = 0;
+      }
+    }
+    if (dissolveHandoffDone && dissolveIncomingGroup) {
+      setGroupOpacity(dissolveIncomingGroup, dissolveNextOpSmooth);
+    }
+
+    if (progress >= 1) {
+      if (!viewport.isReady()) {
+        pendingMorph = true;
+        return;
+      }
+      finishDissolve();
+    }
   }
 
   function setFieldVisible(visible) {
@@ -145,18 +477,18 @@ export function createMorphSequence() {
     stopAllFormBlooms();
   }
 
-  function startFlowerBloom(params) {
-    stopEverything();
+  function startFlowerBloom(params, opts = {}) {
+    if (!opts.skipStop) stopEverything();
     if (!flowerGroup || !layer || !viewport.isReady()) return;
     const { w, h } = viewport.sampleDims();
     flowerBloom = createFlowerBloom();
     flowerBloom.init(w, h, params || latestParams || { palette: currentPalette }, flowerGroup);
-    setFieldVisible(false);
+    if (!opts.keepFieldVisible) setFieldVisible(false);
     label.set('花びら', MANUAL_HINT);
   }
 
-  function startFormBloom(stepId, stepLabel) {
-    stopEverything();
+  function startFormBloom(stepId, stepLabel, opts = {}) {
+    if (!opts.skipStop) stopEverything();
     const slot = bloomSlots[stepId];
     const factory = BLOOM_FACTORIES[stepId];
     if (!slot || !factory || !viewport.isReady()) return;
@@ -169,7 +501,7 @@ export function createMorphSequence() {
       slot.bloom = null;
       return;
     }
-    setFieldVisible(false);
+    if (!opts.keepFieldVisible) setFieldVisible(false);
     label.set(stepLabel, MANUAL_HINT);
   }
 
@@ -232,18 +564,14 @@ export function createMorphSequence() {
     field.positions.set(fromCloud);
     field.geo.setDrawRange(0, count);
     field.geo.attributes.position.needsUpdate = true;
+    field.mat.opacity = angelMorph ? 0.66 : 0.95;
 
     label.set(`${step.label} → ${next.label}`, '変容中');
   }
 
   function beginMorph() {
-    if (phase === 'morph') return;
-    if (!viewport.morphReady()) {
-      pendingMorph = true;
-      return;
-    }
-    pendingMorph = false;
-    runMorph();
+    if (phase === 'morph' || phase === 'dissolve') return;
+    beginDissolve();
   }
 
   function enterHoldStage(index = stageIndex) {
@@ -254,6 +582,15 @@ export function createMorphSequence() {
     holdDeferred = false;
     morphCompletePending = false;
     pendingMorph = false;
+    dissolveVel = null;
+    dissolveHandoffDone = false;
+    dissolveModelsCleared = false;
+    dissolveFadeGroups = [];
+    dissolveIncomingGroup = null;
+    dissolveModelOpSmooth = 1;
+    dissolveParticleOpSmooth = 0;
+    dissolveNextOpSmooth = 0;
+    dissolveSizeSmooth = 0.7;
     phase = 'hold';
     phaseT = 0;
     fromCloud = null;
@@ -286,8 +623,13 @@ export function createMorphSequence() {
       // 実時間でホールド（速度スライダーの影響を受けない）
       if (Number.isFinite(step.hold) && step.hold > 0) {
         phaseT += dt;
-        if (phaseT >= step.hold) beginMorph();
+        if (phaseT >= step.hold) beginDissolve();
       }
+      return;
+    }
+
+    if (phase === 'dissolve') {
+      updateDissolve(dt, params);
       return;
     }
 
@@ -345,6 +687,15 @@ export function createMorphSequence() {
       morphCompletePending = false;
       pendingMorph = false;
       holdDeferred = false;
+      dissolveVel = null;
+      dissolveHandoffDone = false;
+      dissolveModelsCleared = false;
+      dissolveFadeGroups = [];
+      dissolveIncomingGroup = null;
+      dissolveModelOpSmooth = 1;
+      dissolveParticleOpSmooth = 0;
+      dissolveNextOpSmooth = 0;
+      dissolveSizeSmooth = 0.7;
       currentPalette = params.palette || 'rainbow';
       latestParams = { ...params };
 
@@ -392,7 +743,10 @@ export function createMorphSequence() {
       if (morphCompletePending && viewport.isReady()) {
         tryCompleteMorph();
       }
-      if (pendingMorph && viewport.morphReady()) beginMorph();
+      if (pendingMorph && viewport.morphReady()) {
+        if (phase === 'dissolve') finishDissolve();
+        else if (phase === 'hold') beginDissolve();
+      }
     },
 
     update(dt, pointer, audioData, params) {
@@ -404,10 +758,13 @@ export function createMorphSequence() {
         if (holdDeferred && phase === 'hold') enterHoldStage(stageIndex);
         if (morphCompletePending) tryCompleteMorph();
       }
-      if (viewport.morphReady() && pendingMorph && phase !== 'morph') beginMorph();
+      if (viewport.morphReady() && pendingMorph) {
+        if (phase === 'dissolve') finishDissolve();
+        else if (phase === 'hold') beginDissolve();
+      }
 
       const want = Math.min(1800, Math.max(600, Math.floor((params.particleCount || 1030) * 1.1)));
-      if (want !== count && field && phase !== 'morph') {
+      if (want !== count && field && phase === 'hold') {
         layer.remove(field.points);
         field.geo.dispose();
         field.mat.map?.dispose();
@@ -443,6 +800,11 @@ export function createMorphSequence() {
     },
 
     render() {
+      // 溶け込み中は旧モデルも描画してクロスフェードさせる
+      if (phase === 'dissolve' && !dissolveModelsCleared) {
+        if (flowerBloom) flowerBloom.render();
+        for (const slot of Object.values(bloomSlots)) slot.bloom?.render?.();
+      }
       if (isPetalHold() && flowerBloom) flowerBloom.render();
       const bloom = activeBloom();
       if (isFormBloomHold() && bloom) bloom.render();

@@ -85,15 +85,15 @@ function pickLetter() {
   return LETTER_IDS[Math.floor(Math.random() * LETTER_IDS.length)];
 }
 
-const LETTER_SPARKLE_COUNT = 280;
-const LETTER_FALL_MAX = 1700;
-const LETTER_PARTICLE_SIZE_SPARKLE = 4.6;
-const LETTER_PARTICLE_SIZE_FALL = 11.5;
+const LETTER_SPARKLE_COUNT = 380;
+const LETTER_FALL_MAX = 2300;
+const LETTER_PARTICLE_SIZE_SPARKLE = 5.0;
+const LETTER_PARTICLE_SIZE_FALL = 12.2;
 /** アルファベットの揺れ・回転・浮遊を少し早く */
 const LETTER_MOVE_MUL = 1.25;
 /** パーティクルの輝き（量は LETTER_SPARK_MUL 側） */
-const LETTER_PARTICLE_GLOW = 1.08;
-const LETTER_SPARK_MUL = 1.28;
+const LETTER_PARTICLE_GLOW = 1.26;
+const LETTER_SPARK_MUL = 1.58;
 
 /**
  * Flower Bloom の出現ロジック + 立体 X / Y / Z
@@ -430,8 +430,8 @@ export function createLetterXBloom() {
 
       sparkleField = makePoints(LETTER_SPARKLE_COUNT, LETTER_PARTICLE_SIZE_SPARKLE);
       fallField = makePoints(LETTER_FALL_MAX, LETTER_PARTICLE_SIZE_FALL);
-      sparkleField.mat.opacity = 0.85;
-      fallField.mat.opacity = 0.62;
+      sparkleField.mat.opacity = 0.92;
+      fallField.mat.opacity = 0.72;
       layer.add(sparkleField.points, fallField.points);
 
       for (const [x, y] of stratifiedSpawnPoints(20, w, h)) {
