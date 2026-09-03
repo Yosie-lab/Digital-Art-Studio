@@ -85,12 +85,15 @@ function pickLetter() {
   return LETTER_IDS[Math.floor(Math.random() * LETTER_IDS.length)];
 }
 
-const LETTER_SPARKLE_COUNT = 220;
-const LETTER_FALL_MAX = 1400;
-const LETTER_PARTICLE_SIZE_SPARKLE = 4;
-const LETTER_PARTICLE_SIZE_FALL = 10;
+const LETTER_SPARKLE_COUNT = 280;
+const LETTER_FALL_MAX = 1700;
+const LETTER_PARTICLE_SIZE_SPARKLE = 4.6;
+const LETTER_PARTICLE_SIZE_FALL = 11.5;
 /** アルファベットの揺れ・回転・浮遊を少し早く */
 const LETTER_MOVE_MUL = 1.25;
+/** パーティクルの輝き（量は LETTER_SPARK_MUL 側） */
+const LETTER_PARTICLE_GLOW = 1.08;
+const LETTER_SPARK_MUL = 1.28;
 
 /**
  * Flower Bloom の出現ロジック + 立体 X / Y / Z
@@ -161,14 +164,14 @@ export function createLetterXBloom() {
           if (this.growth >= 1) this.phase = 'bloomed';
           break;
         case 'bloomed':
-          if (Math.random() < dt * 6.5) this._shedDust();
-          if (Math.random() < dt * 2.8) this._shedShard();
+          if (Math.random() < dt * 6.5 * LETTER_SPARK_MUL) this._shedDust();
+          if (Math.random() < dt * 2.8 * LETTER_SPARK_MUL) this._shedShard();
           if (this.lifetime > this.maxLifetime * 0.55) this.phase = 'wilting';
           break;
         case 'wilting':
           this.opacity -= dt * 0.28;
-          if (Math.random() < dt * 10.5) this._shedShard();
-          if (Math.random() < dt * 12) this._shedDust();
+          if (Math.random() < dt * 10.5 * LETTER_SPARK_MUL) this._shedShard();
+          if (Math.random() < dt * 12 * LETTER_SPARK_MUL) this._shedDust();
           break;
       }
       return this.opacity > 0.01 && this.lifetime < this.maxLifetime;
@@ -177,7 +180,7 @@ export function createLetterXBloom() {
     _shedShard() {
       const bursts = 1 + (Math.random() < 0.55 ? 1 : 0);
       for (let b = 0; b < bursts; b++) {
-        const burst = 4 + Math.floor(Math.random() * 5);
+        const burst = 5 + Math.floor(Math.random() * 6);
         for (let i = 0; i < burst; i++) {
           shards.push({
             x: this.x + (Math.random() - 0.5) * this.size * 1.2,
@@ -189,9 +192,9 @@ export function createLetterXBloom() {
             size: this.size * 0.14 + Math.random() * 7,
             rot: Math.random() * Math.PI * 2,
             rotSpeed: (Math.random() - 0.5) * 6,
-            rgb: petalParticleRgb(this.rgb, 0.85),
+            rgb: petalParticleRgb(this.rgb, 1.0),
             opacity: 1,
-            glow: 1.45 + Math.random() * 0.3,
+            glow: (1.52 + Math.random() * 0.3) * LETTER_PARTICLE_GLOW,
             kind: 'shard',
           });
         }
@@ -201,7 +204,7 @@ export function createLetterXBloom() {
     _shedDust() {
       const bursts = 1 + (Math.random() < 0.5 ? 1 : 0);
       for (let b = 0; b < bursts; b++) {
-        const dust = 7 + Math.floor(Math.random() * 6);
+        const dust = 9 + Math.floor(Math.random() * 7);
         for (let i = 0; i < dust; i++) {
           shards.push({
             x: this.x + (Math.random() - 0.5) * this.size * 0.6,
@@ -213,9 +216,9 @@ export function createLetterXBloom() {
             size: 2 + Math.random() * 5,
             rot: Math.random() * Math.PI * 2,
             rotSpeed: (Math.random() - 0.5) * 8,
-            rgb: petalParticleRgb(this.innerRgb, 0.9),
+            rgb: petalParticleRgb(this.innerRgb, 1.05),
             opacity: 1,
-            glow: 1.55 + Math.random() * 0.35,
+            glow: (1.6 + Math.random() * 0.32) * LETTER_PARTICLE_GLOW,
             kind: 'dust',
           });
         }
@@ -321,8 +324,8 @@ export function createLetterXBloom() {
         sparkleField.positions[i * 3] = wpos.x;
         sparkleField.positions[i * 3 + 1] = wpos.y;
         sparkleField.positions[i * 3 + 2] = wpos.z;
-        const pulse = 0.14 + 0.16 * Math.abs(Math.sin(time * 2.8 + s.phase));
-        const c = displayColor(s.rgb, pulse);
+        const pulse = 0.18 + 0.2 * Math.abs(Math.sin(time * 2.8 + s.phase));
+        const c = displayColor(s.rgb, pulse * LETTER_PARTICLE_GLOW);
         sparkleField.colors[i * 3] = c.r;
         sparkleField.colors[i * 3 + 1] = c.g;
         sparkleField.colors[i * 3 + 2] = c.b;
@@ -341,10 +344,10 @@ export function createLetterXBloom() {
         fallField.positions[i * 3 + 1] = wpos.y;
         fallField.positions[i * 3 + 2] = wpos.z;
         const [r, g, b] = rgbToUnit(p.rgb);
-        const glow = (p.glow || 1.4) * (0.5 + p.opacity * 0.55);
+        const glow = (p.glow || 1.48) * (0.54 + p.opacity * 0.58) * LETTER_PARTICLE_GLOW;
         const twinkle = p.kind === 'dust'
-          ? 0.9 + 0.1 * Math.sin(time * 8 + p.rot * 3)
-          : 1;
+          ? 0.92 + 0.12 * Math.sin(time * 8 + p.rot * 3)
+          : 1.03;
         fallField.colors[i * 3] = Math.min(1, r * glow * twinkle);
         fallField.colors[i * 3 + 1] = Math.min(1, g * glow * twinkle);
         fallField.colors[i * 3 + 2] = Math.min(1, b * glow * twinkle);
@@ -427,7 +430,8 @@ export function createLetterXBloom() {
 
       sparkleField = makePoints(LETTER_SPARKLE_COUNT, LETTER_PARTICLE_SIZE_SPARKLE);
       fallField = makePoints(LETTER_FALL_MAX, LETTER_PARTICLE_SIZE_FALL);
-      fallField.mat.opacity = 0.55;
+      sparkleField.mat.opacity = 0.85;
+      fallField.mat.opacity = 0.62;
       layer.add(sparkleField.points, fallField.points);
 
       for (const [x, y] of stratifiedSpawnPoints(20, w, h)) {
