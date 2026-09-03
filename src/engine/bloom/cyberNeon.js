@@ -20,6 +20,8 @@ export const ANGEL_CYBER_NEON = [
 ];
 
 export const ANGEL_SATURATION = 1.00;
+/** スパークル / 落下 / Morph 粒子のみ、本体より少し鮮やかに */
+export const ANGEL_PARTICLE_SATURATION = 1.12;
 
 /** クラゲ向けサイバーネオン */
 export const JELLY_CYBER_NEON = [
@@ -153,7 +155,7 @@ export function angelRimColor(hex, boost = 1.18) {
 }
 
 export function angelParticleFill(hex, scale = 1.0, whiteMix = 0.06) {
-  const sat = angelSaturateRgb(angelHexToRgb(hex));
+  const sat = angelSaturateRgb(angelHexToRgb(hex), ANGEL_PARTICLE_SATURATION);
   const w = Math.min(1, Math.max(0, whiteMix));
   let r = Math.min(1, (sat.r / 255) * scale);
   let g = Math.min(1, (sat.g / 255) * scale);

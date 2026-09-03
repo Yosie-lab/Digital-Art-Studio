@@ -25,6 +25,10 @@ function pickNote() {
 const MUSIC_NOTE_OPACITY = 0.36;
 const MUSIC_NOTE_OUTLINE_OPACITY = 0.12;
 const MUSIC_PARTICLE_GLOW = 1.2;
+const MUSIC_SPARKLE_COUNT = 140;
+const MUSIC_FALL_MAX = 1200;
+const MUSIC_SPAWN_RATE = 3.0;
+const MUSIC_GROWTH_MUL = 1.35;
 
 /**
  * 楽譜として読めるシルエット表示 + Flower Bloom 出現ロジック
@@ -56,7 +60,7 @@ export function createMusicNoteBloom() {
       this.maxSize = pickMarkSize();
       this.size = 0;
       this.growth = 0;
-      this.growthRate = 0.35 + Math.random() * 0.5;
+      this.growthRate = (0.35 + Math.random() * 0.5) * MUSIC_GROWTH_MUL;
       this.baseRot = (Math.random() - 0.5) * 0.35;
       this.tilt = (Math.random() - 0.5) * 0.45;
       this.yaw = (Math.random() - 0.5) * 0.55;
@@ -148,12 +152,13 @@ export function createMusicNoteBloom() {
           if (this.growth >= 1) this.phase = 'bloomed';
           break;
         case 'bloomed':
+          if (Math.random() < dt * 3.5) this._shedDust();
           if (this.lifetime > this.maxLifetime * 0.55) this.phase = 'wilting';
           break;
         case 'wilting':
           this.opacity -= dt * 0.28;
-          if (Math.random() < dt * 4) this._shedShard();
-          if (Math.random() < dt * 5) this._shedDust();
+          if (Math.random() < dt * 7.5) this._shedShard();
+          if (Math.random() < dt * 9.5) this._shedDust();
           break;
       }
       return this.opacity > 0.01 && this.lifetime < this.maxLifetime;
@@ -183,7 +188,7 @@ export function createMusicNoteBloom() {
     }
 
     _shedShard() {
-      for (let i = 0; i < 2 + Math.floor(Math.random() * 2); i++) {
+      for (let i = 0; i < 3 + Math.floor(Math.random() * 3); i++) {
         shards.push({
           x: this.x + (Math.random() - 0.5) * this.size,
           y: this.y + (Math.random() - 0.5) * this.size,
@@ -203,7 +208,7 @@ export function createMusicNoteBloom() {
     }
 
     _shedDust() {
-      for (let i = 0; i < 3 + Math.floor(Math.random() * 3); i++) {
+      for (let i = 0; i < 5 + Math.floor(Math.random() * 4); i++) {
         shards.push({
           x: this.x + (Math.random() - 0.5) * this.size * 0.5,
           y: this.y + (Math.random() - 0.5) * this.size * 0.5,
@@ -312,7 +317,7 @@ export function createMusicNoteBloom() {
     }
 
     if (fallField) {
-      const n = Math.min(shards.length, 700);
+      const n = Math.min(shards.length, MUSIC_FALL_MAX);
       for (let i = 0; i < n; i++) {
         const p = shards[i];
         const wpos = toWorld(p.x, p.y, p.z, width, height);
@@ -396,25 +401,25 @@ export function createMusicNoteBloom() {
         noteSets[id] = { mesh, outline, geo };
       }
 
-      sparkleField = makePoints(80, 5);
-      fallField = makePoints(700, 14);
+      sparkleField = makePoints(MUSIC_SPARKLE_COUNT, 5);
+      fallField = makePoints(MUSIC_FALL_MAX, 14);
       sparkleField.mat.opacity = 0.76;
       fallField.mat.opacity = 0.7;
       sparkleField.mat.blending = THREE.AdditiveBlending;
       fallField.mat.blending = THREE.AdditiveBlending;
       layer.add(sparkleField.points, fallField.points);
 
-      for (const [x, y] of stratifiedSpawnPoints(20, w, h)) {
+      for (const [x, y] of stratifiedSpawnPoints(28, w, h)) {
         spawn(x, y);
       }
       primeGrowingMarks(marks);
       syncMeshes();
-      for (let i = 0; i < 70; i++) {
+      for (let i = 0; i < MUSIC_SPARKLE_COUNT; i++) {
         sparkles.push({
           x: Math.random() * w,
           y: Math.random() * h,
           z: (Math.random() - 0.5) * 220,
-          speedY: -(0.08 + Math.random() * 0.25),
+          speedY: -(0.12 + Math.random() * 0.32),
           phase: Math.random() * Math.PI * 2,
           rgb: paletteAccentRgb(currentPalette),
         });
@@ -438,6 +443,8 @@ export function createMusicNoteBloom() {
         spawn: (p) => spawn(p.x + (Math.random() - 0.5) * 50, p.y + (Math.random() - 0.5) * 50),
         randomSpawn: () => spawn(Math.random() * width, Math.random() * height),
         bassSpawn: () => spawn(Math.random() * width, Math.random() * height),
+        randomRate: MUSIC_SPAWN_RATE,
+        pointerMax: 3,
       });
 
       shards = shards.filter((p) => {
@@ -448,16 +455,17 @@ export function createMusicNoteBloom() {
         p.opacity -= dt * (p.kind === 'dust' ? 0.14 : 0.1);
         return p.opacity > 0.02 && p.y < height + 80;
       });
+      trimShardBuffer(shards, MUSIC_FALL_MAX);
 
       sparkles.forEach((s) => {
-        s.y += s.speedY * (params.speed || 1) * 60 * dt;
+        s.y += s.speedY * (params.speed || 1) * 78 * dt;
         if (s.y < -10) {
           s.y = height + 10;
           s.x = Math.random() * width;
         }
       });
 
-      const maxMarks = Math.min(MAX, Math.max(20, Math.floor((params.particleCount || 1030) / 4)));
+      const maxMarks = Math.min(MAX, Math.max(28, Math.floor((params.particleCount || 1030) / 3.2)));
       trimMarkBuffer(marks, maxMarks);
     },
 

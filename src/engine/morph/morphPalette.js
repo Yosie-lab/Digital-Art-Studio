@@ -1,5 +1,5 @@
 import { getPaletteColors, hexToRgb } from '../palettes.js';
-import { ANGEL_SATURATION } from '../bloom/cyberNeon.js';
+import { ANGEL_PARTICLE_SATURATION } from '../bloom/cyberNeon.js';
 import { neonRainbowUnitColors, neonAngelUnitColors } from '../bloom/morphColors.js';
 import { SEQUENCE } from './morphSequenceConfig.js';
 
@@ -54,7 +54,7 @@ export function paintMorphColors(field, count, time, stageIndex, colorA, colorB,
       g = g * (1 - w) + w;
       b = b * (1 - w) + w;
       const gray = (r + g + b) / 3;
-      const sat = ANGEL_SATURATION;
+      const sat = ANGEL_PARTICLE_SATURATION;
       r = Math.min(1, Math.max(0, gray + (r - gray) * sat));
       g = Math.min(1, Math.max(0, gray + (g - gray) * sat));
       b = Math.min(1, Math.max(0, gray + (b - gray) * sat));

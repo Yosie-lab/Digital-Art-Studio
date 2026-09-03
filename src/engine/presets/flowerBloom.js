@@ -39,6 +39,9 @@ export function createFlowerBloom() {
   const MAX_FLOWERS = 64;
   const PETALS_PER = 8;
   const MAX_INST = MAX_FLOWERS * PETALS_PER;
+  /** 花・パーティクルの出現を少し早く */
+  const FLOWER_GROWTH_MUL = 1.22;
+  const FLOWER_SPAWN_RATE = 2.3;
 
   class Flower {
     constructor(x, y, palette) {
@@ -49,7 +52,7 @@ export function createFlowerBloom() {
       this.maxSize = 18 + Math.random() * 28;
       this.size = 0;
       this.growth = 0;
-      this.growthRate = 0.4 + Math.random() * 0.6;
+      this.growthRate = (0.4 + Math.random() * 0.6) * FLOWER_GROWTH_MUL;
       this.rotation = Math.random() * Math.PI * 2;
       this.rotSpeed = (Math.random() - 0.5) * 0.3;
       this.tilt = (Math.random() - 0.5) * 0.7;
@@ -75,12 +78,13 @@ export function createFlowerBloom() {
           if (this.growth >= 1) this.phase = 'bloomed';
           break;
         case 'bloomed':
-          if (this.lifetime > this.maxLifetime * 0.55) this.phase = 'wilting';
+          if (Math.random() < dt * 2.4) this._shedDust();
+          if (this.lifetime > this.maxLifetime * 0.5) this.phase = 'wilting';
           break;
         case 'wilting':
           this.opacity -= dt * 0.28;
-          if (Math.random() < dt * 4.5) this._shedPetal();
-          if (Math.random() < dt * 6) this._shedDust();
+          if (Math.random() < dt * 5.6) this._shedPetal();
+          if (Math.random() < dt * 7.5) this._shedDust();
           break;
       }
       return this.opacity > 0.01 && this.lifetime < this.maxLifetime;
@@ -328,7 +332,7 @@ export function createFlowerBloom() {
         }
       }
 
-      if (Math.random() < dt * 1.8 * params.speed) {
+      if (Math.random() < dt * FLOWER_SPAWN_RATE * params.speed) {
         flowers.push(new Flower(Math.random() * width, Math.random() * height, currentPalette));
       }
 
@@ -354,7 +358,7 @@ export function createFlowerBloom() {
       });
 
       sparkles.forEach(s => {
-        s.y += s.speedY * params.speed * 60 * dt;
+        s.y += s.speedY * params.speed * 72 * dt;
         s.x += Math.sin(time * 1.5 + s.phase) * 0.25;
         if (s.y < -10) { s.y = height + 10; s.x = Math.random() * width; }
       });

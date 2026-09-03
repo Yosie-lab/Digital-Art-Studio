@@ -26,12 +26,14 @@ function jellyCyberShowColor(rgb, boost = 1.4) {
   return cyberShowColor(rgb, boost, JELLY_CYBER_GREEN);
 }
 
-const JELLY_SPARKLE_COUNT = 190;
+const JELLY_SPARKLE_COUNT = 280;
 const JELLY_FALL_MAX = 1250;
 const JELLY_PARTICLE_SIZE_SPARKLE = 5.5;
 const JELLY_PARTICLE_SIZE_FALL = 12;
 /** クラゲ本体・背景粒子の上昇速度倍率（天使より控えめ） */
 const JELLY_RISE_MUL = 1.35;
+/** 細かい発光パーティクルの放出倍率 */
+const JELLY_SMALL_SPARK_MUL = 1.4;
 
 /** 半球の傘（面・ほぼ透明用） */
 export function buildMoonBellGeometry() {
@@ -268,7 +270,7 @@ export function createJellyfishBloom() {
           break;
         }
         case 'bloomed':
-          if (Math.random() < dt * 11.5) this._neonSpark();
+          if (Math.random() < dt * 11.5 * JELLY_SMALL_SPARK_MUL) this._neonSpark();
           if (this.lifetime > this.maxLifetime * 0.72) {
             if (this.phase === 'bloomed') {
               this.phase = 'wilting';
@@ -278,7 +280,7 @@ export function createJellyfishBloom() {
           break;
         case 'wilting':
           this.opacity -= dt * 0.18;
-          if (Math.random() < dt * 20) this._neonSpark();
+          if (Math.random() < dt * 20 * JELLY_SMALL_SPARK_MUL) this._neonSpark();
           if (Math.random() < dt * 18) this._shedDust();
           if (!this._deathBursted && this.opacity < 0.42) {
             this._deathBursted = true;

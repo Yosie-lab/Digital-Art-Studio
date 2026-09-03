@@ -89,6 +89,8 @@ const LETTER_SPARKLE_COUNT = 220;
 const LETTER_FALL_MAX = 1400;
 const LETTER_PARTICLE_SIZE_SPARKLE = 4;
 const LETTER_PARTICLE_SIZE_FALL = 10;
+/** アルファベットの揺れ・回転・浮遊を少し早く */
+const LETTER_MOVE_MUL = 1.25;
 
 /**
  * Flower Bloom の出現ロジック + 立体 X / Y / Z
@@ -126,16 +128,16 @@ export function createLetterXBloom() {
       this.tilt = (Math.random() - 0.5) * 0.65;
       this.yaw = (Math.random() - 0.5) * 0.8;
       this.windPhase = Math.random() * Math.PI * 2;
-      this.windSpeed = 0.65 + Math.random() * 0.45;
+      this.windSpeed = (0.65 + Math.random() * 0.45) * LETTER_MOVE_MUL;
       this.windAmp = 0.08 + Math.random() * 0.07;
-      this.spinX = 0.45 + Math.random() * 0.35;
-      this.spinY = 0.55 + Math.random() * 0.45;
-      this.spinZ = 0.28 + Math.random() * 0.25;
+      this.spinX = (0.45 + Math.random() * 0.35) * LETTER_MOVE_MUL;
+      this.spinY = (0.55 + Math.random() * 0.45) * LETTER_MOVE_MUL;
+      this.spinZ = (0.28 + Math.random() * 0.25) * LETTER_MOVE_MUL;
       this.phaseX = Math.random() * Math.PI * 2;
       this.phaseY = Math.random() * Math.PI * 2;
       this.phaseZ = Math.random() * Math.PI * 2;
       this.bobPhase = Math.random() * Math.PI * 2;
-      this.bobSpeed = 0.75 + Math.random() * 0.55;
+      this.bobSpeed = (0.75 + Math.random() * 0.55) * LETTER_MOVE_MUL;
       this.driftZ = (Math.random() - 0.5) * 28;
       this.color = randomFlowerPetalColor(palette);
       this.rgb = vividPetalRgb(this.color);
