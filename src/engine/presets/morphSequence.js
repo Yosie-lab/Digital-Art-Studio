@@ -257,7 +257,16 @@ export function createMorphSequence() {
     colorA = colorsForStage(dissolveFromIndex, count, currentPalette);
     colorB = colorA;
     field.positions.set(cloud);
-    paintDissolveGlow(field, { count, time, dissolveFromIndex, colorA, fade: 0.04, progress: 0 });
+    const incomingId = SEQUENCE[(dissolveFromIndex + 1) % SEQUENCE.length]?.id;
+    paintDissolveGlow(field, {
+      count,
+      time,
+      dissolveFromIndex,
+      colorA,
+      fade: 0.04,
+      progress: 0,
+      incomingId,
+    });
     field.geo.setDrawRange(0, count);
     field.geo.attributes.position.needsUpdate = true;
     field.geo.attributes.color.needsUpdate = true;
@@ -405,6 +414,7 @@ export function createMorphSequence() {
       colorA,
       fade: Math.max(0.03, dissolveParticleOpSmooth),
       progress,
+      incomingId,
     });
     field.mat.opacity = Math.max(0, Math.min(1, dissolveParticleOpSmooth));
     const baseSize = Math.max(4, Math.min(13, (params.particleSize || 15) * 0.56));

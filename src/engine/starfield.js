@@ -42,6 +42,7 @@ const MAX_BG_RIPPLES = 28;
 const BG_RIPPLE_SPAWN_PER_SEC = 0.36;
 /** 後から追加した背景波紋の輝度（1=当初） */
 const BG_RIPPLE_BRIGHTNESS = 0.65;
+const BG_RIPPLE_ALPHA0 = 0.8 * BG_RIPPLE_BRIGHTNESS;
 
 export function createStarfield() {
   const scene = new THREE.Scene();
@@ -207,6 +208,10 @@ export function createStarfield() {
     return [f(0), f(8), f(4)];
   }
 
+  function bgRippleAlpha(radius, maxR) {
+    return BG_RIPPLE_ALPHA0 * (1 - radius / maxR);
+  }
+
   function createBackgroundRipple(x, y) {
     if (bgRipples.length >= MAX_BG_RIPPLES) bgRipples.shift();
     const hue = 185 + Math.random() * 25;
@@ -216,7 +221,7 @@ export function createStarfield() {
       r: 0,
       maxR: 90 + Math.random() * 70,
       speed: (1.5 + Math.random() * 0.8) * 60,
-      alpha: 0.8 * BG_RIPPLE_BRIGHTNESS,
+      alpha: BG_RIPPLE_ALPHA0,
       rgb: hslToRgb(hue, 0.7, 0.72),
     });
   }
@@ -242,7 +247,7 @@ export function createStarfield() {
     for (let i = bgRipples.length - 1; i >= 0; i--) {
       const r = bgRipples[i];
       r.r += r.speed * dt;
-      r.alpha = 0.8 * BG_RIPPLE_BRIGHTNESS * (1 - r.r / r.maxR);
+      r.alpha = bgRippleAlpha(r.r, r.maxR);
       if (r.r >= r.maxR || r.alpha <= 0) bgRipples.splice(i, 1);
     }
 
@@ -479,7 +484,7 @@ export function createStarfield() {
       createBackgroundRipple(Math.random() * width, Math.random() * height);
       const r = bgRipples[bgRipples.length - 1];
       r.r = Math.random() * 40;
-      r.alpha = 0.8 * BG_RIPPLE_BRIGHTNESS * (1 - r.r / r.maxR);
+      r.alpha = bgRippleAlpha(r.r, r.maxR);
     }
   }
 
