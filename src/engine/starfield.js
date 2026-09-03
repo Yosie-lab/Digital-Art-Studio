@@ -40,6 +40,8 @@ const MAX_METEORS = 8;
 const MAX_BG_RIPPLES = 28;
 /** Spacey より出現を少し遅め（間隔をさらに延ばす） */
 const BG_RIPPLE_SPAWN_PER_SEC = 0.36;
+/** 後から追加した背景波紋の輝度（1=当初） */
+const BG_RIPPLE_BRIGHTNESS = 0.86;
 
 export function createStarfield() {
   const scene = new THREE.Scene();
@@ -214,8 +216,8 @@ export function createStarfield() {
       r: 0,
       maxR: 90 + Math.random() * 70,
       speed: (1.5 + Math.random() * 0.8) * 60,
-      alpha: 0.8,
-      rgb: hslToRgb(hue, 0.7, 0.75),
+      alpha: 0.8 * BG_RIPPLE_BRIGHTNESS,
+      rgb: hslToRgb(hue, 0.7, 0.72),
     });
   }
 
@@ -240,7 +242,7 @@ export function createStarfield() {
     for (let i = bgRipples.length - 1; i >= 0; i--) {
       const r = bgRipples[i];
       r.r += r.speed * dt;
-      r.alpha = 0.8 * (1 - r.r / r.maxR);
+      r.alpha = 0.8 * BG_RIPPLE_BRIGHTNESS * (1 - r.r / r.maxR);
       if (r.r >= r.maxR || r.alpha <= 0) bgRipples.splice(i, 1);
     }
 
@@ -265,14 +267,14 @@ export function createStarfield() {
       // Spacey より少し控えめな輝度
       rippleMesh.setColorAt(
         i,
-        rippleColor.setRGB(cr * a * 0.42, cg * a * 0.42, cb * a * 0.42),
+        rippleColor.setRGB(cr * a * 0.36, cg * a * 0.36, cb * a * 0.36),
       );
 
       rippleDummy.updateMatrix();
       rippleGlowMesh.setMatrixAt(i, rippleDummy.matrix);
       rippleGlowMesh.setColorAt(
         i,
-        rippleColor.setRGB(cr * a * 0.11, cg * a * 0.11, cb * a * 0.11),
+        rippleColor.setRGB(cr * a * 0.09, cg * a * 0.09, cb * a * 0.09),
       );
     }
 

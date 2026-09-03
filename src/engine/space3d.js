@@ -312,16 +312,15 @@ export function primeGrowingMarks(marks) {
   }
 }
 
-/** Bloom mark からモーフ用点群（ワールド座標） */
+/** Bloom mark からモーフ用点群（ワールド座標）
+ *  注意: ライブ marks は変更しない（上昇中クラゲ等がサンプリングで一瞬止まるのを防ぐ）
+ */
 export function sampleMarksWorld(marks, count, w, h, fallback = null, spreadMin = 36) {
   const { w: vw, h: vh } = safeViewport(w, h);
   const screenFallback = fallback || spreadScreenCloud;
   const n = marks.length;
   if (n === 0) {
     return screenFallback(count, vw, vh);
-  }
-  if (marksNeedRemap(marks, vw, vh, 0.28) || marksOutOfViewport(marks, vw, vh)) {
-    remapScreenMarks(marks, 0, 0, vw, vh);
   }
   const out = new Float32Array(count * 3);
   for (let i = 0; i < count; i++) {

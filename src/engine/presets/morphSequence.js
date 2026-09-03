@@ -97,6 +97,41 @@ export function createMorphSequence() {
     return bloomSlots[currentId()]?.bloom || null;
   }
 
+  function bloomForStageId(id) {
+    if (id === 'petal') return flowerBloom;
+    return bloomSlots[id]?.bloom || null;
+  }
+
+  /** 溶け込み中も退場／登場モデルを動かし続ける */
+  function updateDissolveBlooms(dt, pointer, audioData, params) {
+    if (phase !== 'dissolve') return;
+    const ptr = neutralHoldPointer(pointer);
+    const fromId = SEQUENCE[dissolveFromIndex]?.id;
+    const toId = dissolveHandoffDone ? currentId() : null;
+    const updated = new Set();
+
+    const run = (id) => {
+      if (!id || updated.has(id)) return;
+      const bloom = bloomForStageId(id);
+      if (!bloom?.update) return;
+      bloom.update(dt, ptr, audioData, params);
+      updated.add(id);
+    };
+
+    if (!dissolveModelsCleared) run(fromId);
+    if (dissolveHandoffDone) run(toId);
+  }
+
+  function applyDissolveOpacities() {
+    if (phase !== 'dissolve') return;
+    if (!dissolveModelsCleared) {
+      for (const g of dissolveFadeGroups) setGroupOpacity(g, dissolveModelOpSmooth);
+    }
+    if (dissolveHandoffDone && dissolveIncomingGroup) {
+      setGroupOpacity(dissolveIncomingGroup, dissolveNextOpSmooth);
+    }
+  }
+
   function tryAdvanceByDoubleTap(now = performance.now()) {
     if (now - lastAdvanceTap < DOUBLE_TAP_MS) {
       beginDissolve();
@@ -350,44 +385,45 @@ export function createMorphSequence() {
     const modelT = Math.min(1, progress / DISSOLVE_MODEL_FADE_END);
     const modelTarget = 1 - smootherstep(modelT);
     // 粒子はモデルより少し早く立ち上がり、長く尾を引いて消える
-    const birth = smootherstep(Math.min(1, progress / (DISSOLVE_MODEL_FADE_END * 0.62)));
-    const life = 1 - smootherstep(Math.max(0, (progress - 0.26) / 0.74));
+    const birth = smootherstep(Math.min(1, progress / (DISSOLVE_MODEL_FADE_END * 0.55)));
+    const life = 1 - smootherstep(Math.max(0, (progress - 0.22) / 0.78));
     const particleTarget = birth * life;
 
     let nextTarget = 0;
     if (progress >= DISSOLVE_HANDOFF_AT) {
       const raw = (progress - DISSOLVE_HANDOFF_AT) / Math.max(0.001, 1 - DISSOLVE_HANDOFF_AT);
-      // さらに遅い立ち上がり（ease-in 強め）
+      // 急な立ち上がりを避けつつ、途中から十分見える
       const s = smootherstep(raw);
-      nextTarget = s * s * s;
+      nextTarget = s * s;
     }
 
     // 指数スムージングで不透明度の段差を消す
-    dissolveModelOpSmooth = dampToward(dissolveModelOpSmooth, modelTarget, dt, 5.2);
-    dissolveParticleOpSmooth = dampToward(dissolveParticleOpSmooth, particleTarget, dt, 4.4);
-    dissolveNextOpSmooth = dampToward(dissolveNextOpSmooth, nextTarget, dt, 3.2);
+    dissolveModelOpSmooth = dampToward(dissolveModelOpSmooth, modelTarget, dt, 4.2);
+    dissolveParticleOpSmooth = dampToward(dissolveParticleOpSmooth, particleTarget, dt, 3.8);
+    dissolveNextOpSmooth = dampToward(dissolveNextOpSmooth, nextTarget, dt, 2.6);
     const sizeTarget = 0.62 + 0.5 * birth * life;
-    dissolveSizeSmooth = dampToward(dissolveSizeSmooth, sizeTarget, dt, 3.8);
+    dissolveSizeSmooth = dampToward(dissolveSizeSmooth, sizeTarget, dt, 3.4);
 
-    const damp = Math.exp(-dt * 1.25);
-    const motionGate = 0.12 + 0.88 * smootherstep(Math.min(1, progress / 0.45));
+    const damp = Math.exp(-dt * 1.05);
+    const motionGate = 0.28 + 0.72 * smootherstep(Math.min(1, progress / 0.55));
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
       field.positions[i3] += dissolveVel[i3] * dt * motionGate;
       field.positions[i3 + 1] += dissolveVel[i3 + 1] * dt * motionGate;
       field.positions[i3 + 2] += dissolveVel[i3 + 2] * dt * motionGate;
       dissolveVel[i3] *= damp;
-      dissolveVel[i3 + 1] = dissolveVel[i3 + 1] * damp - 2.2 * dt;
+      dissolveVel[i3 + 1] = dissolveVel[i3 + 1] * damp - 1.6 * dt;
       dissolveVel[i3 + 2] *= damp;
     }
 
     if (!dissolveModelsCleared) {
-      for (const g of dissolveFadeGroups) setGroupOpacity(g, dissolveModelOpSmooth);
       // 十分溶けてから退場側だけ破棄（次ステージは残す）
-      if (dissolveModelOpSmooth <= 0.03 && modelT >= 0.92) {
+      if (dissolveModelOpSmooth <= 0.02 && progress >= 0.78) {
         clearOutgoingDissolveModels();
       }
     }
+
+    applyDissolveOpacities();
 
     paintDissolveGlow(Math.max(0.03, dissolveParticleOpSmooth), progress);
     field.mat.opacity = Math.max(0, Math.min(1, dissolveParticleOpSmooth));
@@ -402,10 +438,8 @@ export function createMorphSequence() {
       if (startNextStageUnderDissolve(nextIndex)) {
         dissolveHandoffDone = true;
         dissolveNextOpSmooth = 0;
+        applyDissolveOpacities();
       }
-    }
-    if (dissolveHandoffDone && dissolveIncomingGroup) {
-      setGroupOpacity(dissolveIncomingGroup, dissolveNextOpSmooth);
     }
 
     if (progress >= 1) {
@@ -787,12 +821,16 @@ export function createMorphSequence() {
         if (phase === 'hold') setFieldVisible(false);
       }
 
-      if (isPetalHold() && flowerBloom) {
-        flowerBloom.update(dt, neutralHoldPointer(pointer), audioData, params);
-      }
-      const bloom = activeBloom();
-      if (isFormBloomHold() && bloom) {
-        bloom.update(dt, neutralHoldPointer(pointer), audioData, params);
+      if (phase === 'dissolve') {
+        updateDissolveBlooms(dt, pointer, audioData, params);
+      } else {
+        if (isPetalHold() && flowerBloom) {
+          flowerBloom.update(dt, neutralHoldPointer(pointer), audioData, params);
+        }
+        const bloom = activeBloom();
+        if (isFormBloomHold() && bloom) {
+          bloom.update(dt, neutralHoldPointer(pointer), audioData, params);
+        }
       }
 
       const boost = pointer?.velocity > 8 && phase === 'morph' ? 1.35 : 1;
@@ -800,10 +838,20 @@ export function createMorphSequence() {
     },
 
     render() {
-      // 溶け込み中は旧モデルも描画してクロスフェードさせる
-      if (phase === 'dissolve' && !dissolveModelsCleared) {
-        if (flowerBloom) flowerBloom.render();
-        for (const slot of Object.values(bloomSlots)) slot.bloom?.render?.();
+      if (phase === 'dissolve') {
+        const fromId = SEQUENCE[dissolveFromIndex]?.id;
+        const toId = dissolveHandoffDone ? currentId() : null;
+        const rendered = new Set();
+        const run = (id) => {
+          if (!id || rendered.has(id)) return;
+          bloomForStageId(id)?.render?.();
+          rendered.add(id);
+        };
+        if (!dissolveModelsCleared) run(fromId);
+        if (dissolveHandoffDone) run(toId);
+        // bloom.render が opacity を戻すため、フェードを最後に再適用
+        applyDissolveOpacities();
+        return;
       }
       if (isPetalHold() && flowerBloom) flowerBloom.render();
       const bloom = activeBloom();

@@ -23,11 +23,11 @@ export const MANUAL_HINT = '30秒で自動切替 · ダブルクリックでも�
 export const MORPH_VIEWPORT_MIN = 200;
 export const DOUBLE_TAP_MS = 520;
 /** ステージ切替：モデル→輝く粒子→次ステージ のクロスフェード時間（秒） */
-export const DISSOLVE_DURATION = 3.5;
+export const DISSOLVE_DURATION = 3.9;
 /** 粒子が残りつつ次ステージを重ね始める進行度 */
-export const DISSOLVE_HANDOFF_AT = 0.34;
-/** モデルが粒子へ溶け切る進行度 */
-export const DISSOLVE_MODEL_FADE_END = 0.48;
+export const DISSOLVE_HANDOFF_AT = 0.24;
+/** モデルが粒子へ溶け切る進行度（長めに重ねて動きを止めない） */
+export const DISSOLVE_MODEL_FADE_END = 0.64;
 
 export const BLOOM_FACTORIES = {
   letter: createLetterXBloom,

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { toWorld, makePoints, rgbToUnit, stratifiedSpawnPoints, primeGrowingMarks, sampleMarksWorld, spreadModelCloudToWorld, spreadScreenCloud, remapScreenMarks, safeViewport, viewportReady, marksNeedRemap, marksOutOfViewport } from '../space3d.js';
+import { toWorld, makePoints, rgbToUnit, stratifiedSpawnPoints, primeGrowingMarks, sampleMarksWorld, spreadModelCloudToWorld, spreadScreenCloud, remapScreenMarks, safeViewport } from '../space3d.js';
 import { sampleAngelCloud } from '../morph/sampleShapes.js';
 import { pickMarkSizeDefault as pickMarkSize } from '../bloom/bloomColors.js';
 import {
@@ -583,13 +583,7 @@ export function createAngelBloom() {
 
     samplePoints(count, vw = width, vh = height) {
       const { w, h } = safeViewport(vw, vh, width, height);
-      if (viewportReady(w, h) && marks.length) {
-        if (!viewportReady(width, height) || marksOutOfViewport(marks, w, h) || marksNeedRemap(marks, w, h, 0.28)) {
-          remapScreenMarks(marks, viewportReady(width, height) ? width : 0, viewportReady(width, height) ? height : 0, w, h);
-        } else if (width !== w || height !== h) {
-          remapScreenMarks(marks, width, height, w, h);
-        }
-      }
+      // サンプリングで marks を動かさない（移行直前の一時停止を防ぐ）
       const angelFallback = (n, cw, ch) =>
         spreadModelCloudToWorld(sampleAngelCloud(n, 130), n, cw, ch, 0.14);
       return sampleMarksWorld(marks, count, w, h, angelFallback, 56);
