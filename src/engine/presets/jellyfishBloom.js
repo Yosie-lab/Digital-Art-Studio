@@ -30,6 +30,8 @@ const JELLY_SPARKLE_COUNT = 190;
 const JELLY_FALL_MAX = 1250;
 const JELLY_PARTICLE_SIZE_SPARKLE = 5.5;
 const JELLY_PARTICLE_SIZE_FALL = 12;
+/** クラゲ本体・背景粒子の上昇速度倍率（天使より控えめ） */
+const JELLY_RISE_MUL = 1.35;
 
 /** 半球の傘（面・ほぼ透明用） */
 export function buildMoonBellGeometry() {
@@ -215,7 +217,7 @@ export function createJellyfishBloom() {
       this.pulseSpeed = 1.15 + Math.random() * 0.55;
       this.spinY = 0.08 + Math.random() * 0.12;
       this.phaseY = Math.random() * Math.PI * 2;
-      this.riseSpeed = 22 + Math.random() * 18;
+      this.riseSpeed = (22 + Math.random() * 18) * JELLY_RISE_MUL;
       this.neonHex = randomJellyCyberHex();
       this.rgb = jellyCyberHexToRgb(this.neonHex);
       this.accentRgb = jellyCyberHexToRgb(pickJellyAccentHex(this.neonHex));
@@ -618,7 +620,7 @@ export function createJellyfishBloom() {
       if (shards.length > JELLY_FALL_MAX) shards.splice(0, shards.length - JELLY_FALL_MAX);
 
       sparkles.forEach((s) => {
-        s.y += s.speedY * (params.speed || 1) * 50 * dt;
+        s.y += s.speedY * (params.speed || 1) * 50 * JELLY_RISE_MUL * dt;
         s.x += Math.sin(time * 1.2 + s.phase) * 0.2;
         if (s.y < -10) {
           s.y = height + 10;
