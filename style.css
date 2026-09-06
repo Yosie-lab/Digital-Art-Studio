@@ -437,6 +437,13 @@ body {
   transform: scale(0.96);
 }
 
+.text-hint {
+  margin-top: 8px;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
 /* ---------- スライダー ---------- */
 .slider-group { margin-bottom: 12px; }
 .slider-group:last-child { margin-bottom: 0; }
