@@ -1,7 +1,25 @@
 import * as THREE from 'three';
 import { getPaletteColors, hexToRgb } from '../palettes.js';
-import { toWorld, makePoints, rgbToUnit, clearGroup } from '../space3d.js';
+import { makePoints, rgbToUnit, clearGroup } from '../space3d.js';
 import { SimplexNoise } from '../../utils/noise.js';
+
+/**
+ * Fluid Words プリセット (Fluid-001 オリジナルスタイル完全準拠)
+ * - 指やマウスでなぞると、星屑の光彩粒子（パーティクル）が帯状にきらめきながら軌跡を描く
+ * - 書いた文字は約 4秒間（約2.8秒保持 + 1.4秒消散）で優美に宇宙へ溶けて消える
+ * - 初期文字（光）は出さず、静謐な宇宙空間からスタート
+ * - 単語タグを押した時のみ、中央にその文字が星屑として美しく咲き出す
+ */
+// レイヤー種別の定義
+const LAYER_CORE = 0;    // コア星屑（眩い発光中心）
+const LAYER_DUST = 1;    // 中間星屑ダスト（鮮やかなパレット色）
+const LAYER_GLITTER = 2; // 外縁グリッター（淡く瞬く星の粉）
+
+// 定数定義
+const MAX_PARTICLES = 16000; // 星屑クラスター大容量プール
+const MAX_RIPPLES = 24;
+const DEFAULT_HOLD_DURATION = 2.8;     // 文字維持時間（秒）
+const DEFAULT_DISSOLVE_DURATION = 1.4; // 優雅な消散時間（秒）
 
 /**
  * Fluid Words プリセット (Fluid-001 オリジナルスタイル完全準拠)
@@ -13,6 +31,8 @@ import { SimplexNoise } from '../../utils/noise.js';
 export function createFluidWords() {
   let width = 0;
   let height = 0;
+  let halfWidth = 0;
+  let halfHeight = 0;
   let time = 0;
   let currentPalette = 'rainbow';
   let particleField = null;
@@ -22,11 +42,22 @@ export function createFluidWords() {
   const _color = new THREE.Color();
   const noise = new SimplexNoise();
 
-  const MAX_PARTICLES = 16000; // 星屑クラスターを余裕で受容する大容量プール
-  const MAX_RIPPLES = 24;
+  let holdDuration = DEFAULT_HOLD_DURATION;
+  let dissolveDuration = DEFAULT_DISSOLVE_DURATION;
 
-  let holdDuration = 2.8; // 約2.8秒間は文字の形状をしっかりと維持（読める）
-  let dissolveDuration = 1.4; // その後1.4秒かけて優雅に消散（合計約4.2秒）
+  // パレットRGBキャッシュ (フレームごとのGC発生をゼロにする)
+  let cachedPaletteName = '';
+  let cachedRgbUnits = [];
+
+  function updatePaletteCache(paletteName) {
+    if (paletteName === cachedPaletteName && cachedRgbUnits.length > 0) return;
+    cachedPaletteName = paletteName;
+    const colors = getPaletteColors(paletteName);
+    cachedRgbUnits = colors.map((hex) => {
+      const rgb = hexToRgb(hex);
+      return rgbToUnit(rgb);
+    });
+  }
 
   // パーティクルプール
   const particles = [];
@@ -66,14 +97,14 @@ export function createFluidWords() {
       this.maxLife = 4.2;
       this.size = 5.0;
       this.colorIdx = 0;
-      this.layerType = 0; // 0: コア, 1: 星屑ダスト, 2: 外縁グリッター
+      this.layerType = LAYER_CORE;
       this.active = false;
       this.noiseOffset = Math.random() * 1000;
       this.twinkleSpeed = 4.0 + Math.random() * 10.0;
       this.twinkleOffset = Math.random() * 6.28;
     }
 
-    spawn(x, y, z, colorIdx, layerType = 0, size = 5.0, life = null) {
+    spawn(x, y, z, colorIdx, layerType = LAYER_CORE, size = 5.0, life = null) {
       this.x = x;
       this.y = y;
       this.z = z;
@@ -105,7 +136,7 @@ export function createFluidWords() {
       }
 
       if (this.age < holdDuration) {
-        // 【文字維持フェーズ（約2.8秒）】位置をしっかりキープし、読める状態を確保
+        // 【文字維持フェーズ】位置を完全固定し、読める状態をキープ
         this.x = this.baseX;
         this.y = this.baseY;
         this.z = this.baseZ;
@@ -113,7 +144,7 @@ export function createFluidWords() {
         this.vy = 0;
         this.vz = 0;
       } else {
-        // 【消散フェーズ（約1.4秒）】流体ノイズによって優雅に宇宙へ溶けて消える
+        // 【消散フェーズ】宇宙ノイズ流体によって優雅に宇宙へ溶けて消える
         const dissolveAge = this.age - holdDuration;
         const dissolveRatio = Math.min(1.0, dissolveAge / dissolveDuration);
 
@@ -201,7 +232,7 @@ export function createFluidWords() {
         const px = cx + nx * spread + (Math.random() - 0.5) * 3.0;
         const py = cy + ny * spread + (Math.random() - 0.5) * 3.0;
         const pz = (Math.random() - 0.5) * 8.0;
-        spawnParticle(px, py, pz, colorIdx, 0, 5.2 + Math.random() * 2.2);
+        spawnParticle(px, py, pz, colorIdx, LAYER_CORE, 5.2 + Math.random() * 2.2);
       }
 
       // 2. 中間星屑ダスト（パレット色で周囲を彩る星屑群）: 2〜3個
@@ -211,7 +242,7 @@ export function createFluidWords() {
         const px = cx + nx * spread + (Math.random() - 0.5) * 5.0;
         const py = cy + ny * spread + (Math.random() - 0.5) * 5.0;
         const pz = (Math.random() - 0.5) * 14.0;
-        spawnParticle(px, py, pz, colorIdx, 1, 3.2 + Math.random() * 1.8);
+        spawnParticle(px, py, pz, colorIdx, LAYER_DUST, 3.2 + Math.random() * 1.8);
       }
 
       // 3. 外縁グリッター（微細に瞬く星の粉）: 1〜2個
@@ -220,7 +251,7 @@ export function createFluidWords() {
         const px = cx + nx * spread + (Math.random() - 0.5) * 6.0;
         const py = cy + ny * spread + (Math.random() - 0.5) * 6.0;
         const pz = (Math.random() - 0.5) * 20.0;
-        spawnParticle(px, py, pz, colorIdx, 2, 1.8 + Math.random() * 1.5);
+        spawnParticle(px, py, pz, colorIdx, LAYER_GLITTER, 1.8 + Math.random() * 1.5);
       }
     }
   }
@@ -292,8 +323,8 @@ export function createFluidWords() {
       const pz = (Math.random() - 0.5) * 20;
 
       const colorIdx = Math.floor((i / countToSpawn) * 8);
-      const layerType = (i % 3 === 0) ? 0 : ((i % 3 === 1) ? 1 : 2);
-      const sz = layerType === 0 ? 5.5 : (layerType === 1 ? 3.8 : 2.2);
+      const layerType = (i % 3 === 0) ? LAYER_CORE : ((i % 3 === 1) ? LAYER_DUST : LAYER_GLITTER);
+      const sz = layerType === LAYER_CORE ? 5.5 : (layerType === LAYER_DUST ? 3.8 : 2.2);
       spawnParticle(targetX, targetY, pz, colorIdx, layerType, sz);
     }
 
@@ -323,7 +354,10 @@ export function createFluidWords() {
     init(w, h, params, group) {
       width = w;
       height = h;
+      halfWidth = w * 0.5;
+      halfHeight = h * 0.5;
       currentPalette = params?.palette || 'rainbow';
+      updatePaletteCache(currentPalette);
 
       // 粒子プール初期化
       particles.length = 0;
@@ -363,7 +397,10 @@ export function createFluidWords() {
 
     update(dt, pointer, audioData, params) {
       time += dt;
-      currentPalette = params.palette || currentPalette;
+      if (params.palette && params.palette !== currentPalette) {
+        currentPalette = params.palette;
+        updatePaletteCache(currentPalette);
+      }
       const bass = audioData?.volume || 0;
       const speed = params.speed ?? 1.0;
 
@@ -400,17 +437,19 @@ export function createFluidWords() {
     render(_layer, _w, _h, params) {
       if (!particleField) return;
 
-      const paletteColors = getPaletteColors(currentPalette);
-      const paletteRgbList = paletteColors.map(hexToRgb);
+      updatePaletteCache(currentPalette);
+      const paletteRgbList = cachedRgbUnits;
+      const palCount = paletteRgbList.length || 1;
 
-      // 1. パーティクルバッファの書き込み
+      // 1. パーティクルバッファの高速書き込み（GCアロケーション完全ゼロ）
       let renderedCount = 0;
+      const posBuf = particleField.positions;
+      const colBuf = particleField.colors;
+
       for (let i = 0; i < MAX_PARTICLES; i++) {
         const p = particles[i];
         if (p.active && p.life > 0) {
-          const wpos = toWorld(p.x, p.y, p.z, width, height);
-          const rgb = paletteRgbList[p.colorIdx % paletteRgbList.length];
-          const [r, g, b] = rgbToUnit(rgb);
+          const [r, g, b] = paletteRgbList[p.colorIdx % palCount];
 
           // 約2.8秒間は 100% 鮮明に維持、その後1.4秒かけて優雅にフェードアウト
           let alpha = 1.0;
@@ -423,27 +462,29 @@ export function createFluidWords() {
           const twinkle = 0.78 + 0.22 * Math.sin(time * p.twinkleSpeed + p.twinkleOffset);
           const finalAlpha = alpha * twinkle;
 
-          particleField.positions[renderedCount * 3] = wpos.x;
-          particleField.positions[renderedCount * 3 + 1] = wpos.y;
-          particleField.positions[renderedCount * 3 + 2] = wpos.z;
+          const baseIdx = renderedCount * 3;
+          // インラインワールド座標変換（Vector3 インスタンス生成を根絶）
+          posBuf[baseIdx] = p.x - halfWidth;
+          posBuf[baseIdx + 1] = halfHeight - p.y;
+          posBuf[baseIdx + 2] = p.z;
 
-          if (p.layerType === 0) {
+          if (p.layerType === LAYER_CORE) {
             // コア星屑粒子: 眩いネオンホワイト + パレット色のハイライト
             const core = 0.45 * finalAlpha;
-            particleField.colors[renderedCount * 3] = Math.min(1.0, r * finalAlpha * 0.7 + core);
-            particleField.colors[renderedCount * 3 + 1] = Math.min(1.0, g * finalAlpha * 0.7 + core);
-            particleField.colors[renderedCount * 3 + 2] = Math.min(1.0, b * finalAlpha * 0.7 + core);
-          } else if (p.layerType === 1) {
+            colBuf[baseIdx] = Math.min(1.0, r * finalAlpha * 0.7 + core);
+            colBuf[baseIdx + 1] = Math.min(1.0, g * finalAlpha * 0.7 + core);
+            colBuf[baseIdx + 2] = Math.min(1.0, b * finalAlpha * 0.7 + core);
+          } else if (p.layerType === LAYER_DUST) {
             // 中間星屑ダスト: 鮮やかなパレットカラーの星屑
             const core = 0.15 * finalAlpha;
-            particleField.colors[renderedCount * 3] = Math.min(1.0, r * finalAlpha + core);
-            particleField.colors[renderedCount * 3 + 1] = Math.min(1.0, g * finalAlpha + core);
-            particleField.colors[renderedCount * 3 + 2] = Math.min(1.0, b * finalAlpha + core);
+            colBuf[baseIdx] = Math.min(1.0, r * finalAlpha + core);
+            colBuf[baseIdx + 1] = Math.min(1.0, g * finalAlpha + core);
+            colBuf[baseIdx + 2] = Math.min(1.0, b * finalAlpha + core);
           } else {
             // 外縁グリッター: 淡くきらめく星の粉
-            particleField.colors[renderedCount * 3] = r * finalAlpha * 0.65;
-            particleField.colors[renderedCount * 3 + 1] = g * finalAlpha * 0.65;
-            particleField.colors[renderedCount * 3 + 2] = b * finalAlpha * 0.65;
+            colBuf[baseIdx] = r * finalAlpha * 0.65;
+            colBuf[baseIdx + 1] = g * finalAlpha * 0.65;
+            colBuf[baseIdx + 2] = b * finalAlpha * 0.65;
           }
 
           renderedCount++;
@@ -460,15 +501,13 @@ export function createFluidWords() {
         const ringCount = Math.min(shockwaves.length, MAX_RIPPLES);
         for (let i = 0; i < ringCount; i++) {
           const sw = shockwaves[i];
-          const pos = toWorld(sw.x, sw.y, 0, width, height);
-          dummy.position.copy(pos);
+          dummy.position.set(sw.x - halfWidth, halfHeight - sw.y, 0);
           dummy.rotation.set(0, 0, 0);
           dummy.scale.set(sw.radius, sw.radius, 1);
           dummy.updateMatrix();
           rippleMesh.setMatrixAt(i, dummy.matrix);
 
-          const mainCol = paletteRgbList[i % paletteRgbList.length];
-          const [cr, cg, cb] = rgbToUnit(mainCol);
+          const [cr, cg, cb] = paletteRgbList[i % palCount];
           _color.setRGB(cr, cg, cb).multiplyScalar(sw.opacity * 0.85);
           rippleMesh.setColorAt(i, _color);
         }
@@ -487,13 +526,15 @@ export function createFluidWords() {
       // タップした瞬間にも星屑クラスターを散布
       for (let i = 0; i < 8; i++) {
         const spread = (Math.random() - 0.5) * 14;
+        const layerType = i < 3 ? LAYER_CORE : LAYER_DUST;
+        const sz = i < 3 ? 5.8 : 3.4;
         spawnParticle(
           x + spread,
           y + (Math.random() - 0.5) * 14,
           (Math.random() - 0.5) * 10,
           strokeColorSeed,
-          i < 3 ? 0 : 1,
-          i < 3 ? 5.8 : 3.4
+          layerType,
+          sz
         );
       }
       shockwaves.push(new CosmicRipple(x, y, 65));
@@ -519,6 +560,7 @@ export function createFluidWords() {
       if (!p) return;
       if (p.palette) {
         currentPalette = p.palette;
+        updatePaletteCache(currentPalette);
       }
       if (p.trail !== undefined) {
         // trailスライダーで消える時間を 2秒〜8秒程度に調整可能
@@ -538,6 +580,8 @@ export function createFluidWords() {
     resize(w, h) {
       width = w;
       height = h;
+      halfWidth = w * 0.5;
+      halfHeight = h * 0.5;
     },
 
     clear() {
