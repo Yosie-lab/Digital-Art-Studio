@@ -437,6 +437,30 @@ body {
   transform: scale(0.96);
 }
 
+.btn-clear-canvas {
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(255, 70, 70, 0.15);
+  border: 1px solid rgba(255, 100, 100, 0.35);
+  color: #ff9999;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--transition);
+}
+
+.btn-clear-canvas:hover {
+  background: rgba(255, 70, 70, 0.3);
+  border-color: rgba(255, 120, 120, 0.6);
+  color: #ffffff;
+  transform: scale(1.03);
+}
+
+.btn-clear-canvas:active {
+  transform: scale(0.96);
+}
+
 .text-hint {
   margin-top: 8px;
   font-size: 10.5px;

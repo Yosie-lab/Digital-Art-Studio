@@ -153,6 +153,14 @@ if (btnWordApply && customWordInput) {
   });
 }
 
+const btnClearCanvas = document.getElementById('btnClearCanvas');
+if (btnClearCanvas) {
+  btnClearCanvas.addEventListener('click', () => {
+    document.querySelector('.word-tag.active')?.classList.remove('active');
+    engine.setParams({ clear: true });
+  });
+}
+
 /* ============================================================
    オーディオ連動
    ============================================================ */

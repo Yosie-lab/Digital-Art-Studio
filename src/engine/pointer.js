@@ -65,6 +65,12 @@ export function bindCanvasPointer(canvas, pointer, handlers) {
     pointer.isDown = false;
     handlers.onPointerUp?.(pointer);
   }, { passive: false });
+
+  canvas.addEventListener('touchcancel', (e) => {
+    e.preventDefault();
+    pointer.isDown = false;
+    handlers.onPointerUp?.(pointer);
+  }, { passive: false });
 }
 
 /** hold 中 bloom へ pointer 速度・タップ座標を渡さない */
