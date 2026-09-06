@@ -59,6 +59,10 @@
       <span class="preset-icon">🌌</span>
       <span class="preset-name">Spacey Bloom</span>
     </button>
+    <button class="preset-btn" data-preset="fluidWords">
+      <span class="preset-icon">💧</span>
+      <span class="preset-name">Fluid Words</span>
+    </button>
     <button class="preset-btn" data-preset="fluidAurora">
       <span class="preset-icon">🌊</span>
       <span class="preset-name">Fluid Aurora</span>
@@ -109,6 +113,30 @@
           <label for="customColor">カスタム</label>
           <input type="color" id="customColor" value="#ff5cf0">
         </div>
+        </div>
+      </section>
+
+      <!-- テキスト設定 (Fluid Words用) -->
+      <section class="control-section" id="textSection">
+        <h3>
+          <button type="button" class="section-toggle" id="textToggle" aria-expanded="true">
+            🔤 テキスト設定
+          </button>
+        </h3>
+        <div class="section-body" id="textBody">
+          <div class="word-presets" id="wordPresets">
+            <button type="button" class="word-tag active" data-word="光">光</button>
+            <button type="button" class="word-tag" data-word="Bloom">Bloom</button>
+            <button type="button" class="word-tag" data-word="夢">夢</button>
+            <button type="button" class="word-tag" data-word="Flow">Flow</button>
+            <button type="button" class="word-tag" data-word="宙">宙</button>
+            <button type="button" class="word-tag" data-word="Cosmos">Cosmos</button>
+            <button type="button" class="word-tag" data-word="波">波</button>
+          </div>
+          <div class="custom-word-row">
+            <input type="text" id="customWordInput" placeholder="文字を入力 (例: 愛, ART)" maxlength="8">
+            <button type="button" class="btn-word-apply" id="btnWordApply">反映</button>
+          </div>
         </div>
       </section>
 

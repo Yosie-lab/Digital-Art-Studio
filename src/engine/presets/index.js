@@ -5,6 +5,7 @@ import { createCrystalDust } from './crystalDust.js';
 import { createKaleidoPrism } from './kaleidoPrism.js';
 import { createInteractiveRipples } from './interactiveRipples.js';
 import { createSpaceyBloom } from './spaceyBloom.js';
+import { createFluidWords } from './fluidWords.js';
 import { createLetterXBloom } from './letterXBloom.js';
 import { createJellyfishBloom } from './jellyfishBloom.js';
 import { createButterflyBloom } from './butterflyBloom.js';
@@ -26,6 +27,7 @@ import {
 export const UI_PRESET_FACTORIES = {
   morphSequence: createMorphSequence,
   spaceyBloom: createSpaceyBloom,
+  fluidWords: createFluidWords,
   fluidAurora: createFluidAurora,
   crystalDust: createCrystalDust,
   kaleidoPrism: createKaleidoPrism,
@@ -49,6 +51,7 @@ export const INTERNAL_PRESET_FACTORIES = {
 export {
   createFlowerBloom,
   createSpaceyBloom,
+  createFluidWords,
   createMorphSequence,
   createFluidAurora,
   createCrystalDust,

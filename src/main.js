@@ -96,6 +96,64 @@ if (customColorInput) {
 }
 
 /* ============================================================
+   テキスト設定 (Fluid Words)
+   ============================================================ */
+const textSection = document.getElementById('textSection');
+const textToggle = document.getElementById('textToggle');
+if (textToggle && textSection) {
+  textToggle.addEventListener('click', () => {
+    const collapsed = textSection.classList.toggle('is-collapsed');
+    textToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  });
+}
+
+const wordTags = document.querySelectorAll('.word-tag');
+const customWordInput = document.getElementById('customWordInput');
+const btnWordApply = document.getElementById('btnWordApply');
+
+function setFluidWord(word) {
+  if (!word) return;
+
+  // Fluid Words が未選択なら自動で切り替え
+  if (currentPreset !== 'fluidWords') {
+    document.querySelector('.preset-btn.active')?.classList.remove('active');
+    const fluidBtn = document.querySelector('.preset-btn[data-preset="fluidWords"]');
+    fluidBtn?.classList.add('active');
+    currentPreset = 'fluidWords';
+    engine.setPreset(PRESET_FACTORIES['fluidWords']());
+  }
+
+  engine.setParams({ customText: word });
+}
+
+wordTags.forEach(tag => {
+  tag.addEventListener('click', () => {
+    document.querySelector('.word-tag.active')?.classList.remove('active');
+    tag.classList.add('active');
+    const word = tag.dataset.word;
+    if (customWordInput) customWordInput.value = '';
+    setFluidWord(word);
+  });
+});
+
+if (btnWordApply && customWordInput) {
+  const applyCustomWord = () => {
+    const val = customWordInput.value.trim();
+    if (val) {
+      document.querySelector('.word-tag.active')?.classList.remove('active');
+      setFluidWord(val);
+    }
+  };
+
+  btnWordApply.addEventListener('click', applyCustomWord);
+  customWordInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      applyCustomWord();
+    }
+  });
+}
+
+/* ============================================================
    オーディオ連動
    ============================================================ */
 const btnAudio = document.getElementById('btnAudio');
