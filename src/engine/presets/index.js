@@ -4,6 +4,7 @@ import { createFluidAurora } from './fluidAurora.js';
 import { createCrystalDust } from './crystalDust.js';
 import { createKaleidoPrism } from './kaleidoPrism.js';
 import { createInteractiveRipples } from './interactiveRipples.js';
+import { createSpaceyBloom } from './spaceyBloom.js';
 import { createLetterXBloom } from './letterXBloom.js';
 import { createJellyfishBloom } from './jellyfishBloom.js';
 import { createButterflyBloom } from './butterflyBloom.js';
@@ -24,6 +25,7 @@ import {
 /** UI から直接選択可能なプリセット */
 export const UI_PRESET_FACTORIES = {
   morphSequence: createMorphSequence,
+  spaceyBloom: createSpaceyBloom,
   fluidAurora: createFluidAurora,
   crystalDust: createCrystalDust,
   kaleidoPrism: createKaleidoPrism,
@@ -46,6 +48,7 @@ export const INTERNAL_PRESET_FACTORIES = {
 
 export {
   createFlowerBloom,
+  createSpaceyBloom,
   createMorphSequence,
   createFluidAurora,
   createCrystalDust,
