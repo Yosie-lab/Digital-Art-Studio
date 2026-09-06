@@ -21,8 +21,11 @@ export function createFluidWords() {
   const _color = new THREE.Color();
   const noise = new SimplexNoise();
 
-  const MAX_PARTICLES = 3200; // たくさんの文字・画数を書ける大容量プール
+  const MAX_PARTICLES = 16000; // 長文や複数文字も絶対に上書きされない大容量プール
   const MAX_RIPPLES = 24;
+
+  let holdDuration = 45.0; // デフォルトで45秒間は1ミリも形を崩さず100%鮮明に完全静止キープ（じっくり読める）
+  const DISSOLVE_DURATION = 10.0; // 保持時間終了後、10秒かけて星屑のように優美に昇華
 
   // パーティクルプール
   const particles = [];
@@ -56,24 +59,28 @@ export function createFluidWords() {
       this.vz = 0;
       this.baseX = 0;
       this.baseY = 0;
+      this.baseZ = 0;
+      this.age = 0;
       this.life = 0;
-      this.maxLife = 12.0; // 約12秒間ゆっくりと美しく残る
-      this.size = 4.0;
+      this.maxLife = 25.0;
+      this.size = 5.6;
       this.colorIdx = 0;
       this.active = false;
       this.noiseOffset = Math.random() * 1000;
       this.glow = 1.0;
     }
 
-    spawn(x, y, z, vx, vy, colorIdx, life = 12.0, size = 4.5) {
+    spawn(x, y, z, colorIdx, life = 25.0, size = 5.6) {
       this.x = x;
       this.y = y;
       this.z = z;
       this.baseX = x;
       this.baseY = y;
-      this.vx = vx;
-      this.vy = vy;
-      this.vz = (Math.random() - 0.5) * 10;
+      this.baseZ = z;
+      this.vx = 0;
+      this.vy = 0;
+      this.vz = 0;
+      this.age = 0;
       this.life = life;
       this.maxLife = life;
       this.size = size;
@@ -85,38 +92,45 @@ export function createFluidWords() {
     update(dt, speed, audioBass) {
       if (!this.active) return;
 
+      this.age += dt;
       this.life -= dt;
       if (this.life <= 0) {
         this.active = false;
         return;
       }
 
-      // 1. 生成位置付近に留まるアンカー力（文字の形を崩しすぎない）
-      const ddx = this.baseX - this.x;
-      const ddy = this.baseY - this.y;
-      this.vx += ddx * 0.45 * dt;
-      this.vy += ddy * 0.45 * dt;
+      if (this.age < holdDuration) {
+        // 【完全静止フェーズ】書いた通りの位置に1ミリも狂わず完全固定！誰でもハッキリ読める
+        this.x = this.baseX;
+        this.y = this.baseY;
+        this.z = this.baseZ;
+        this.vx = 0;
+        this.vy = 0;
+        this.vz = 0;
+      } else {
+        // 【昇華フェーズ】保持期間経過後、ゆっくりと星屑のように優雅にたなびいて消散
+        const dissolveAge = this.age - holdDuration;
+        const dissolveRatio = Math.min(1.0, dissolveAge / DISSOLVE_DURATION);
 
-      // 2. 微細な流体ノイズ（オーロラや水流のような穏やかな揺らめき）
-      const angle = noise.noise2D(
-        this.x * 0.0035,
-        this.y * 0.0035 + time * 0.2 + this.noiseOffset
-      ) * Math.PI * 2;
-      const flowMag = (18 + audioBass * 45) * speed;
-      this.vx += Math.cos(angle) * flowMag * dt;
-      this.vy += Math.sin(angle) * flowMag * dt;
-      this.vz += Math.sin(angle * 1.5) * (flowMag * 0.3) * dt;
+        const angle = noise.noise2D(
+          this.x * 0.002,
+          this.y * 0.002 + time * 0.1 + this.noiseOffset
+        ) * Math.PI * 2;
 
-      // 3. 速度減衰（粘性・流体の摩擦）
-      const damping = Math.pow(0.92, dt * 60);
-      this.vx *= damping;
-      this.vy *= damping;
-      this.vz *= damping;
+        const flowMag = (10 + audioBass * 20) * speed * dissolveRatio;
+        this.vx += Math.cos(angle) * flowMag * dt;
+        this.vy += Math.sin(angle) * flowMag * dt - 6 * dt; // ほんのり上空へ昇華
+        this.vz += Math.sin(angle * 1.5) * (flowMag * 0.2) * dt;
 
-      // 4. 位置更新
-      this.x += this.vx * dt;
-      this.y += this.vy * dt;
-      this.z += this.vz * dt;
+        const damping = Math.pow(0.95, dt * 60);
+        this.vx *= damping;
+        this.vy *= damping;
+        this.vz *= damping;
+
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        this.z += this.vz * dt;
+      }
     }
   }
 
@@ -140,10 +154,11 @@ export function createFluidWords() {
     }
   }
 
-  /** プールから1つの粒子をスポーン */
-  function spawnParticle(x, y, z, vx, vy, colorIdx, life = 12.0, size = 4.5) {
+  /** プールから1つの粒子をスポーン（初速ゼロでピタッと留まる） */
+  function spawnParticle(x, y, z, colorIdx, life = null, size = 5.6) {
     const p = particles[particleHead];
-    p.spawn(x, y, z, vx, vy, colorIdx, life, size);
+    const particleLife = life !== null ? life : (holdDuration > 1000 ? 999999 : (holdDuration + DISSOLVE_DURATION));
+    p.spawn(x, y, z, colorIdx, particleLife, size);
     particleHead = (particleHead + 1) % MAX_PARTICLES;
     if (activeParticleCount < MAX_PARTICLES) {
       activeParticleCount++;
@@ -157,22 +172,18 @@ export function createFluidWords() {
     const dist = Math.hypot(dx, dy);
     if (dist < 0.5) return;
 
-    // 2.5〜3.5pxごとに高密度にスポーンして線の切れ目をなくす
-    const step = 3.2;
+    // 3.0px刻みで滑らかかつ効率的にスポーン（線の途切れがなく、容量も長持ち）
+    const step = 3.0;
     const count = Math.max(1, Math.ceil(dist / step));
     const invCount = 1 / count;
 
     for (let i = 1; i <= count; i++) {
       const t = i * invCount;
-      const px = x1 + dx * t + (Math.random() - 0.5) * 3.5;
-      const py = y1 + dy * t + (Math.random() - 0.5) * 3.5;
-      const pz = (Math.random() - 0.5) * 12;
+      const px = x1 + dx * t + (Math.random() - 0.5) * 1.5;
+      const py = y1 + dy * t + (Math.random() - 0.5) * 1.5;
+      const pz = (Math.random() - 0.5) * 6;
 
-      // 指の進行方向に少しだけ初速を与える
-      const vx = (dx * 0.4 + (Math.random() - 0.5) * 15);
-      const vy = (dy * 0.4 + (Math.random() - 0.5) * 15);
-
-      spawnParticle(px, py, pz, vx, vy, colorIdx, 11.0 + Math.random() * 4.0, 4.0 + Math.random() * 2.0);
+      spawnParticle(px, py, pz, colorIdx, null, 5.6 + Math.random() * 1.0);
     }
   }
 
@@ -240,15 +251,10 @@ export function createFluidWords() {
       const pt = rawCoords[idx];
       const targetX = width * 0.5 + (pt.x - textCenterX) * scale;
       const targetY = height * 0.5 + (pt.y - textCenterY) * scale;
-
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 20 + Math.random() * 60;
-      const vx = Math.cos(angle) * speed;
-      const vy = Math.sin(angle) * speed;
-      const pz = (Math.random() - 0.5) * 30;
+      const pz = (Math.random() - 0.5) * 20;
 
       const colorIdx = Math.floor((i / countToSpawn) * 8);
-      spawnParticle(targetX, targetY, pz, vx, vy, colorIdx, 14.0 + Math.random() * 5.0, 4.2 + Math.random() * 2.0);
+      spawnParticle(targetX, targetY, pz, colorIdx, null, 4.8 + Math.random() * 1.2);
     }
 
     if (triggerRipple) {
@@ -264,7 +270,7 @@ export function createFluidWords() {
         const force = 180 + Math.random() * 250;
         p.vx += Math.cos(angle) * force;
         p.vy += Math.sin(angle) * force;
-        p.life = Math.min(p.life, 1.2); // 1.2秒で速やかに消散
+        p.life = Math.min(p.life, 1.0); // 1秒で速やかに消散
       }
     }
     shockwaves.push(new CosmicRipple(width * 0.5, height * 0.5, 450));
@@ -272,6 +278,7 @@ export function createFluidWords() {
 
   return {
     name: 'fluidWords',
+    noLayerRotation: true,
 
     init(w, h, params, group) {
       width = w;
@@ -333,24 +340,11 @@ export function createFluidWords() {
         }
       }
 
-      // 2. 粒子の物理更新
+      // 2. 粒子の物理更新（保持期間中は文字を完全固定、その後ゆっくり昇華）
       for (let i = 0; i < MAX_PARTICLES; i++) {
         const p = particles[i];
         if (p.active) {
           p.update(dt, speed, bass);
-
-          // なぞり中以外のポインター接近による流体反発（指で触って遊ぶ）
-          if (!isDown) {
-            const pdx = pointer.x - p.x;
-            const pdy = pointer.y - p.y;
-            const pd2 = pdx * pdx + pdy * pdy;
-            if (pd2 < 140 * 140 && pd2 > 1) {
-              const pDist = Math.sqrt(pd2);
-              const push = (1 - pDist / 140) * 160 * dt;
-              p.vx -= (pdx / pDist) * push * 60;
-              p.vy -= (pdy / pDist) * push * 60;
-            }
-          }
         }
       }
 
@@ -379,16 +373,19 @@ export function createFluidWords() {
           const rgb = paletteRgbList[p.colorIdx % paletteRgbList.length];
           const [r, g, b] = rgbToUnit(rgb);
 
-          // ライフタイムに応じた滑らかなフェードアウト
-          const lifeRatio = p.life / p.maxLife;
-          const alpha = Math.min(1.0, Math.sin(Math.min(1.0, lifeRatio * 1.5) * Math.PI * 0.5));
+          // 保持期間（holdDuration）中は 100% 鮮明に維持、保持期間終了後に滑らかにフェードアウト
+          let alpha = 1.0;
+          if (p.age > holdDuration) {
+            const dissolveRatio = Math.min(1.0, (p.age - holdDuration) / DISSOLVE_DURATION);
+            alpha = Math.max(0, 1.0 - dissolveRatio);
+          }
 
           particleField.positions[renderedCount * 3] = wpos.x;
           particleField.positions[renderedCount * 3 + 1] = wpos.y;
           particleField.positions[renderedCount * 3 + 2] = wpos.z;
 
           // ネオンホワイトコア + 鮮烈なオーロラグロー
-          const core = 0.22 * alpha;
+          const core = 0.25 * alpha;
           particleField.colors[renderedCount * 3] = Math.min(1.0, r * alpha + core);
           particleField.colors[renderedCount * 3 + 1] = Math.min(1.0, g * alpha + core);
           particleField.colors[renderedCount * 3 + 2] = Math.min(1.0, b * alpha + core);
@@ -431,22 +428,18 @@ export function createFluidWords() {
       lastY = y;
       strokeColorSeed = Math.floor(Math.random() * 8);
 
-      // タップしたその瞬間に光の粒子コアを生成
-      for (let i = 0; i < 14; i++) {
-        const a = Math.random() * Math.PI * 2;
-        const spd = 10 + Math.random() * 40;
+      // タップしたその瞬間に光の粒子コアを静止配置
+      for (let i = 0; i < 6; i++) {
         spawnParticle(
-          x + (Math.random() - 0.5) * 6,
-          y + (Math.random() - 0.5) * 6,
-          (Math.random() - 0.5) * 8,
-          Math.cos(a) * spd,
-          Math.sin(a) * spd,
+          x + (Math.random() - 0.5) * 2.5,
+          y + (Math.random() - 0.5) * 2.5,
+          (Math.random() - 0.5) * 4,
           strokeColorSeed,
-          12.0 + Math.random() * 3.0,
-          5.0 + Math.random() * 2.0
+          null,
+          5.6 + Math.random() * 1.0
         );
       }
-      shockwaves.push(new CosmicRipple(x, y, 70));
+      shockwaves.push(new CosmicRipple(x, y, 65));
     },
 
     onPointerMove(x, y) {
@@ -470,6 +463,10 @@ export function createFluidWords() {
       if (!p) return;
       if (p.palette) {
         currentPalette = p.palette;
+      }
+      if (p.trail !== undefined) {
+        // trailスライダー: 0〜0.85で15秒〜90秒、0.85以上で消去するまで無限キープ
+        holdDuration = p.trail >= 0.85 ? 999999 : (15.0 + p.trail * 75.0);
       }
       if (p.customText !== undefined && p.customText !== null) {
         dropWordText(p.customText, true);

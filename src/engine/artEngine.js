@@ -211,8 +211,12 @@ export class ArtEngine {
       if (applied) this._resize();
     }
 
-    this.layer.rotation.y = Math.sin(this._elapsed * 0.17) * 0.28;
-    this.layer.rotation.x = Math.sin(this._elapsed * 0.11) * 0.1;
+    if (this.activePreset?.noLayerRotation) {
+      this.layer.rotation.set(0, 0, 0);
+    } else {
+      this.layer.rotation.y = Math.sin(this._elapsed * 0.17) * 0.28;
+      this.layer.rotation.x = Math.sin(this._elapsed * 0.11) * 0.1;
+    }
 
     this.starfield?.update?.(dt, this.pointer, this.width, this.height);
 
